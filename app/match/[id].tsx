@@ -9,7 +9,7 @@ import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import { SocialSharePreview } from '../../components/ai/SocialSharePreview';
 import FullLogModal from '../../components/FullLogModal';
 import StatsModal from '../../components/StatsModal';
-import { GeminiService } from '../../services/ai/GeminiService';
+import { AIError, GeminiService } from '../../services/ai/GeminiService';
 import { useDataStore } from '../../store/useDataStore';
 
 export default function MatchDetailScreen() {
@@ -25,12 +25,14 @@ export default function MatchDetailScreen() {
     const [showLog, setShowLog] = useState(false);
     const [showStats, setShowStats] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [failedPrompt, setFailedPrompt] = useState<string | undefined>(undefined);
     const [showShareModal, setShowShareModal] = useState(false);
     const viewShotRef = useRef<ViewShot>(null);
 
     const handleGenerateAI = async () => {
         if (!match) return;
         setIsGenerating(true);
+        setFailedPrompt(undefined);
         try {
             const service = new GeminiService();
             const mockState = {
@@ -56,9 +58,14 @@ export default function MatchDetailScreen() {
             const updatedMatch = { ...match, aiNarrative: narrative };
             useDataStore.getState().saveMatchRecord(updatedMatch);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            Alert.alert("AI Error", "Failed to generate analysis. Check your connection or API Key.");
+            if (error instanceof AIError) {
+                setFailedPrompt(error.prompt);
+                Alert.alert("AI Error", error.message);
+            } else {
+                Alert.alert("AI Error", "Failed to generate analysis. Check your connection or API Key.");
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -223,6 +230,7 @@ export default function MatchDetailScreen() {
                             narrative={match.aiNarrative}
                             onGenerate={handleGenerateAI}
                             isGenerating={isGenerating}
+                            failedPrompt={failedPrompt}
                         />
                         {match.aiNarrative && (
                             <TouchableOpacity style={styles.socialBtn} onPress={() => setShowShareModal(true)}>

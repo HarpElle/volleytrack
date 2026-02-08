@@ -8,16 +8,22 @@ interface MagicSummaryCardProps {
     narrative?: AINarrative;
     onGenerate: () => void;
     isGenerating: boolean;
+    failedPrompt?: string;
 }
 
-export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, onGenerate, isGenerating }) => {
+export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, onGenerate, isGenerating, failedPrompt }) => {
     const [activeTab, setActiveTab] = useState<'coach' | 'social'>('coach');
 
     const handleCopy = async () => {
         const text = activeTab === 'coach' ? narrative?.coachSummary : narrative?.socialSummary;
         if (text) {
             await Clipboard.setStringAsync(text);
-            // Could add toast here
+        }
+    };
+
+    const handleCopyDebug = async () => {
+        if (failedPrompt) {
+            await Clipboard.setStringAsync(failedPrompt);
         }
     };
 
@@ -30,6 +36,17 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                     <Text style={styles.promoText}>
                         Generate instant tactical analysis and exciting game recaps.
                     </Text>
+
+                    {failedPrompt && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>Generation failed. Help us debug?</Text>
+                            <TouchableOpacity style={styles.debugButton} onPress={handleCopyDebug}>
+                                <Ionicons name="bug-outline" size={16} color="#d32f2f" />
+                                <Text style={styles.debugButtonText}>Copy Debug Info</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     <TouchableOpacity style={styles.generateButton} onPress={onGenerate}>
                         <Text style={styles.generateButtonText}>Generate Magic ✨</Text>
                     </TouchableOpacity>
@@ -78,9 +95,11 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
 
             {!isGenerating && (
                 <View style={styles.footer}>
-                    <TouchableOpacity onPress={onGenerate} style={styles.regenerateLink}>
-                        <Text style={styles.regenerateText}>Regenerate</Text>
-                    </TouchableOpacity>
+                    {narrative && (
+                        <TouchableOpacity onPress={onGenerate} style={styles.regenerateLink}>
+                            <Text style={styles.regenerateText}>Regenerate</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
         </View>
@@ -193,5 +212,35 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#666',
         textDecorationLine: 'underline'
+    },
+    errorContainer: {
+        alignItems: 'center',
+        marginVertical: 12,
+        padding: 8,
+        backgroundColor: '#fee',
+        borderRadius: 8,
+        width: '100%'
+    },
+    errorText: {
+        fontSize: 14,
+        color: '#d32f2f',
+        marginBottom: 8,
+        textAlign: 'center'
+    },
+    debugButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#d32f2f',
+        gap: 6
+    },
+    debugButtonText: {
+        fontSize: 12,
+        color: '#d32f2f',
+        fontWeight: '600'
     }
 });

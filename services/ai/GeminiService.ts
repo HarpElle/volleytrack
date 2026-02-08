@@ -313,11 +313,23 @@ ${promptData}
             }
         }
 
-        // Enhance the final error message for the user
-        if (lastError && (lastError.message.includes("429") || lastError.message.includes("quota"))) {
-            throw new Error("AI Quota Exceeded. Please wait a minute and try again.");
+        // Enhance the final error message for the user, attaching prompts for debug
+        const errorMsg = lastError?.message || "AI Generation failed";
+
+        if (errorMsg.includes("429") || errorMsg.includes("quota")) {
+            throw new AIError("AI Quota Exceeded. Please wait a minute and try again.", analystPrompt);
         }
 
-        throw new Error("AI Generation failed. Please try again.");
+        throw new AIError("AI Generation failed. Please try again.", analystPrompt);
+    }
+}
+
+export class AIError extends Error {
+    prompt: string;
+
+    constructor(message: string, prompt: string) {
+        super(message);
+        this.prompt = prompt;
+        this.name = "AIError";
     }
 }

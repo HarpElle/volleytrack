@@ -5,7 +5,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import StatsView from '../../components/stats/StatsView';
-import { GeminiService } from '../../services/ai/GeminiService';
+import { AIError, GeminiService } from '../../services/ai/GeminiService';
 import { useDataStore } from '../../store/useDataStore';
 import { useMatchStore } from '../../store/useMatchStore';
 import { StatLog } from '../../types';
@@ -46,6 +46,7 @@ export default function EventDetailsScreen() {
     // Local State
     const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [failedPrompt, setFailedPrompt] = useState<string | undefined>(undefined);
 
     const { setSetup } = useMatchStore();
 
@@ -102,9 +103,14 @@ export default function EventDetailsScreen() {
             // checking types... let's assume updateEvent handles partial updates.
             updateEvent(event.id, { aiNarrative: narrative });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            Alert.alert("AI Error", "Failed to generate recap. Please try again.");
+            if (error instanceof AIError) {
+                setFailedPrompt(error.prompt);
+                Alert.alert("AI Error", error.message);
+            } else {
+                Alert.alert("AI Error", "Failed to generate recap. Please try again.");
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -183,6 +189,7 @@ export default function EventDetailsScreen() {
                                     narrative={event.aiNarrative}
                                     onGenerate={handleGenerateAI}
                                     isGenerating={isGenerating}
+                                    failedPrompt={failedPrompt}
                                 />
                             )}
                         </View>

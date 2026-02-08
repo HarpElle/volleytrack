@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { AINarrative, LineupPosition, MatchConfig, MatchState, Player, Score, SetResult, StatLog } from '../types';
+import { AINarrative, LineupPosition, MatchConfig, MatchRecord, MatchState, Player, Score, SetResult, StatLog } from '../types';
 
 /* 
   Mocking generateId for now to avoid extra files if not strictly needed yet.
@@ -508,7 +508,11 @@ export const useMatchStore = create<MatchState>()(
 
                 // 2. Save to Persistent DataStore
                 const { useDataStore } = require('./useDataStore'); // Deferred import to avoid cycle if any
-                const saveMatch = useDataStore.getState().saveMatchRecord;
+                const dataStore = useDataStore.getState();
+                const saveMatch = dataStore.saveMatchRecord;
+
+                // Retrieve existing scheduled match to preserve metadata (time, court, etc.)
+                const existingMatch = dataStore.savedMatches.find((m: MatchRecord) => m.id === state.matchId);
 
                 // Determine Match Result
                 const setsToWin = Math.ceil(state.config.totalSets / 2);
@@ -525,13 +529,19 @@ export const useMatchStore = create<MatchState>()(
                     seasonId: state.activeSeasonId,
                     eventId: state.activeEventId,
                     opponentName: state.opponentName,
-                    date: Date.now(),
+                    date: existingMatch?.date || Date.now(), // Preserve scheduled date if exists
+                    time: existingMatch?.time,             // Preserve scheduled time
+                    courtNumber: existingMatch?.courtNumber, // Preserve court number
                     result,
                     setsWon: newSetsWon,
                     scores: state.scores,
                     history: state.history,
                     lineups: state.lineups,
-                    aiNarrative: state.aiNarrative
+                    // Preserve existing narrative if we aren't generating a new one right now? 
+                    // Usually narrative is generated AFTER finalization. 
+                    // But if we had one, keep it? 
+                    // Actually state.aiNarrative is current live state, so use that.
+                    aiNarrative: state.aiNarrative || existingMatch?.aiNarrative
                 });
             },
 
