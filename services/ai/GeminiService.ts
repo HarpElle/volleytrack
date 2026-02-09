@@ -298,7 +298,8 @@ ${promptData}
                 return {
                     coachSummary: coachResult.response.text(),
                     socialSummary: socialResult.response.text(),
-                    generatedAt: Date.now()
+                    generatedAt: Date.now(),
+                    debugPrompt: analystPrompt
                 };
             } catch (error: any) {
                 console.warn(`⚠️ Failed: ${modelId}`);

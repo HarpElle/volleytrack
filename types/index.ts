@@ -9,6 +9,7 @@ export interface AINarrative {
   coachSummary: string;
   socialSummary: string;
   generatedAt: number;
+  debugPrompt?: string;
 }
 
 export interface Player {

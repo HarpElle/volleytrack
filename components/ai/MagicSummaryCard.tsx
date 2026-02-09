@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { BarChart2, Bug, Copy, Sparkles, Users } from 'lucide-react-native';
+import { BarChart2, Bug, Copy, Sparkles, Terminal, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AINarrative } from '../../types';
@@ -24,6 +24,12 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
     const handleCopyDebug = async () => {
         if (failedPrompt) {
             await Clipboard.setStringAsync(failedPrompt);
+        }
+    };
+
+    const handleCopyDebugPrompt = async () => {
+        if (narrative?.debugPrompt) {
+            await Clipboard.setStringAsync(narrative.debugPrompt);
         }
     };
 
@@ -95,6 +101,12 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
 
             {!isGenerating && (
                 <View style={styles.footer}>
+                    {narrative?.debugPrompt && (
+                        <TouchableOpacity onPress={handleCopyDebugPrompt} style={styles.debugLink}>
+                            <Terminal size={14} color="#999" />
+                            <Text style={styles.debugText}>Copy Prompt</Text>
+                        </TouchableOpacity>
+                    )}
                     {narrative && (
                         <TouchableOpacity onPress={onGenerate} style={styles.regenerateLink}>
                             <Text style={styles.regenerateText}>Regenerate</Text>
@@ -203,7 +215,19 @@ const styles = StyleSheet.create({
     },
     footer: {
         marginTop: 12,
-        alignItems: 'flex-end'
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    debugLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 4,
+        gap: 4
+    },
+    debugText: {
+        fontSize: 12,
+        color: '#999',
     },
     regenerateLink: {
         padding: 4
