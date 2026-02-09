@@ -159,6 +159,7 @@ export interface MatchState {
 
   // Smart Subs & Libero
   liberoIds?: string[]; // IDs of players marked as Libero for this set
+  nonLiberoDesignations?: string[]; // IDs of players explicitly marked as "Not a Libero" (e.g. starters)
   subPairs?: Record<string, string>; // PlayerID -> Paired PlayerID (for smart suggestions)
 
   // Actions
@@ -177,6 +178,7 @@ export interface MatchState {
   startNextSet: () => void;
   finalizeMatch: () => void;
   resetMatch: () => void;
+  designateNonLibero: (playerId: string) => void;
 
   // Rotation Actions
   rotate: (direction?: 'forward' | 'backward', roster?: Player[]) => void;

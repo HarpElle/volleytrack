@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Delete } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -42,12 +42,12 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
         }
     };
 
-    const renderKey = (label: string, value?: string, icon?: keyof typeof Ionicons.glyphMap) => (
+    const renderKey = (label: string, value?: string, icon?: React.ReactNode) => (
         <TouchableOpacity
             style={styles.key}
             onPress={() => value ? handleNumberPress(value) : (label === 'C' ? handleClear() : null)}
         >
-            {icon ? <Ionicons name={icon} size={24} color="#333" /> : <Text style={styles.keyText}>{label}</Text>}
+            {icon ? icon : <Text style={styles.keyText}>{label}</Text>}
         </TouchableOpacity>
     );
 
@@ -82,7 +82,7 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
                             {renderKey('C')}
                             {renderKey('0', '0')}
                             <TouchableOpacity style={styles.key} onPress={handleBackspace}>
-                                <Ionicons name="backspace-outline" size={24} color="#333" />
+                                <Delete size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
                     </View>

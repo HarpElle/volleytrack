@@ -54,6 +54,9 @@ export const useMatchStore = create<MatchState>()(
 
             lineups: {},
             currentRotation: [],
+            liberoIds: [],
+            nonLiberoDesignations: [],
+            subPairs: {},
 
 
 
@@ -378,6 +381,10 @@ export const useMatchStore = create<MatchState>()(
                         },
                         currentRotation: state.lineups?.[state.currentSet + 1] || state.lineups?.[state.currentSet] || [], // Initialize next set rotation (cascade if needed)
                         liberoIds: [],
+                        // Auto-Designate Starters as Non-Liberos for the new set
+                        nonLiberoDesignations: (state.lineups?.[state.currentSet + 1] || state.lineups?.[state.currentSet] || [])
+                            .filter(p => p.playerId)
+                            .map(p => p.playerId as string),
                         subPairs: {}
                     };
                 });
@@ -444,6 +451,10 @@ export const useMatchStore = create<MatchState>()(
                     lineups: lineups || {},
                     currentRotation: lineups?.[1] || [], // Initialize Set 1
                     liberoIds: [],
+                    // Auto-Designate Starters as Non-Liberos
+                    nonLiberoDesignations: (lineups?.[1] || [])
+                        .filter(p => p.playerId)
+                        .map(p => p.playerId as string),
                     subPairs: {},
                     myTeamRoster: roster || []
                 });
@@ -471,7 +482,9 @@ export const useMatchStore = create<MatchState>()(
                         opponent: get().config.subsPerSet ?? 15
                     },
                     // Reset substitution/lineup tracking for the live match
+                    // Reset substitution/lineup tracking for the live match
                     liberoIds: [],
+                    nonLiberoDesignations: [],
                     subPairs: {},
                     // Keep lineups? Yes, probably want to keep the lineup they just set.
                     // Keep Roster? Yes.
@@ -723,6 +736,16 @@ export const useMatchStore = create<MatchState>()(
                 set(state => ({
                     history: state.history.map(log => log.id === logId ? { ...log, ...updates } : log)
                 }));
+            },
+
+            designateNonLibero: (playerId) => {
+                set(state => {
+                    const current = state.nonLiberoDesignations || [];
+                    if (!current.includes(playerId)) {
+                        return { nonLiberoDesignations: [...current, playerId] };
+                    }
+                    return {};
+                });
             }
         }),
         {

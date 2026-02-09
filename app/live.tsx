@@ -29,7 +29,7 @@ export default function LiveScreen() {
         useTimeout, useSub, startNextSet, finalizeMatch, config,
         history, setHistory, servingTeam, setServingTeam, rallyState,
         currentRotation, rotate, substitute, activeSeasonId,
-        subPairs,
+        subPairs, nonLiberoDesignations, designateNonLibero,
     } = useMatchStore();
 
     // Get Roster
@@ -200,7 +200,7 @@ export default function LiveScreen() {
     } | null>(null);
 
     // Non-Libero Designations Persistence
-    const [nonLiberoDesignations, setNonLiberoDesignations] = useState<Set<string>>(new Set());
+
 
     // Helper to get attribution text
     const getAttribution = (type: 'serve' | 'attack' | 'general') => {
@@ -540,7 +540,7 @@ export default function LiveScreen() {
                     onCorrectScore={() => setShowEndOfSet(false)}
                     onNextSet={() => {
                         setShowEndOfSet(false);
-                        setNonLiberoDesignations(new Set()); // Reset for new set
+                        // setNonLiberoDesignations(new Set()); // Handled by Store now
 
                         // Check if match is actually finished (including the set just played)
                         const myScore = currentScore.myTeam;
@@ -597,12 +597,10 @@ export default function LiveScreen() {
                         currentRotation={currentRotation}
                         subPairs={subPairs}
                         liberoIds={useMatchStore.getState().liberoIds} // Access latest store state
-                        nonLiberoDesignations={nonLiberoDesignations}
+                        nonLiberoDesignations={nonLiberoDesignations || []}
                         onClose={() => setSubPicker(null)}
                         onSub={handleSubClick}
-                        onDesignateNonLibero={(pid) => {
-                            setNonLiberoDesignations(prev => new Set(prev).add(pid));
-                        }}
+                        onDesignateNonLibero={designateNonLibero}
                     />
                 </Modal>
 

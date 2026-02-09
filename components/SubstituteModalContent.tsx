@@ -9,7 +9,7 @@ interface SubstituteModalContentProps {
     currentRotation: LineupPosition[] | undefined;
     subPairs: Record<string, string> | undefined;
     liberoIds: string[] | undefined;
-    nonLiberoDesignations: Set<string>;
+    nonLiberoDesignations: string[];
     onClose: () => void;
     onSub: (player: Player, isLibero?: boolean) => void;
     onDesignateNonLibero: (playerId: string) => void;
@@ -98,7 +98,7 @@ export function SubstituteModalContent({
                 ]}
                 onPress={() => {
                     const isBackRow = [1, 5, 6].includes(currentPosition);
-                    const hasNonLiberoDesignation = nonLiberoDesignations.has(item.id);
+                    const hasNonLiberoDesignation = nonLiberoDesignations.includes(item.id);
 
                     if (isBackRow && !isLibero && !hasNonLiberoDesignation) {
                         Alert.alert(
