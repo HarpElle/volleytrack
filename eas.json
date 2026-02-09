@@ -23,7 +23,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_APP_VARIANT": "production"
+        "EXPO_PUBLIC_APP_VARIANT": "production",
+        "NODE_ENV": "production"
       }
     }
   }

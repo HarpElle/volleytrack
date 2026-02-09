@@ -1,5 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { BarChart2, Bug, Copy, Sparkles, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AINarrative } from '../../types';
@@ -31,7 +31,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
         return (
             <View style={styles.container}>
                 <View style={styles.promoContent}>
-                    <Ionicons name="sparkles" size={32} color="#8A2BE2" />
+                    <Sparkles size={32} color="#8A2BE2" />
                     <Text style={styles.promoTitle}>AI Match Insights</Text>
                     <Text style={styles.promoText}>
                         Generate instant tactical analysis and exciting game recaps.
@@ -41,7 +41,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                         <View style={styles.errorContainer}>
                             <Text style={styles.errorText}>Generation failed. Help us debug?</Text>
                             <TouchableOpacity style={styles.debugButton} onPress={handleCopyDebug}>
-                                <Ionicons name="bug-outline" size={16} color="#d32f2f" />
+                                <Bug size={16} color="#d32f2f" />
                                 <Text style={styles.debugButtonText}>Copy Debug Info</Text>
                             </TouchableOpacity>
                         </View>
@@ -63,14 +63,14 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                         style={[styles.tab, activeTab === 'coach' && styles.activeTab]}
                         onPress={() => setActiveTab('coach')}
                     >
-                        <Ionicons name="stats-chart" size={16} color={activeTab === 'coach' ? '#fff' : '#666'} />
+                        <BarChart2 size={16} color={activeTab === 'coach' ? '#fff' : '#666'} />
                         <Text style={[styles.tabText, activeTab === 'coach' && styles.activeTabText]}>Analyst Report</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.tab, activeTab === 'social' && styles.activeTab]}
                         onPress={() => setActiveTab('social')}
                     >
-                        <Ionicons name="people" size={16} color={activeTab === 'social' ? '#fff' : '#666'} />
+                        <Users size={16} color={activeTab === 'social' ? '#fff' : '#666'} />
                         <Text style={[styles.tabText, activeTab === 'social' && styles.activeTabText]}>Fan Recap</Text>
                     </TouchableOpacity>
                 </View>
@@ -78,7 +78,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                     <ActivityIndicator size="small" color="#8A2BE2" />
                 ) : (
                     <TouchableOpacity style={styles.actionButton} onPress={handleCopy}>
-                        <Ionicons name="copy-outline" size={20} color="#666" />
+                        <Copy size={20} color="#666" />
                     </TouchableOpacity>
                 )}
             </View>
