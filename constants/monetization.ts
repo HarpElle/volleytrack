@@ -1,8 +1,9 @@
 import { Platform } from 'react-native';
 
 // ── Free Tier Limits ────────────────────────────────────────────────────────
-export const FREE_AI_NARRATIVE_LIMIT = 3;
-export const FREE_EXPORT_LIMIT = 3;
+// TODO: Revert to lower limits before full public launch
+export const FREE_AI_NARRATIVE_LIMIT = 100;
+export const FREE_EXPORT_LIMIT = 100;
 export const FREE_SEASON_LIMIT = 1;
 export const FREE_FAN_RECAP_LIMIT = 2;
 
