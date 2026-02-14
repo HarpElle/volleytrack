@@ -2,6 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Calendar as CalendarIcon, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 interface DateRangeFilterProps {
     startDate: Date | null;
@@ -10,6 +11,7 @@ interface DateRangeFilterProps {
 }
 
 export default function DateRangeFilter({ startDate, endDate, onFilterChange }: DateRangeFilterProps) {
+    const { colors } = useAppTheme();
     const [showPicker, setShowPicker] = useState<'start' | 'end' | null>(null);
     const [tempDate, setTempDate] = useState(new Date());
 
@@ -37,36 +39,36 @@ export default function DateRangeFilter({ startDate, endDate, onFilterChange }: 
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.bgCard }]}>
             <View style={styles.row}>
-                <CalendarIcon size={16} color="#666" />
-                <Text style={styles.label}>Filter by Date:</Text>
+                <CalendarIcon size={16} color={colors.textSecondary} />
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Filter by Date:</Text>
             </View>
 
             <View style={styles.controls}>
                 <TouchableOpacity
-                    style={styles.dateBtn}
+                    style={[styles.dateBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}
                     onPress={() => setShowPicker('start')}
                 >
-                    <Text style={[styles.dateText, !startDate && styles.placeholder]}>
+                    <Text style={[styles.dateText, { color: colors.text }, !startDate && { color: colors.textTertiary }]}>
                         {startDate ? formatDate(startDate) : 'Start'}
                     </Text>
                 </TouchableOpacity>
 
-                <Text style={styles.to}>-</Text>
+                <Text style={[styles.to, { color: colors.textTertiary }]}>-</Text>
 
                 <TouchableOpacity
-                    style={styles.dateBtn}
+                    style={[styles.dateBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}
                     onPress={() => setShowPicker('end')}
                 >
-                    <Text style={[styles.dateText, !endDate && styles.placeholder]}>
+                    <Text style={[styles.dateText, { color: colors.text }, !endDate && { color: colors.textTertiary }]}>
                         {endDate ? formatDate(endDate) : 'End'}
                     </Text>
                 </TouchableOpacity>
 
                 {(startDate || endDate) && (
-                    <TouchableOpacity onPress={clearFilter} style={styles.clearBtn}>
-                        <X size={16} color="#999" />
+                    <TouchableOpacity onPress={clearFilter} style={[styles.clearBtn, { backgroundColor: colors.buttonSecondary }]}>
+                        <X size={16} color={colors.textTertiary} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -75,14 +77,14 @@ export default function DateRangeFilter({ startDate, endDate, onFilterChange }: 
             {showPicker && (
                 Platform.OS === 'ios' ? (
                     <Modal transparent animationType="fade">
-                        <View style={styles.modalOverlay}>
-                            <View style={styles.pickerContainer}>
-                                <View style={styles.pickerHeader}>
-                                    <Text style={styles.pickerTitle}>
+                        <View style={[styles.modalOverlay, { backgroundColor: colors.bgOverlay }]}>
+                            <View style={[styles.pickerContainer, { backgroundColor: colors.bgCard }]}>
+                                <View style={[styles.pickerHeader, { borderBottomColor: colors.border }]}>
+                                    <Text style={[styles.pickerTitle, { color: colors.text }]}>
                                         Select {showPicker === 'start' ? 'Start' : 'End'} Date
                                     </Text>
                                     <TouchableOpacity onPress={() => setShowPicker(null)}>
-                                        <Text style={styles.doneBtn}>Done</Text>
+                                        <Text style={[styles.doneBtn, { color: colors.primary }]}>Done</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <DateTimePicker
@@ -110,7 +112,6 @@ export default function DateRangeFilter({ startDate, endDate, onFilterChange }: 
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#fff',
         padding: 12,
         borderRadius: 12,
         marginBottom: 16,
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#666',
         textTransform: 'uppercase',
     },
     controls: {
@@ -134,38 +134,28 @@ const styles = StyleSheet.create({
     },
     dateBtn: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
         paddingVertical: 8,
         paddingHorizontal: 12,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
     },
     dateText: {
         fontSize: 14,
-        color: '#333',
         fontWeight: '500',
         textAlign: 'center',
     },
-    placeholder: {
-        color: '#999',
-    },
     to: {
-        color: '#ccc',
         fontWeight: '700',
     },
     clearBtn: {
         padding: 4,
-        backgroundColor: '#f5f5f5',
         borderRadius: 12,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
     pickerContainer: {
-        backgroundColor: '#fff',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingBottom: 20,
@@ -176,14 +166,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     pickerTitle: {
         fontSize: 16,
         fontWeight: '600',
     },
     doneBtn: {
-        color: '#0066cc',
         fontWeight: '700',
         fontSize: 16,
     },

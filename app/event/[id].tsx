@@ -5,6 +5,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import StatsView from '../../components/stats/StatsView';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { AIError, GeminiService } from '../../services/ai/GeminiService';
 import { useDataStore } from '../../store/useDataStore';
 import { useMatchStore } from '../../store/useMatchStore';
@@ -13,6 +14,7 @@ import { StatLog } from '../../types';
 export default function EventDetailsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
+    const { colors } = useAppTheme();
     const events = useDataStore(state => state.events);
     const seasons = useDataStore(state => state.seasons);
     const savedMatches = useDataStore(state => state.savedMatches);
@@ -62,11 +64,11 @@ export default function EventDetailsScreen() {
 
     if (!event) {
         return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>Event not found</Text>
+            <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+                <View style={[styles.emptyState, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+                    <Text style={[styles.emptyText, { color: colors.textTertiary }]}>Event not found</Text>
                     <TouchableOpacity onPress={() => router.back()}>
-                        <Text style={styles.linkText}>Go Back</Text>
+                        <Text style={[styles.linkText, { color: colors.primary }]}>Go Back</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -117,49 +119,49 @@ export default function EventDetailsScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ChevronLeft size={24} color="#1a1a1a" />
+                        <ChevronLeft size={24} color={colors.text} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.eventName}>{event.name}</Text>
+                        <Text style={[styles.eventName, { color: colors.text }]}>{event.name}</Text>
                         <View style={styles.metaRow}>
-                            <MapPin size={16} color="#666" />
-                            <Text style={styles.metaText}>{event.location}</Text>
+                            <MapPin size={16} color={colors.textSecondary} />
+                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{event.location}</Text>
                         </View>
                         <View style={styles.metaRow}>
-                            <Calendar size={16} color="#666" />
-                            <Text style={styles.metaText}>
+                            <Calendar size={16} color={colors.textSecondary} />
+                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                                 {new Date(event.startDate).toLocaleDateString()}
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity onPress={handleEditEvent} style={styles.actionIconBtn}>
-                        <Settings2 size={24} color="#666" />
+                    <TouchableOpacity onPress={handleEditEvent} style={[styles.actionIconBtn, { backgroundColor: colors.buttonSecondary }]}>
+                        <Settings2 size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
 
 
                 {/* Tabs */}
-                <View style={styles.tabBar}>
+                <View style={[styles.tabBar, { backgroundColor: colors.bgCard }]}>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'overview' && styles.activeTab, activeTab === 'overview' && { backgroundColor: colors.primaryLight }]}
                         onPress={() => setActiveTab('overview')}
                     >
-                        <LayoutDashboard size={18} color={activeTab === 'overview' ? '#0066cc' : '#666'} />
-                        <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>Overview</Text>
+                        <LayoutDashboard size={18} color={activeTab === 'overview' ? colors.primary : colors.textSecondary} />
+                        <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'overview' && styles.activeTabText, activeTab === 'overview' && { color: colors.primary }]}>Overview</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'stats' && styles.activeTab, activeTab === 'stats' && { backgroundColor: colors.primaryLight }]}
                         onPress={() => setActiveTab('stats')}
                     >
-                        <BarChart2 size={18} color={activeTab === 'stats' ? '#0066cc' : '#666'} />
-                        <Text style={[styles.tabText, activeTab === 'stats' && styles.activeTabText]}>Event Stats</Text>
+                        <BarChart2 size={18} color={activeTab === 'stats' ? colors.primary : colors.textSecondary} />
+                        <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'stats' && styles.activeTabText, activeTab === 'stats' && { color: colors.primary }]}>Event Stats</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -167,8 +169,8 @@ export default function EventDetailsScreen() {
                     <View>
                         {/* Matches Section */}
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Matches</Text>
-                            <TouchableOpacity style={styles.addBtn} onPress={handleNewMatch}>
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Matches</Text>
+                            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={handleNewMatch}>
                                 <Plus size={20} color="#fff" />
                             </TouchableOpacity>
                         </View>
@@ -177,7 +179,7 @@ export default function EventDetailsScreen() {
                         <View style={{ marginBottom: 24 }}>
                             {!event.aiNarrative && !isGenerating ? (
                                 <TouchableOpacity
-                                    style={styles.magicBtn}
+                                    style={[styles.magicBtn, { shadowColor: '#8a2be2' }]}
                                     onPress={handleGenerateAI}
                                     disabled={matches.length === 0}
                                 >
@@ -195,10 +197,10 @@ export default function EventDetailsScreen() {
                         </View>
 
                         {matches.length === 0 ? (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyText}>No matches recorded yet</Text>
+                            <View style={[styles.emptyState, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+                                <Text style={[styles.emptyText, { color: colors.textTertiary }]}>No matches recorded yet</Text>
                                 <TouchableOpacity onPress={handleNewMatch}>
-                                    <Text style={styles.linkText}>Start your first match</Text>
+                                    <Text style={[styles.linkText, { color: colors.primary }]}>Start your first match</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
@@ -206,7 +208,7 @@ export default function EventDetailsScreen() {
                                 {matches.map(match => (
                                     <TouchableOpacity
                                         key={match.id}
-                                        style={styles.matchCard}
+                                        style={[styles.matchCard, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}
                                         onPress={() => {
                                             if (match.result !== 'Scheduled') {
                                                 router.push({ pathname: '/match/[id]', params: { id: match.id } });
@@ -221,35 +223,35 @@ export default function EventDetailsScreen() {
                                             {/* Match Header: Time/Court */}
                                             <View style={styles.matchHeader}>
                                                 <View style={styles.matchMeta}>
-                                                    <Calendar size={12} color="#999" />
-                                                    <Text style={styles.matchMetaText}>
+                                                    <Calendar size={12} color={colors.textTertiary} />
+                                                    <Text style={[styles.matchMetaText, { color: colors.textTertiary }]}>
                                                         {new Date(match.date || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                                     </Text>
                                                     {match.time ? (
                                                         <>
-                                                            <Text style={styles.metaDivider}>•</Text>
-                                                            <Text style={[styles.matchMetaText, { fontWeight: '700', color: '#444' }]}>{match.time}</Text>
+                                                            <Text style={[styles.metaDivider, { color: colors.border }]}>•</Text>
+                                                            <Text style={[styles.matchMetaText, { fontWeight: '700', color: colors.text }]}>{match.time}</Text>
                                                         </>
                                                     ) : null}
                                                     {match.courtNumber ? (
                                                         <>
-                                                            <Text style={styles.metaDivider}>•</Text>
-                                                            <Text style={styles.matchMetaText}>Court {match.courtNumber}</Text>
+                                                            <Text style={[styles.metaDivider, { color: colors.border }]}>•</Text>
+                                                            <Text style={[styles.matchMetaText, { color: colors.textTertiary }]}>Court {match.courtNumber}</Text>
                                                         </>
                                                     ) : null}
                                                 </View>
                                                 <Text style={[
                                                     styles.statusBadge,
-                                                    { color: match.result === 'Win' ? '#4caf50' : match.result === 'Loss' ? '#f44336' : match.result === 'Scheduled' ? '#0066cc' : '#999' }
+                                                    { color: match.result === 'Win' ? '#4caf50' : match.result === 'Loss' ? '#f44336' : match.result === 'Scheduled' ? colors.primary : colors.textTertiary }
                                                 ]}>{match.result}</Text>
                                             </View>
 
                                             <View style={styles.matchRow}>
-                                                <Text style={styles.matchOpponent}>vs {match.opponentName}</Text>
+                                                <Text style={[styles.matchOpponent, { color: colors.text }]}>vs {match.opponentName}</Text>
 
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                                     <TouchableOpacity
-                                                        style={styles.actionIconBtn}
+                                                        style={[styles.actionIconBtn, { backgroundColor: colors.buttonSecondary }]}
                                                         onPress={() => {
                                                             const isConcluded = match.result === 'Win' || match.result === 'Loss';
 
@@ -304,12 +306,12 @@ export default function EventDetailsScreen() {
                                                             );
                                                         }}
                                                     >
-                                                        <Settings2 size={20} color="#666" />
+                                                        <Settings2 size={20} color={colors.textSecondary} />
                                                     </TouchableOpacity>
 
                                                     {match.result === 'Scheduled' ? (
                                                         <TouchableOpacity
-                                                            style={styles.playBtn}
+                                                            style={[styles.playBtn, { backgroundColor: colors.primary }]}
                                                             onPress={() => {
                                                                 if (match.config) {
                                                                     setSetup(
@@ -376,7 +378,6 @@ export default function EventDetailsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
     },
     content: {
         padding: 20,
@@ -394,7 +395,6 @@ const styles = StyleSheet.create({
     eventName: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#1a1a1a',
         marginBottom: 8,
     },
     metaRow: {
@@ -405,7 +405,6 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 14,
-        color: '#666',
         fontWeight: '500',
     },
     actionRow: {
@@ -413,13 +412,11 @@ const styles = StyleSheet.create({
         marginBottom: 32,
     },
     secondaryBtn: {
-        backgroundColor: '#e3f2fd',
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 8,
     },
     secondaryBtnText: {
-        color: '#0066cc',
         fontWeight: '600',
         fontSize: 14,
     },
@@ -432,10 +429,8 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     addBtn: {
-        backgroundColor: '#0066cc',
         width: 32,
         height: 32,
         borderRadius: 16,
@@ -446,19 +441,15 @@ const styles = StyleSheet.create({
         padding: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#fff',
         borderRadius: 12,
         borderStyle: 'dashed',
         borderWidth: 1,
-        borderColor: '#ddd',
     },
     emptyText: {
-        color: '#999',
         fontSize: 14,
         marginBottom: 4,
     },
     linkText: {
-        color: '#0066cc',
         fontWeight: '600',
         fontSize: 14,
     },
@@ -466,10 +457,8 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     matchCard: {
-        backgroundColor: '#fff',
         padding: 16,
         borderRadius: 12,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.03,
         shadowRadius: 4,
@@ -490,12 +479,10 @@ const styles = StyleSheet.create({
     },
     matchMetaText: {
         fontSize: 12,
-        color: '#999',
         fontWeight: '500',
     },
     metaDivider: {
         fontSize: 12,
-        color: '#ccc',
         marginHorizontal: 2,
     },
     statusBadge: {
@@ -511,10 +498,8 @@ const styles = StyleSheet.create({
     matchOpponent: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     playBtn: {
-        backgroundColor: '#0066cc',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
@@ -557,12 +542,10 @@ const styles = StyleSheet.create({
     },
     actionIconBtn: {
         padding: 6,
-        backgroundColor: '#f5f5f5',
         borderRadius: 20,
     },
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
         padding: 4,
         borderRadius: 12,
         marginBottom: 24,
@@ -577,16 +560,12 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         gap: 8,
     },
-    activeTab: {
-        backgroundColor: '#e6f0ff',
-    },
+    activeTab: {},
     tabText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
     },
     activeTabText: {
-        color: '#0066cc',
         fontWeight: '700',
     },
     magicBtn: {
@@ -598,7 +577,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 25,
         gap: 8,
-        shadowColor: '#8a2be2',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,

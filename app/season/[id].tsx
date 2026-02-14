@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Calendar, ChevronRight, MapPin, Plus, Sparkles, Users } from 'lucide-react-native';
+import { BarChart2, Calendar, ChevronRight, LayoutDashboard, MapPin, Plus, Sparkles, Users } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import StatsView from '../../components/stats/StatsView';
@@ -13,6 +14,7 @@ import { StatLog } from '../../types';
 export default function SeasonDetailsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
+    const { colors } = useAppTheme();
     // Subscribe to specific parts of the store for reactivity
     const seasons = useDataStore((state) => state.seasons);
     const allEvents = useDataStore((state) => state.events);
@@ -118,11 +120,11 @@ export default function SeasonDetailsScreen() {
             <View style={{ marginBottom: 24 }}>
                 {!season.aiNarrative && !isGenerating ? (
                     <TouchableOpacity
-                        style={styles.magicBtn}
+                        style={[styles.magicBtn, { shadowColor: '#8a2be2' }]}
                         onPress={handleGenerateAI}
                     >
-                        <Sparkles size={20} color="#fff" />
-                        <Text style={styles.magicBtnText}>Generate Season Report</Text>
+                        <Sparkles size={20} color={'#ffffff'} />
+                        <Text style={[styles.magicBtnText, { color: '#ffffff' }]}>Generate Season Report</Text>
                     </TouchableOpacity>
                 ) : (
                     <MagicSummaryCard
@@ -136,26 +138,26 @@ export default function SeasonDetailsScreen() {
             {/* Events Section */}
             <View style={styles.sectionHeader}>
                 <View style={styles.titleRow}>
-                    <Calendar size={20} color="#444" />
-                    <Text style={styles.sectionTitle}>Events</Text>
+                    <Calendar size={20} color={colors.textSecondary} />
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Events</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
                     {events.length > 3 && (
                         <TouchableOpacity onPress={() => setShowAllEvents(!showAllEvents)}>
-                            <Text style={styles.linkText}>{showAllEvents ? 'Show Less' : 'See All'}</Text>
+                            <Text style={[styles.linkText, { color: colors.primary }]}>{showAllEvents ? 'Show Less' : 'See All'}</Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={styles.addBtn} onPress={handleAddEvent}>
-                        <Plus size={20} color="#fff" />
+                    <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={handleAddEvent}>
+                        <Plus size={20} color={'#ffffff'} />
                     </TouchableOpacity>
                 </View>
             </View>
 
             {events.length === 0 ? (
-                <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No events scheduled</Text>
+                <View style={[styles.emptyState, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+                    <Text style={[styles.emptyText, { color: colors.textTertiary }]}>No events scheduled</Text>
                     <TouchableOpacity onPress={handleAddEvent}>
-                        <Text style={styles.linkText}>Add your first event</Text>
+                        <Text style={[styles.linkText, { color: colors.primary }]}>Add your first event</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -163,23 +165,23 @@ export default function SeasonDetailsScreen() {
                     {displayedEvents.map(event => (
                         <TouchableOpacity
                             key={event.id}
-                            style={styles.card}
+                            style={[styles.card, { backgroundColor: colors.bgCard }]}
                             onPress={() => handleEventPress(event.id)}
                         >
                             <View style={styles.cardContent}>
-                                <Text style={styles.cardTitle}>{event.name}</Text>
+                                <Text style={[styles.cardTitle, { color: colors.text }]}>{event.name}</Text>
                                 <View style={styles.cardRow}>
-                                    <MapPin size={14} color="#999" />
-                                    <Text style={styles.cardSub}>{event.location}</Text>
+                                    <MapPin size={14} color={colors.textTertiary} />
+                                    <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{event.location}</Text>
                                 </View>
                                 <View style={styles.cardRow}>
-                                    <Calendar size={14} color="#999" />
-                                    <Text style={styles.cardSub}>
+                                    <Calendar size={14} color={colors.textTertiary} />
+                                    <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                                         {new Date(event.startDate).toLocaleDateString()}
                                     </Text>
                                 </View>
                             </View>
-                            <ChevronRight size={20} color="#ccc" />
+                            <ChevronRight size={20} color={colors.border} />
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -187,26 +189,27 @@ export default function SeasonDetailsScreen() {
 
             <View style={[styles.sectionHeader, { marginTop: 32 }]}>
                 <View style={styles.titleRow}>
-                    <Users size={20} color="#444" />
-                    <Text style={styles.sectionTitle}>Roster ({season.roster.length})</Text>
+                    <Users size={20} color={colors.textSecondary} />
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Roster ({season.roster.length})</Text>
                 </View>
                 <TouchableOpacity onPress={() => setSortBy(prev => prev === 'name' ? 'jersey' : 'name')}>
-                    <Text style={styles.linkText}>Sort by {sortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                    <Text style={[styles.linkText, { color: colors.primary }]}>Sort by {sortBy === 'name' ? 'Jersey' : 'Name'}</Text>
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.rosterCard}>
+            <View style={[styles.rosterCard, { backgroundColor: colors.bgCard }]}>
                 {sortedRoster.map((player, index) => (
                     <View key={player.id} style={[
                         styles.rosterRow,
+                        { borderBottomColor: colors.border },
                         index === season.roster.length - 1 && { borderBottomWidth: 0 }
                     ]}>
-                        <Text style={styles.jersey}>#{player.jerseyNumber}</Text>
-                        <Text style={styles.playerName}>{player.name}</Text>
+                        <Text style={[styles.jersey, { color: colors.textTertiary }]}>#{player.jerseyNumber}</Text>
+                        <Text style={[styles.playerName, { color: colors.text }]}>{player.name}</Text>
                     </View>
                 ))}
                 {season.roster.length === 0 && (
-                    <Text style={styles.emptyText}>No players added</Text>
+                    <Text style={[styles.emptyText, { color: colors.textTertiary }]}>No players added</Text>
                 )}
             </View>
         </>
@@ -230,39 +233,41 @@ export default function SeasonDetailsScreen() {
     );
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ChevronRight size={24} color="#1a1a1a" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <ChevronRight size={24} color={colors.text} style={{ transform: [{ rotate: '180deg' }] }} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.seasonName}>{season.name}</Text>
-                        <Text style={styles.teamName}>{season.teamName} • {season.level}</Text>
+                        <Text style={[styles.seasonName, { color: colors.text }]}>{season.name}</Text>
+                        <Text style={[styles.teamName, { color: colors.textSecondary }]}>{season.teamName} • {season.level}</Text>
                     </View>
                     <TouchableOpacity
                         onPress={() => router.push({ pathname: '/season/create', params: { id: season.id } })}
                         style={{ padding: 8 }}
                     >
-                        <Text style={{ color: '#0066cc', fontWeight: '600' }}>Edit</Text>
+                        <Text style={{ color: colors.primary, fontWeight: '600' }}>Edit</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Tabs */}
-                <View style={styles.tabBar}>
+                <View style={[styles.tabBar, { backgroundColor: colors.bgCard }]}>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'overview' && styles.activeTab, activeTab === 'overview' && { backgroundColor: colors.primaryLight }]}
                         onPress={() => setActiveTab('overview')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>Overview</Text>
+                        <LayoutDashboard size={18} color={activeTab === 'overview' ? colors.primary : colors.textSecondary} />
+                        <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'overview' && styles.activeTabText, activeTab === 'overview' && { color: colors.primary }]}>Overview</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'stats' && styles.activeTab, activeTab === 'stats' && { backgroundColor: colors.primaryLight }]}
                         onPress={() => setActiveTab('stats')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'stats' && styles.activeTabText]}>Stats</Text>
+                        <BarChart2 size={18} color={activeTab === 'stats' ? colors.primary : colors.textSecondary} />
+                        <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === 'stats' && styles.activeTabText, activeTab === 'stats' && { color: colors.primary }]}>Stats</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -276,7 +281,7 @@ export default function SeasonDetailsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f5f7fa', // Override with colors.bg in component
     },
     content: {
         padding: 20,
@@ -294,12 +299,12 @@ const styles = StyleSheet.create({
     seasonName: {
         fontSize: 28,
         fontWeight: '800',
-        color: '#1a1a1a',
+        color: '#1a1a1a', // Override with colors.text in component
         marginBottom: 4,
     },
     teamName: {
         fontSize: 16,
-        color: '#666',
+        color: '#666', // Override with colors.textSecondary in component
         fontWeight: '500',
     },
     actionRow: {
@@ -319,10 +324,10 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
+        color: '#333', // Override with colors.text in component
     },
     addBtn: {
-        backgroundColor: '#0066cc',
+        backgroundColor: '#0066cc', // Override with colors.primary in component
         width: 32,
         height: 32,
         borderRadius: 16,
@@ -333,19 +338,19 @@ const styles = StyleSheet.create({
         padding: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', // Override with colors.bgCard in component
         borderRadius: 12,
         borderStyle: 'dashed',
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: '#ddd', // Override with colors.border in component
     },
     emptyText: {
-        color: '#999',
+        color: '#999', // Override with colors.textTertiary in component
         fontSize: 14,
         marginBottom: 4,
     },
     linkText: {
-        color: '#0066cc',
+        color: '#0066cc', // Override with colors.primary in component
         fontWeight: '600',
         fontSize: 14,
     },
@@ -353,7 +358,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', // Override with colors.bgCard in component
         padding: 16,
         borderRadius: 12,
         flexDirection: 'row',
@@ -372,7 +377,7 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
+        color: '#333', // Override with colors.text in component
     },
     cardRow: {
         flexDirection: 'row',
@@ -381,10 +386,10 @@ const styles = StyleSheet.create({
     },
     cardSub: {
         fontSize: 13,
-        color: '#666',
+        color: '#666', // Override with colors.textSecondary in component
     },
     rosterCard: {
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', // Override with colors.bgCard in component
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 8,
@@ -399,23 +404,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#f5f5f5',
+        borderBottomColor: '#f5f5f5', // Override with colors.border in component
         gap: 12,
     },
     jersey: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#999',
+        color: '#999', // Override with colors.textTertiary in component
         width: 30,
     },
     playerName: {
         fontSize: 16,
-        color: '#333',
+        color: '#333', // Override with colors.text in component
         fontWeight: '500',
     },
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', // Override with colors.bgCard in component
         padding: 4,
         borderRadius: 12,
         marginBottom: 24,
@@ -431,15 +436,15 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     activeTab: {
-        backgroundColor: '#e6f0ff',
+        backgroundColor: '#e6f0ff', // Override with colors.primaryLight in component
     },
     tabText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
+        color: '#666', // Override with colors.textSecondary in component
     },
     activeTabText: {
-        color: '#0066cc',
+        color: '#0066cc', // Override with colors.primary in component
         fontWeight: '700',
     },
     magicBtn: {

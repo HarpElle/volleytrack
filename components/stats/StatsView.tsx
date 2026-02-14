@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { DEFAULT_TARGET_PROFILE } from '../../constants/Benchmarks';
 import { Player, StatLog } from '../../types';
 import { StatsEngine } from '../../utils/StatsEngine';
@@ -16,10 +17,12 @@ interface StatsViewProps {
 }
 
 export default function StatsView({ logs, roster, title = 'Match Stats', matchesWon }: StatsViewProps) {
+    const { colors } = useAppTheme();
+
     if (!logs || logs.length === 0) {
         return (
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>No stats recorded yet.</Text>
+            <View style={[styles.empty, { backgroundColor: colors.bg }]}>
+                <Text style={[styles.emptyText, { color: colors.textTertiary }]}>No stats recorded yet.</Text>
             </View>
         );
     }
@@ -46,12 +49,12 @@ export default function StatsView({ logs, roster, title = 'Match Stats', matches
     const targets = DEFAULT_TARGET_PROFILE.targets;
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <Text style={styles.header}>{title}</Text>
+        <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
+            <Text style={[styles.header, { color: colors.text }]}>{title}</Text>
 
             <StatsSummary stats={teamStats} matchesWon={matchesWon} />
 
-            <Text style={styles.sectionHeader}>Performance vs Targets</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Performance vs Targets</Text>
             <View style={styles.chartGrid}>
                 <ComparisonChart
                     label="Hitting Efficiency"
@@ -81,10 +84,10 @@ export default function StatsView({ logs, roster, title = 'Match Stats', matches
                 />
             </View>
 
-            <Text style={styles.sectionHeader}>Top Performers</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Top Performers</Text>
             <Leaderboard playerStats={playerStats} roster={roster} />
 
-            <Text style={styles.sectionHeader}>Detailed Stats</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Detailed Stats</Text>
             <DetailedStatsTable playerStats={playerStats} roster={roster} />
         </ScrollView>
     );
@@ -93,7 +96,6 @@ export default function StatsView({ logs, roster, title = 'Match Stats', matches
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
     },
     content: {
         padding: 16,
@@ -102,13 +104,11 @@ const styles = StyleSheet.create({
     header: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 16,
     },
     sectionHeader: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#444',
         marginVertical: 12,
     },
     empty: {
@@ -119,7 +119,6 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: '#999',
     },
     chartGrid: {
         marginBottom: 16,

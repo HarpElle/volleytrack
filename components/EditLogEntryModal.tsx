@@ -1,6 +1,7 @@
 import { Save, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { Player, StatLog } from '../types';
 
 interface EditLogEntryModalProps {
@@ -13,6 +14,7 @@ interface EditLogEntryModalProps {
 }
 
 export default function EditLogEntryModal({ visible, onClose, entry, roster, activePlayerIds, onSave }: EditLogEntryModalProps) {
+    const { colors } = useAppTheme();
     const [selectedType, setSelectedType] = useState<string>('');
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedAssistId, setSelectedAssistId] = useState<string | null>(null);
@@ -83,38 +85,38 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 
     return (
         <Modal visible={visible} animationType="fade" transparent>
-            <View style={styles.overlay}>
-                <View style={styles.container}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Edit Log Entry</Text>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <View style={[styles.header, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.title, { color: colors.text }]}>Edit Log Entry</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                            <X size={24} color="#666" />
+                            <X size={24} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
 
                     <ScrollView style={styles.content}>
                         {/* Event Info */}
                         <View style={styles.infoRow}>
-                            <Text style={styles.label}>Time:</Text>
-                            <Text style={styles.value}>{new Date(entry.timestamp).toLocaleTimeString()}</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>Time:</Text>
+                            <Text style={[styles.value, { color: colors.text }]}>{new Date(entry.timestamp).toLocaleTimeString()}</Text>
                         </View>
                         <View style={styles.infoRow}>
-                            <Text style={styles.label}>Current Action:</Text>
-                            <Text style={styles.value}>{entry.type.replace('_', ' ').toUpperCase()}</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>Current Action:</Text>
+                            <Text style={[styles.value, { color: colors.text }]}>{entry.type.replace('_', ' ').toUpperCase()}</Text>
                         </View>
 
                         {/* Type Selector */}
                         {canEditType && (
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Change Assessment</Text>
+                                <Text style={[styles.sectionTitle, { color: colors.text }]}>Change Assessment</Text>
                                 <View style={styles.typeGrid}>
                                     {allowedTypes.map(type => (
                                         <TouchableOpacity
                                             key={type}
-                                            style={[styles.typeOption, selectedType === type && styles.selectedType]}
+                                            style={[styles.typeOption, { backgroundColor: colors.buttonSecondary, borderColor: colors.border }, selectedType === type && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
                                             onPress={() => setSelectedType(type)}
                                         >
-                                            <Text style={[styles.typeText, selectedType === type && styles.selectedTypeText]}>
+                                            <Text style={[styles.typeText, { color: colors.textSecondary }, selectedType === type && { color: colors.primary }]}>
                                                 {formatType(type)}
                                             </Text>
                                         </TouchableOpacity>
@@ -125,16 +127,16 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 
                         {/* Player Selector */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Player</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Player</Text>
                             <View style={styles.rosterGrid}>
                                 <TouchableOpacity
                                     style={[styles.playerOption, selectedPlayerId === null && styles.selectedPlayer]}
                                     onPress={() => setSelectedPlayerId(null)}
                                 >
-                                    <View style={styles.avatarPlaceholder}>
-                                        <Text style={styles.avatarText}>-</Text>
+                                    <View style={[styles.avatarPlaceholder, { backgroundColor: colors.buttonSecondary, borderColor: colors.border }]}>
+                                        <Text style={[styles.avatarText, { color: colors.textSecondary }]}>-</Text>
                                     </View>
-                                    <Text style={styles.playerName}>None</Text>
+                                    <Text style={[styles.playerName, { color: colors.text }]}>None</Text>
                                 </TouchableOpacity>
                                 {sortedRoster.map(p => (
                                     <TouchableOpacity
@@ -142,12 +144,12 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                                         style={[styles.playerOption, selectedPlayerId === p.id && styles.selectedPlayer]}
                                         onPress={() => setSelectedPlayerId(p.id)}
                                     >
-                                        <View style={[styles.avatar, selectedPlayerId === p.id && styles.selectedAvatar]}>
-                                            <Text style={[styles.avatarText, selectedPlayerId === p.id && styles.selectedAvatarText]}>
+                                        <View style={[styles.avatar, { backgroundColor: colors.buttonSecondary }, selectedPlayerId === p.id && { backgroundColor: colors.primary, borderColor: colors.primaryLight }]}>
+                                            <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedPlayerId === p.id && { color: '#ffffff' }]}>
                                                 {p.jerseyNumber}
                                             </Text>
                                         </View>
-                                        <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+                                        <Text style={[styles.playerName, { color: colors.text }]} numberOfLines={1}>{p.name}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -156,16 +158,16 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                         {/* Assist Selector */}
                         {canHaveAssist && (
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Assist / Setter</Text>
+                                <Text style={[styles.sectionTitle, { color: colors.text }]}>Assist / Setter</Text>
                                 <View style={styles.rosterGrid}>
                                     <TouchableOpacity
                                         style={[styles.playerOption, selectedAssistId === null && styles.selectedPlayer]}
                                         onPress={() => setSelectedAssistId(null)}
                                     >
-                                        <View style={styles.avatarPlaceholder}>
-                                            <Text style={styles.avatarText}>-</Text>
+                                        <View style={[styles.avatarPlaceholder, { backgroundColor: colors.buttonSecondary, borderColor: colors.border }]}>
+                                            <Text style={[styles.avatarText, { color: colors.textSecondary }]}>-</Text>
                                         </View>
-                                        <Text style={styles.playerName}>None</Text>
+                                        <Text style={[styles.playerName, { color: colors.text }]}>None</Text>
                                     </TouchableOpacity>
                                     {sortedRoster.map(p => (
                                         <TouchableOpacity
@@ -173,12 +175,12 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                                             style={[styles.playerOption, selectedAssistId === p.id && styles.selectedPlayer]}
                                             onPress={() => setSelectedAssistId(p.id)}
                                         >
-                                            <View style={[styles.avatar, selectedAssistId === p.id && styles.selectedAvatar]}>
-                                                <Text style={[styles.avatarText, selectedAssistId === p.id && styles.selectedAvatarText]}>
+                                            <View style={[styles.avatar, { backgroundColor: colors.buttonSecondary }, selectedAssistId === p.id && { backgroundColor: colors.primary, borderColor: colors.primaryLight }]}>
+                                                <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedAssistId === p.id && { color: '#ffffff' }]}>
                                                     {p.jerseyNumber}
                                                 </Text>
                                             </View>
-                                            <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+                                            <Text style={[styles.playerName, { color: colors.text }]} numberOfLines={1}>{p.name}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
@@ -187,10 +189,10 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 
                     </ScrollView>
 
-                    <View style={styles.footer}>
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                            <Save size={20} color="#fff" />
-                            <Text style={styles.saveText}>Save Changes</Text>
+                    <View style={[styles.footer, { borderTopColor: colors.border }]}>
+                        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
+                            <Save size={20} color="#ffffff" />
+                            <Text style={[styles.saveText, { color: '#ffffff' }]}>Save Changes</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -202,15 +204,12 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         padding: 20,
     },
     container: {
-        backgroundColor: '#fff',
         borderRadius: 20,
         maxHeight: '80%',
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 10,
@@ -222,12 +221,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     title: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     closeBtn: {
         padding: 4,
@@ -241,12 +238,10 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     label: {
-        color: '#666',
         fontWeight: '600',
         width: 100,
     },
     value: {
-        color: '#333',
         fontWeight: '500',
     },
     section: {
@@ -255,7 +250,6 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#333',
         marginBottom: 12,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
@@ -269,21 +263,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 8,
-        backgroundColor: '#f5f5f5',
         borderWidth: 1,
-        borderColor: '#eee',
     },
     selectedType: {
-        backgroundColor: '#e3f2fd',
-        borderColor: '#2196f3',
     },
     typeText: {
         fontSize: 13,
-        color: '#666',
         fontWeight: '600',
     },
     selectedTypeText: {
-        color: '#2196f3',
     },
     rosterGrid: {
         flexDirection: 'row',
@@ -301,7 +289,6 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#f0f0f0',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 4,
@@ -309,41 +296,32 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
     },
     selectedAvatar: {
-        backgroundColor: '#2196f3',
-        borderColor: '#badbfd',
     },
     avatarText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#666',
     },
     selectedAvatarText: {
-        color: '#fff',
     },
     avatarPlaceholder: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#f0f0f0',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 4,
         borderWidth: 1,
-        borderColor: '#ddd',
         borderStyle: 'dashed',
     },
     playerName: {
         fontSize: 11,
-        color: '#333',
         textAlign: 'center',
     },
     footer: {
         padding: 20,
         borderTopWidth: 1,
-        borderTopColor: '#eee',
     },
     saveBtn: {
-        backgroundColor: '#2196f3',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -352,7 +330,6 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     saveText: {
-        color: '#fff',
         fontSize: 16,
         fontWeight: '700',
     },

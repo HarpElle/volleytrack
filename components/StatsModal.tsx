@@ -2,6 +2,7 @@ import { X } from 'lucide-react-native';
 import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { Player, StatLog } from '../types';
 import StatsView from './stats/StatsView';
 
@@ -13,13 +14,15 @@ interface StatsModalProps {
 }
 
 export default function StatsModal({ visible, onClose, logs, roster }: StatsModalProps) {
+    const { colors } = useAppTheme();
+
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>Match Statistics</Text>
+            <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
+                <View style={[styles.header, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+                    <Text style={[styles.title, { color: colors.text }]}>Match Statistics</Text>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                        <X size={24} color="#333" />
+                        <X size={24} color={colors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -32,7 +35,6 @@ export default function StatsModal({ visible, onClose, logs, roster }: StatsModa
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
     },
     header: {
         flexDirection: 'row',
@@ -40,14 +42,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     title: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
     },
     closeBtn: {
         padding: 4,

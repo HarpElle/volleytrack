@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { BarChart2, Settings2 } from 'lucide-react-native';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useMatchStore } from '../store/useMatchStore';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { MatchConfig } from '../types';
 
 interface MatchSettingsModalProps {
@@ -16,6 +17,7 @@ interface MatchSettingsModalProps {
 export default function MatchSettingsModal({ visible, onClose, onEndMatch, onEndSet, onViewStats }: MatchSettingsModalProps) {
     const router = useRouter();
     const { matchId } = useMatchStore();
+    const { colors } = useAppTheme();
 
     const handleEditRules = () => {
         onClose();
@@ -27,9 +29,9 @@ export default function MatchSettingsModal({ visible, onClose, onEndMatch, onEnd
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.title}>Match Settings</Text>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.title, { color: colors.text }]}>Match Settings</Text>
 
                     <View style={styles.actions}>
                         {onViewStats && (
@@ -39,25 +41,25 @@ export default function MatchSettingsModal({ visible, onClose, onEndMatch, onEnd
                             </TouchableOpacity>
                         )}
 
-                        <TouchableOpacity style={[styles.btn, styles.editBtn]} onPress={handleEditRules}>
-                            <Settings2 size={20} color="#0066cc" style={{ marginRight: 8 }} />
-                            <Text style={styles.editBtnText}>Edit Match Rules / Lineup</Text>
+                        <TouchableOpacity style={[styles.btn, styles.editBtn, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]} onPress={handleEditRules}>
+                            <Settings2 size={20} color={colors.primary} style={{ marginRight: 8 }} />
+                            <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit Match Rules / Lineup</Text>
                         </TouchableOpacity>
 
-                        <View style={styles.separator} />
+                        <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
-                        <TouchableOpacity style={[styles.btn, styles.endBtn]} onPress={onEndMatch}>
-                            <Text style={styles.endBtnText}>End Match</Text>
+                        <TouchableOpacity style={[styles.btn, styles.endBtn, { backgroundColor: colors.bgCard, borderColor: colors.opponent }]} onPress={onEndMatch}>
+                            <Text style={[styles.endBtnText, { color: colors.opponent }]}>Leave Match</Text>
                         </TouchableOpacity>
 
                         {onEndSet && (
-                            <TouchableOpacity style={[styles.btn, styles.endSetBtn]} onPress={onEndSet}>
-                                <Text style={styles.endSetBtnText}>End Set</Text>
+                            <TouchableOpacity style={[styles.btn, styles.endSetBtn, { backgroundColor: colors.bgCard, borderColor: colors.text }]} onPress={onEndSet}>
+                                <Text style={[styles.endSetBtnText, { color: colors.text }]}>End Set</Text>
                             </TouchableOpacity>
                         )}
 
-                        <TouchableOpacity style={[styles.btn, styles.closeBtn]} onPress={onClose}>
-                            <Text style={styles.closeBtnText}>Resume Match</Text>
+                        <TouchableOpacity style={[styles.btn, styles.closeBtn, { backgroundColor: colors.text }]} onPress={onClose}>
+                            <Text style={[styles.closeBtnText, { color: colors.bg }]}>Resume Match</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -69,18 +71,15 @@ export default function MatchSettingsModal({ visible, onClose, onEndMatch, onEnd
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
     card: {
-        backgroundColor: '#fff',
         borderRadius: 20,
         padding: 24,
         width: '100%',
         maxWidth: 340,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 10,
@@ -89,7 +88,6 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 20,
         textAlign: 'center',
     },
@@ -98,7 +96,6 @@ const styles = StyleSheet.create({
     },
     separator: {
         height: 1,
-        backgroundColor: '#eee',
         marginVertical: 8,
     },
     btn: {
@@ -117,38 +114,27 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     editBtn: {
-        backgroundColor: '#e6f0ff',
         borderWidth: 1,
-        borderColor: '#0066cc',
     },
     editBtnText: {
-        color: '#0066cc',
         fontSize: 16,
         fontWeight: '700',
     },
     endBtn: {
-        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: '#cc0033',
     },
     endBtnText: {
-        color: '#cc0033',
         fontSize: 16,
         fontWeight: '700',
     },
     endSetBtn: {
-        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: '#333',
     },
     endSetBtnText: {
-        color: '#333',
         fontSize: 16,
         fontWeight: '700',
     },
-    closeBtn: {
-        backgroundColor: '#333',
-    },
+    closeBtn: {},
     closeBtnText: {
         color: '#fff',
         fontSize: 16,

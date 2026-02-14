@@ -57,11 +57,45 @@ export const useMatchStore = create<MatchState>()(
             liberoIds: [],
             nonLiberoDesignations: [],
             subPairs: {},
-
-
+            firstServerPerSet: {},
 
             setServingTeam: (team) => {
                 set({ servingTeam: team });
+            },
+
+            setFirstServer: (setNumber, team) => {
+                set(state => ({
+                    firstServerPerSet: { ...(state.firstServerPerSet || {}), [setNumber]: team }
+                }));
+            },
+
+            adjustStartingRotation: (direction = 'backward') => {
+                set(state => {
+                    const current = state.currentRotation || [];
+                    if (current.length === 0 || !current.some(p => p.playerId)) return {};
+
+                    const newRotation = current.map(slot => {
+                        let newPos = slot.position;
+                        if (direction === 'forward') {
+                            if (slot.position === 1) newPos = 6;
+                            else if (slot.position === 6) newPos = 5;
+                            else if (slot.position === 5) newPos = 4;
+                            else if (slot.position === 4) newPos = 3;
+                            else if (slot.position === 3) newPos = 2;
+                            else if (slot.position === 2) newPos = 1;
+                        } else {
+                            if (slot.position === 6) newPos = 1;
+                            else if (slot.position === 5) newPos = 6;
+                            else if (slot.position === 4) newPos = 5;
+                            else if (slot.position === 3) newPos = 4;
+                            else if (slot.position === 2) newPos = 3;
+                            else if (slot.position === 1) newPos = 2;
+                        }
+                        return { ...slot, position: newPos as any };
+                    });
+
+                    return { currentRotation: newRotation };
+                });
             },
 
             startRally: () => {
@@ -360,16 +394,14 @@ export const useMatchStore = create<MatchState>()(
                     // Identify winner
                     const winner = score.myTeam > score.opponent ? 'myTeam' : 'opponent';
 
-                    // Loser of previous set serves first in next set? Or standard rules?
-                    // Standard: Loser serves first.
-                    const nextServer = winner === 'myTeam' ? 'opponent' : 'myTeam';
+                    // Serve selection is now handled by the ServeChoiceModal
+                    // which shows at the start of each set
 
                     return {
                         currentSet: state.currentSet + 1,
                         scores: [...state.scores, { myTeam: 0, opponent: 0 }],
                         setsWon: { ...state.setsWon, [winner]: state.setsWon[winner] + 1 },
                         setHistory: [...state.setHistory, { setNumber: state.currentSet, winner, score }],
-                        servingTeam: nextServer,
                         rallyState: 'pre-serve',
                         timeoutsRemaining: {
                             myTeam: state.config.timeoutsPerSet ?? 2,
@@ -456,6 +488,7 @@ export const useMatchStore = create<MatchState>()(
                         .filter(p => p.playerId)
                         .map(p => p.playerId as string),
                     subPairs: {},
+                    firstServerPerSet: {},
                     myTeamRoster: roster || []
                 });
             },
@@ -486,6 +519,7 @@ export const useMatchStore = create<MatchState>()(
                     liberoIds: [],
                     nonLiberoDesignations: [],
                     subPairs: {},
+                    firstServerPerSet: {},
                     // Keep lineups? Yes, probably want to keep the lineup they just set.
                     // Keep Roster? Yes.
                     aiNarrative: undefined,
@@ -716,11 +750,18 @@ export const useMatchStore = create<MatchState>()(
                     }
 
                     // Log the substitution details
-                    const subMetadata = {
+                    const subMetadata: any = {
                         subIn: player.id,
                         subOut: playerOutId,
                         subConsumed: (!isLiberoSwap && !!playerOutId && playerOutId !== player.id)
                     };
+
+                    // If filling an empty slot, mark as assignment (not a real substitution)
+                    if (!playerOutId) {
+                        subMetadata.isAssignment = true;
+                        subMetadata.notes = `Assigned #${player.jerseyNumber} ${player.name} to P${position}`;
+                    }
+
                     get().recordStat('substitution', isMyTeam ? 'myTeam' : 'opponent', undefined, subMetadata);
 
                     return {

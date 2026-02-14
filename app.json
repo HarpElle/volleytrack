@@ -53,7 +53,14 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4048915758307061~7721308693",
+          "iosAppId": "ca-app-pub-4048915758307061~9420470963"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

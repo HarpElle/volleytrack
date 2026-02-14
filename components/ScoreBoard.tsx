@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { MatchConfig, Score, SetConfig, SetResult } from '../types';
 
 interface ScoreBoardProps {
@@ -22,6 +23,8 @@ interface ScoreBoardProps {
     configTimeouts: number;
     onIncrement: (team: 'myTeam' | 'opponent') => void;
     onDecrement: (team: 'myTeam' | 'opponent') => void;
+    // Spectator mode
+    readOnly?: boolean;
 }
 
 export default function ScoreBoard({
@@ -40,8 +43,10 @@ export default function ScoreBoard({
     onUseTimeout,
     configTimeouts,
     onIncrement,
-    onDecrement
+    onDecrement,
+    readOnly = false
 }: ScoreBoardProps) {
+    const { colors } = useAppTheme();
     // Determine game state status
     let statusText = '';
     const myScore = score.myTeam;
@@ -88,8 +93,9 @@ export default function ScoreBoard({
         statusText = 'SET POINT';
     }
 
-    // Gesture Logic
+    // Gesture Logic — disabled in readOnly (spectator) mode
     const ScoreGesture = ({ team, children }: { team: 'myTeam' | 'opponent', children: React.ReactNode }) => {
+        if (readOnly) return <View>{children}</View>;
         const increment = () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onIncrement(team);
@@ -122,7 +128,7 @@ export default function ScoreBoard({
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
             {/* Set Pills Header */}
             <View style={styles.header}>
                 <View style={styles.pillsContainer}>
@@ -138,19 +144,22 @@ export default function ScoreBoard({
                         let textStyle: StyleProp<TextStyle> = styles.pillText;
 
                         if (isActive) {
-                            pillStyle = [styles.pill, styles.pillActive];
-                            textStyle = [styles.pillText, styles.pillTextActive];
+                            pillStyle = [styles.pill, styles.pillActive, { backgroundColor: colors.text }];
+                            textStyle = [styles.pillText, styles.pillTextActive, { color: colors.bg }];
                         } else if (isCompleted && historyItem) {
                             if (historyItem.winner === 'myTeam') {
-                                pillStyle = [styles.pill, styles.pillWonMy];
-                                textStyle = [styles.pillText, styles.pillTextActive];
+                                pillStyle = [styles.pill, styles.pillWonMy, { backgroundColor: colors.primary }];
+                                textStyle = [styles.pillText, styles.pillTextActive, { color: '#ffffff' }];
                             } else {
-                                pillStyle = [styles.pill, styles.pillWonOpp];
-                                textStyle = [styles.pillText, styles.pillTextActive];
+                                pillStyle = [styles.pill, styles.pillWonOpp, { backgroundColor: colors.opponent }];
+                                textStyle = [styles.pillText, styles.pillTextActive, { color: '#ffffff' }];
                             }
                         } else if (setNum > currentSet) {
-                            pillStyle = [styles.pill, styles.pillFuture];
-                            textStyle = [styles.pillText, styles.pillTextFuture];
+                            pillStyle = [styles.pill, styles.pillFuture, { backgroundColor: colors.bg, borderColor: colors.border }];
+                            textStyle = [styles.pillText, styles.pillTextFuture, { color: colors.textTertiary }];
+                        } else {
+                            pillStyle = [styles.pill, { backgroundColor: colors.border }];
+                            textStyle = [styles.pillText, { color: colors.textSecondary }];
                         }
 
                         return (
@@ -167,70 +176,120 @@ export default function ScoreBoard({
                         );
                     })}
                 </View>
-
-                {statusText ? <Text style={styles.statusText}>{statusText}</Text> : (
-                    <View style={styles.timeoutsContainer}>
-                        <TouchableOpacity
-                            onPress={() => onUseTimeout('myTeam')}
-                            disabled={timeoutsRemaining.myTeam === 0}
-                            style={styles.useToBtn}
-                        >
-                            <Text style={styles.useToText}>Take TO</Text>
-                        </TouchableOpacity>
-                        <View style={styles.toDots}>
-                            {[...Array(configTimeouts)].map((_, i) => {
-                                const isAvailable = i < timeoutsRemaining.myTeam;
-                                return (
-                                    <View key={i} style={[styles.toDot, isAvailable ? styles.toDotAvailable : styles.toDotUsed]} />
-                                );
-                            })}
-                        </View>
-                    </View>
-                )}
+                {statusText ? <Text style={[styles.statusText, { color: colors.warning }]}>{statusText}</Text> : null}
             </View>
 
             <View style={styles.board}>
                 {/* My Team */}
                 <View style={styles.teamContainer}>
-                    <Text style={styles.teamName} numberOfLines={1}>{myTeamName}</Text>
+                    <Text style={[styles.teamName, { color: colors.text }]} numberOfLines={1}>{myTeamName}</Text>
                     <ScoreGesture team="myTeam">
-                        <TouchableOpacity onLongPress={() => onScoreLongPress('myTeam')} activeOpacity={0.8}>
-                            <Text style={[styles.score, styles.myScore]}>{score.myTeam}</Text>
-                        </TouchableOpacity>
+                        {readOnly ? (
+                            <Text style={[styles.score, styles.myScore, { color: colors.primary }]}>{score.myTeam}</Text>
+                        ) : (
+                            <TouchableOpacity onLongPress={() => onScoreLongPress('myTeam')} activeOpacity={0.8}>
+                                <Text style={[styles.score, styles.myScore, { color: colors.primary }]}>{score.myTeam}</Text>
+                            </TouchableOpacity>
+                        )}
                     </ScoreGesture>
-                    <TouchableOpacity
-                        onPress={() => servingTeam !== 'myTeam' && onToggleServe()}
-                        disabled={servingTeam === 'myTeam'}
-                        style={[
-                            styles.serveIndicator,
-                            servingTeam === 'myTeam' ? styles.serveIndicatorActiveMy : styles.serveIndicatorInactive
-                        ]}
-                    />
-                </View>
-
-                {/* Divider */}
-                <View style={styles.divider}>
-                    <Text style={styles.dividerText}>-</Text>
+                    {readOnly ? (
+                        <View
+                            style={[
+                                styles.serveIndicator,
+                                servingTeam === 'myTeam' ? [styles.serveIndicatorActiveMy, { backgroundColor: colors.primary }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
+                            ]}
+                        />
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => servingTeam !== 'myTeam' && onToggleServe()}
+                            disabled={servingTeam === 'myTeam'}
+                            style={[
+                                styles.serveIndicator,
+                                servingTeam === 'myTeam' ? [styles.serveIndicatorActiveMy, { backgroundColor: colors.primary }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
+                            ]}
+                        />
+                    )}
                 </View>
 
                 {/* Opponent */}
                 <View style={styles.teamContainer}>
-                    <Text style={styles.teamName} numberOfLines={1}>{opponentName}</Text>
+                    <Text style={[styles.teamName, { color: colors.text }]} numberOfLines={1}>{opponentName}</Text>
                     <ScoreGesture team="opponent">
-                        <TouchableOpacity onLongPress={() => onScoreLongPress('opponent')} activeOpacity={0.8}>
-                            <Text style={[styles.score, styles.opponentScore]}>{score.opponent}</Text>
-                        </TouchableOpacity>
+                        {readOnly ? (
+                            <Text style={[styles.score, styles.opponentScore, { color: colors.opponent }]}>{score.opponent}</Text>
+                        ) : (
+                            <TouchableOpacity onLongPress={() => onScoreLongPress('opponent')} activeOpacity={0.8}>
+                                <Text style={[styles.score, styles.opponentScore, { color: colors.opponent }]}>{score.opponent}</Text>
+                            </TouchableOpacity>
+                        )}
                     </ScoreGesture>
-                    <TouchableOpacity
-                        onPress={() => servingTeam !== 'opponent' && onToggleServe()}
-                        disabled={servingTeam === 'opponent'}
-                        style={[
-                            styles.serveIndicator,
-                            servingTeam === 'opponent' ? styles.serveIndicatorActiveOpp : styles.serveIndicatorInactive
-                        ]}
-                    />
+                    {readOnly ? (
+                        <View
+                            style={[
+                                styles.serveIndicator,
+                                servingTeam === 'opponent' ? [styles.serveIndicatorActiveOpp, { backgroundColor: colors.opponent }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
+                            ]}
+                        />
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => servingTeam !== 'opponent' && onToggleServe()}
+                            disabled={servingTeam === 'opponent'}
+                            style={[
+                                styles.serveIndicator,
+                                servingTeam === 'opponent' ? [styles.serveIndicatorActiveOpp, { backgroundColor: colors.opponent }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
+                            ]}
+                        />
+                    )}
                 </View>
             </View>
+
+            {/* Timeouts Row - Both Teams (hidden in spectator mode) */}
+            {!readOnly && (
+            <View style={[styles.timeoutsRow, { borderTopColor: colors.border }]}>
+                {/* My Team Timeouts */}
+                <View style={styles.timeoutTeamContainer}>
+                    <TouchableOpacity
+                        onPress={() => onUseTimeout('myTeam')}
+                        disabled={timeoutsRemaining.myTeam === 0}
+                        style={[styles.useToBtn, timeoutsRemaining.myTeam === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabled : colors.primaryLight }]}
+                    >
+                        <Text style={[styles.useToText, timeoutsRemaining.myTeam === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
+                    </TouchableOpacity>
+                    <View style={styles.toDots}>
+                        {[...Array(configTimeouts)].map((_, i) => {
+                            const isAvailable = i < timeoutsRemaining.myTeam;
+                            return (
+                                <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.primary : colors.border }]} />
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* Invisible divider text ensures spacer matches the score divider width exactly */}
+                <View style={styles.divider}>
+                    <Text style={[styles.dividerText, { opacity: 0 }]}>-</Text>
+                </View>
+
+                {/* Opponent Timeouts */}
+                <View style={styles.timeoutTeamContainer}>
+                    <TouchableOpacity
+                        onPress={() => onUseTimeout('opponent')}
+                        disabled={timeoutsRemaining.opponent === 0}
+                        style={[styles.useToBtnOpp, timeoutsRemaining.opponent === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.opponent === 0 ? colors.buttonDisabled : colors.opponentLight }]}
+                    >
+                        <Text style={[styles.useToText, timeoutsRemaining.opponent === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.opponent === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
+                    </TouchableOpacity>
+                    <View style={styles.toDots}>
+                        {[...Array(configTimeouts)].map((_, i) => {
+                            const isAvailable = i < timeoutsRemaining.opponent;
+                            return (
+                                <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.opponent : colors.border }]} />
+                            );
+                        })}
+                    </View>
+                </View>
+            </View>
+            )}
         </View>
     );
 }
@@ -249,21 +308,25 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     header: {
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 6,
+    },
+    timeoutsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
-        height: 32,
+        marginTop: 12,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
     },
-    timeoutsContainer: {
+    timeoutTeamContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
-    },
-    toLabel: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#666',
+        flex: 1,
     },
     toDots: {
         flexDirection: 'row',
@@ -274,23 +337,37 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
     },
-    toDotAvailable: {
+    toDotAvailableMy: {
         backgroundColor: '#0066cc',
+    },
+    toDotAvailableOpp: {
+        backgroundColor: '#cc0033',
     },
     toDotUsed: {
         backgroundColor: '#e0e0e0',
     },
     useToBtn: {
-        backgroundColor: '#eee',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+        backgroundColor: '#e6f0ff',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
         borderRadius: 6,
-        marginLeft: 4,
+    },
+    useToBtnOpp: {
+        backgroundColor: '#ffe6ea',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    useToBtnDisabled: {
+        backgroundColor: '#f5f5f5',
     },
     useToText: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '700',
         color: '#333',
+    },
+    useToTextDisabled: {
+        color: '#ccc',
     },
     pillsContainer: {
         flexDirection: 'row',

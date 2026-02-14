@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "liveMatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "coachUid", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

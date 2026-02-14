@@ -1,25 +1,85 @@
+import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { AlertCircle, Maximize2, Menu, RotateCcw, RotateCw, Undo2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useKeepAwake } from 'expo-keep-awake';
+import { AlertCircle, Eye, Maximize2, Menu, Radio, RotateCcw, RotateCw, Undo2 } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, BackHandler, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EndOfSetModal from '../components/EndOfSetModal';
 import FullLogModal from '../components/FullLogModal';
+import ServeChoiceModal from '../components/ServeChoiceModal';
 import LineupTracker from '../components/LineupTracker';
+import { MatchErrorBoundary } from '../components/MatchErrorBoundary';
 import MatchSettingsModal from '../components/MatchSettingsModal';
+import ShareMatchModal from '../components/ShareMatchModal';
 import ScoreBoard from '../components/ScoreBoard';
 import ScoreEditModal from '../components/ScoreEditModal';
 import StatPickerModal from '../components/StatPickerModal';
 import StatsModal from '../components/StatsModal';
 import { SubstituteModalContent } from '../components/SubstituteModalContent';
+import { AdBanner } from '../components/AdBanner';
+import { CoachAlertToast } from '../components/CoachAlertToast';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { useHaptics } from '../hooks/useHaptic';
+import { useLiveMatch } from '../hooks/useLiveMatch';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
-import { Player, StatLog } from '../types';
-import { MomentumState, MomentumTracker } from '../utils/MomentumTracker';
+import { Player, SpectatorAlert, StatLog } from '../types';
+import { MomentumState, MomentumTracker, SuggestionUrgency } from '../utils/MomentumTracker';
 
-export default function LiveScreen() {
+export default function LiveScreenWithBoundary() {
     const router = useRouter();
+    return (
+        <MatchErrorBoundary onReturnHome={() => router.replace('/')}>
+            <LiveScreen />
+        </MatchErrorBoundary>
+    );
+}
+
+function LiveScreen() {
+    // Keep screen awake during live match tracking
+    useKeepAwake();
+
+    const router = useRouter();
+    const navigation = useNavigation();
+    const { colors, spacing, radius } = useAppTheme();
+
+    // Prevent accidental navigation away from live match
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            // Allow navigation if explicitly going to summary (match finalized)
+            if (e.data?.action?.type === 'REPLACE') return;
+
+            e.preventDefault();
+            Alert.alert(
+                'Leave Match?',
+                'Your progress is saved. You can resume from the dashboard.',
+                [
+                    { text: 'Stay', style: 'cancel' },
+                    { text: 'Leave', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) }
+                ]
+            );
+        });
+
+        return unsubscribe;
+    }, [navigation]);
+
+    // Android hardware back button
+    useEffect(() => {
+        const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+            Alert.alert(
+                'Leave Match?',
+                'Your progress is saved. You can resume from the dashboard.',
+                [
+                    { text: 'Stay', style: 'cancel' },
+                    { text: 'Leave', style: 'destructive', onPress: () => router.back() }
+                ]
+            );
+            return true; // Prevent default back behavior
+        });
+
+        return () => handler.remove();
+    }, []);
 
     // Connect to store
     const {
@@ -30,19 +90,21 @@ export default function LiveScreen() {
         history, setHistory, servingTeam, setServingTeam, rallyState,
         currentRotation, rotate, substitute, activeSeasonId,
         subPairs, nonLiberoDesignations, designateNonLibero,
+        firstServerPerSet, setFirstServer, adjustStartingRotation,
+        myTeamRoster,
     } = useMatchStore();
 
-    // Get Roster
+    // Get Roster — use season roster if available, otherwise fall back to Quick Match roster
     const { seasons } = useDataStore();
     const activeSeason = seasons.find(s => s.id === activeSeasonId);
-    const roster = activeSeason?.roster || [];
+    const roster = (activeSeason?.roster?.length ? activeSeason.roster : myTeamRoster) || [];
     const haptics = useHaptics();
 
     const currentScore = scores[currentSet - 1];
 
     // Hydration Guard: If store hasn't loaded scores yet, return null or loader
     if (!currentScore) {
-        return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+        return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
     }
 
     // Rally Flow Logic
@@ -112,7 +174,8 @@ export default function LiveScreen() {
 
     // Momentum Logic
     const [momentum, setMomentum] = useState<MomentumState>({ score: 0, trend: 'stable', suggestion: { shouldTimeout: false } });
-    const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null);
+    // Track cooldown by total score at time of dismissal (not by reason string)
+    const [dismissedAtScore, setDismissedAtScore] = useState<number | null>(null);
 
     useEffect(() => {
         if (!history || !currentScore) return;
@@ -120,58 +183,12 @@ export default function LiveScreen() {
         // Filter history for current set only to prevent bleed-over
         const currentSetHistory = history.filter(h => h.setNumber === currentSet);
 
-        const result = MomentumTracker.analyze(currentSetHistory, currentScore, servingTeam);
+        const result = MomentumTracker.analyze(currentSetHistory, currentScore, servingTeam, dismissedAtScore);
         setMomentum(result);
+    }, [history.length, currentScore, servingTeam, dismissedAtScore]);
 
-        // Reset dismissal if suggestion clears or changes type
-        if (!result.suggestion.shouldTimeout) {
-            setDismissedSuggestion(null);
-        }
-    }, [history.length, currentScore, servingTeam]);
-
-    // AUTO-SWAP LOGIC REMOVED (Handled in Store)
-    const lastHistoryIdRef = React.useRef<string | null>(null);
-
-    useEffect(() => {
-        if (!history || history.length === 0) return;
-
-        const latest = history[history.length - 1];
-
-        // Skip if we've already processed this event
-        if (lastHistoryIdRef.current === latest.id) return;
-        lastHistoryIdRef.current = latest.id;
-
-        // Check if it's an Auto-Swap
-        // Note: Auto-swaps might be batched with rotation, so check the last few events if "Atomic" batching puts them not at the absolute end?
-        // Actually, atomic update appends them in order. 
-        // But if multiple events come in one render, we might want to scan the delta. 
-        // For now, let's just check the last 3 events to be safe and ensure we don't alert twice for the same ID.
-
-        const recentEvents = history.slice(-3);
-        const autoSwapEvent = recentEvents.find(e =>
-            e.type === 'substitution' &&
-            e.metadata?.autoSwap === true &&
-            e.id !== lastHistoryIdRef.current // Wait, ref tracks *latest* ID. This logic is tricky for batches.
-        );
-
-        // Simpler approach: Check if THE latest event, or one of the batch, is new.
-        // We really just want to know if an auto-swap happened "just now".
-        // The most robust way is to finding the *latest* auto-swap and seeing if it's newer than our last check? 
-        // No, IDs aren't timestamps. 
-
-        // Let's use the timestamp.
-        const now = Date.now();
-        const recentAutoSwap = history.find(e =>
-            e.type === 'substitution' &&
-            e.metadata?.autoSwap === true &&
-            Math.abs(now - e.timestamp) < 1000 // Happened in last second
-        );
-
-        if (recentAutoSwap && recentAutoSwap.id !== lastHistoryIdRef.current) {
-            // It's a fresh one (approx)
-            // Actually, the ref should just store the ID of the last alerted auto-swap to be safe.
-        }
-    }, [history]);
+    // Auto-swap is handled in the store (rotate action).
+    // UI notification is via the LineupTracker highlight.
 
 
 
@@ -182,6 +199,29 @@ export default function LiveScreen() {
     const canReceive = isPreServe && isOppServe;
     // Rally Actions enabled if: In Rally
     const inRally = isInRally;
+
+    // Live broadcast (spectator sharing)
+    const {
+        isBroadcasting, matchCode: liveMatchCode, isStarting, error: broadcastError,
+        startBroadcast, stopBroadcast, finalizeBroadcast,
+        pendingAlerts, dismissAlert, dismissAllAlerts, viewerCount,
+    } = useLiveMatch();
+    const [showShare, setShowShare] = useState(false);
+
+    // Coach alert toast — display one at a time from the queue
+    const [currentToastAlert, setCurrentToastAlert] = useState<SpectatorAlert | null>(null);
+    const processedAlertIdsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (pendingAlerts.length === 0 || currentToastAlert) return;
+        // Find first unprocessed alert
+        const next = pendingAlerts.find(a => !processedAlertIdsRef.current.has(a.id));
+        if (next) {
+            processedAlertIdsRef.current.add(next.id);
+            setCurrentToastAlert(next);
+            haptics('error'); // Strong haptic buzz for score alert
+        }
+    }, [pendingAlerts, currentToastAlert]);
 
     // Local state
     const [showSettings, setShowSettings] = useState(false);
@@ -198,6 +238,44 @@ export default function LiveScreen() {
         descriptor?: string;
         options: { label: string; subLabel?: string; value: string; color?: string }[]
     } | null>(null);
+
+    // Serve Choice Modal
+    const [showServeChoice, setShowServeChoice] = useState(false);
+
+    // Show serve choice modal at the start of each set (when no events exist for that set)
+    useEffect(() => {
+        const hasFirstServer = firstServerPerSet?.[currentSet];
+        const setHasHistory = history.some(h => h.setNumber === currentSet);
+
+        if (!hasFirstServer && !setHasHistory) {
+            setShowServeChoice(true);
+        }
+    }, [currentSet]);
+
+    // Determine suggested server for non-deciding sets (alternating pattern)
+    const getSuggestedServer = (): 'myTeam' | 'opponent' | null => {
+        if (currentSet === 1) return null; // Set 1: coin toss, no suggestion
+
+        const isDecidingSet = currentSet === config.totalSets;
+        if (isDecidingSet) return null; // Deciding set: new coin toss
+
+        // Alternate from previous set's first server
+        const prevServer = firstServerPerSet?.[currentSet - 1];
+        if (!prevServer) return null;
+        return prevServer === 'myTeam' ? 'opponent' : 'myTeam';
+    };
+
+    const handleServeChoice = (team: 'myTeam' | 'opponent') => {
+        setServingTeam(team);
+        setFirstServer(currentSet, team);
+
+        // Auto-rotate lineup backward if opponent serves first and we have a lineup
+        if (team === 'opponent' && currentRotation && currentRotation.length > 0 && currentRotation.some(p => p.playerId)) {
+            adjustStartingRotation('backward');
+        }
+
+        setShowServeChoice(false);
+    };
 
     // Non-Libero Designations Persistence
 
@@ -243,7 +321,7 @@ export default function LiveScreen() {
         }
     };
 
-    // Auto-select Server
+    // Auto-select Server (or clear on sideout)
     useEffect(() => {
         if (servingTeam === 'myTeam' && rallyState === 'pre-serve' && currentRotation) {
             // Find player in Position 1
@@ -251,6 +329,9 @@ export default function LiveScreen() {
             if (server && server.playerId) {
                 setSelectedPlayerIds([server.playerId]);
             }
+        } else if (servingTeam === 'opponent' && rallyState === 'pre-serve') {
+            // Sideout: clear server highlight so P1 isn't stuck highlighted
+            setSelectedPlayerIds([]);
         }
     }, [servingTeam, rallyState, currentRotation, history.length]);
 
@@ -295,13 +376,14 @@ export default function LiveScreen() {
         let finalPlayerId: string | undefined = undefined;
 
         if (team === 'myTeam' && selectedPlayerIds.length > 0) {
-            // Check for Kill, Error, or Good Attack to track sets/assists
-            if ((type === 'kill' || type === 'attack_good' || type === 'attack_error') && selectedPlayerIds.length === 2) {
-                // Set/Assist Logic
+            // Check for Kill, Error, Good Attack, or Block to track two-player attribution
+            if ((type === 'kill' || type === 'attack_good' || type === 'attack_error' || type === 'block') && selectedPlayerIds.length === 2) {
+                // Attack: first = setter (assist), second = attacker
+                // Block: first = assist blocker, second = primary blocker
                 statsMetadata.assistPlayerId = selectedPlayerIds[0];
                 finalPlayerId = selectedPlayerIds[1];
             } else {
-                // Default: Use last selected player (e.g. Block, or just single selection)
+                // Default: Use last selected player (single selection)
                 finalPlayerId = selectedPlayerIds[selectedPlayerIds.length - 1];
             }
         }
@@ -311,22 +393,31 @@ export default function LiveScreen() {
         if (finalPlayerId || selectedPlayerIds.length > 0) setSelectedPlayerIds([]);
     };
 
-    // Selection Handler
+    // Selection Handler — context-aware constraints
     const handlePlayerSelect = (pid: string) => {
+        // During Serve: P1 is auto-selected, lock selection
+        if (canServe) return;
+
+        // Toggle off if already selected
         if (selectedPlayerIds.includes(pid)) {
-            // Deselect if already selected (simple toggle off)
-            // Or if first is selected and we tap first again?
             setSelectedPlayerIds([]);
+            return;
+        }
+
+        // During Receive: max 1 player (just replace selection)
+        if (canReceive) {
+            setSelectedPlayerIds([pid]);
+            return;
+        }
+
+        // In Rally: allow up to 2 players (for Attack assist + hitter, or double Block)
+        if (selectedPlayerIds.length === 0) {
+            setSelectedPlayerIds([pid]);
+        } else if (selectedPlayerIds.length === 1) {
+            setSelectedPlayerIds([...selectedPlayerIds, pid]);
         } else {
-            if (selectedPlayerIds.length === 0) {
-                setSelectedPlayerIds([pid]);
-            } else if (selectedPlayerIds.length === 1) {
-                // Setter already selected, now Attacker
-                setSelectedPlayerIds([...selectedPlayerIds, pid]);
-            } else {
-                // Reset to new selection
-                setSelectedPlayerIds([pid]);
-            }
+            // Reset to new selection
+            setSelectedPlayerIds([pid]);
         }
     };
 
@@ -336,81 +427,95 @@ export default function LiveScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>VolleyTrack</Text>
-                <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.menuBtn}>
-                    <Menu size={28} color="#333" />
-                </TouchableOpacity>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+            <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>VolleyTrack</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity onPress={() => setShowShare(true)} style={styles.menuBtn}>
+                        <Radio size={22} color={isBroadcasting ? colors.success : colors.textSecondary} />
+                        {isBroadcasting && viewerCount > 0 && (
+                            <View style={[styles.viewerBadge, { backgroundColor: colors.success }]}>
+                                <Eye size={8} color="#ffffff" />
+                                <Text style={styles.viewerBadgeText}>{viewerCount}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.menuBtn}>
+                        <Menu size={28} color={colors.text} />
+                    </TouchableOpacity>
+                </View>
             </View>
+
+            {/* Coach Alert Toast — non-modal, slides from top */}
+            <CoachAlertToast
+                alert={currentToastAlert}
+                onDismiss={() => {
+                    if (currentToastAlert) {
+                        dismissAlert(currentToastAlert.id);
+                    }
+                    setCurrentToastAlert(null);
+                }}
+            />
 
             <View style={styles.content}>
 
-                {/* Timeout Recommendation */}
-                {momentum.suggestion.shouldTimeout && momentum.suggestion.reason !== dismissedSuggestion && (
-                    <TouchableOpacity
-                        style={styles.timeoutBanner}
-                        onPress={() => {
-                            // If they tap it, assume they take it? Or just dismiss?
-                            // Let's open the menu or just dismiss for now.
-                            // Better: "Use Timeout?" prompt
-                            Alert.alert('Coach Recommendation', `${momentum.suggestion.reason}\n\nCall Timeout?`, [
-                                { text: 'No, Dismiss', style: 'cancel', onPress: () => setDismissedSuggestion(momentum.suggestion.reason || 'dismissed') },
-                                { text: 'Call Timeout', onPress: () => useTimeout('myTeam') }
-                            ]);
-                        }}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <AlertCircle size={20} color="#fff" style={{ marginRight: 8 }} />
-                            <Text style={styles.timeoutBannerText}>
-                                Consider TO - {momentum.suggestion.reason}
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
-                )}
-
-                {/* Momentum Gauge (Simple Bar) */}
+                {/* Momentum Gauge + Timeout Banner (overlaid to prevent layout shift) */}
                 <View style={styles.momentumContainer}>
-                    <View style={[styles.momentumBar, {
-                        // Map -100..100 to 0%..100% width, centered?
-                        // Let's do a split bar. Center is 0.
-                        // My Momentum (Right) vs Opponent (Left)?
-                        // Simplified: Just a single colored bar indicating who has momentum
-                        backgroundColor: '#eee',
-                        overflow: 'hidden'
-                    }]}>
+                    {/* Timeout Recommendation — absolutely positioned overlay, no layout shift */}
+                    {momentum.suggestion.shouldTimeout && (
+                        <TouchableOpacity
+                            style={[
+                                styles.timeoutBanner,
+                                { backgroundColor: momentum.suggestion.urgency === 'caution' ? colors.momentumCaution : colors.momentumUrgent }
+                            ]}
+                            onPress={() => {
+                                const totalScore = currentScore.myTeam + currentScore.opponent;
+                                Alert.alert(
+                                    momentum.suggestion.urgency === 'urgent' ? 'Timeout Recommended' : 'Momentum Check',
+                                    `${momentum.suggestion.reason}\n\nCall Timeout?`,
+                                    [
+                                        {
+                                            text: 'Dismiss',
+                                            style: 'cancel',
+                                            onPress: () => setDismissedAtScore(totalScore)
+                                        },
+                                        { text: 'Call Timeout', onPress: () => useTimeout('myTeam') }
+                                    ]
+                                );
+                            }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <AlertCircle size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                                <Text style={[styles.timeoutBannerText, { color: '#ffffff' }]}>
+                                    {momentum.suggestion.urgency === 'urgent' ? 'Consider TO' : 'Watch'} - {momentum.suggestion.reason}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
+                    <View style={[styles.momentumBar, { backgroundColor: colors.momentumBase }]}>
                         {/* Center Marker */}
-                        <View style={{ position: 'absolute', left: '50%', width: 2, height: '100%', backgroundColor: '#fff', zIndex: 10 }} />
+                        <View style={{ position: 'absolute', left: '50%', width: 2, height: '100%', backgroundColor: colors.bgCard, zIndex: 10 }} />
 
-                        {/* The Bar */}
-                        <View style={{
-                            position: 'absolute',
-                            left: '50%',
-                            height: '100%',
-                            width: `${Math.abs(momentum.score) / 2}%`, // Max 50% width from center
-                            backgroundColor: momentum.score > 0 ? '#4caf50' : '#f44336', // Green for me, Red for them
-                            transform: [{ translateX: momentum.score > 0 ? 0 : -((Math.abs(momentum.score) / 2) / 100 * 300) }] // Re-positioning trick or just use marginLeft/Right?
-                            // Easier: Use flexbox logic inside? 
-                            // Let's try simple left/right positioning
-                        }} />
-
-                        <View style={{
-                            position: 'absolute',
-                            height: '100%',
-                            // If score > 0, start at 50%, width = score/2 %
-                            // If score < 0, right at 50%, width = abs(score)/2 %
-                            left: momentum.score > 0 ? '50%' : undefined,
-                            right: momentum.score < 0 ? '50%' : undefined,
-                            width: `${Math.abs(momentum.score) / 2}%`,
-                            backgroundColor: momentum.score > 0 ? '#4caf50' : '#f44336'
-                        }} />
+                        {/* Momentum Fill — minimum 4% width so even small shifts are visible */}
+                        {momentum.score !== 0 && (
+                            <View style={{
+                                position: 'absolute',
+                                height: '100%',
+                                left: momentum.score > 0 ? '50%' : undefined,
+                                right: momentum.score < 0 ? '50%' : undefined,
+                                width: `${Math.max(4, Math.abs(momentum.score) / 2)}%`,
+                                backgroundColor: momentum.score > 0 ? colors.momentumPositive : colors.momentumNegative,
+                                borderRadius: 4,
+                            }} />
+                        )}
                     </View>
                     <View style={styles.momentumLabels}>
-                        <Text style={[styles.momentumText, momentum.score < -20 && { fontWeight: 'bold', color: '#f44336' }]}>
-                            {momentum.score < -20 ? 'Opponent Momentum' : ''}
+                        <Text style={[styles.momentumText, { color: colors.textTertiary }, momentum.score < -10 && { fontWeight: 'bold', color: colors.momentumNegative }]}>
+                            {momentum.score < -10 ? 'Them' : ''}
                         </Text>
-                        <Text style={[styles.momentumText, momentum.score > 20 && { fontWeight: 'bold', color: '#4caf50' }]}>
-                            {momentum.score > 20 ? 'My Momentum' : ''}
+                        <Text style={[styles.momentumText, { color: colors.textTertiary }, momentum.score > 10 && { fontWeight: 'bold', color: colors.momentumPositive }]}>
+                            {momentum.score > 10 ? 'Us' : ''}
                         </Text>
                     </View>
                 </View>
@@ -470,31 +575,31 @@ export default function LiveScreen() {
                 {/* Subs & Rotation Control Row */}
                 <View style={styles.subsRow}>
                     <View style={styles.subsContainer}>
-                        <Text style={styles.subsLabel}>Subs</Text>
+                        <Text style={[styles.subsLabel, { color: colors.textSecondary }]}>Subs</Text>
                         <View style={styles.subsDots}>
                             {[...Array(config.subsPerSet || 12)].map((_, i) => {
                                 const isAvailable = i < subsRemaining.myTeam;
                                 return (
                                     <View
                                         key={i}
-                                        style={[styles.subDot, isAvailable ? styles.subDotAvailable : styles.subDotUsed]}
+                                        style={[styles.subDot, { backgroundColor: isAvailable ? colors.primary : colors.momentumBase }]}
                                     />
                                 );
                             })}
                         </View>
                     </View>
 
-                    <View style={styles.rotateInlineControls}>
+                    <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
                         {/* Rotate Back */}
                         <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => rotate('backward')}>
-                            <RotateCcw size={18} color="#0066cc" />
+                            <RotateCcw size={18} color={colors.primary} />
                         </TouchableOpacity>
 
-                        <Text style={styles.rotateInlineLabel}>Rotate</Text>
+                        <Text style={[styles.rotateInlineLabel, { color: colors.primary }]}>Rotate</Text>
 
                         {/* Rotate Forward */}
                         <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => rotate('forward')}>
-                            <RotateCw size={18} color="#0066cc" />
+                            <RotateCw size={18} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -515,6 +620,17 @@ export default function LiveScreen() {
                     }}
                 />
 
+                <ShareMatchModal
+                    visible={showShare}
+                    onClose={() => setShowShare(false)}
+                    matchCode={liveMatchCode}
+                    isBroadcasting={isBroadcasting}
+                    isStarting={isStarting}
+                    error={broadcastError}
+                    onStartShare={startBroadcast}
+                    onStopShare={stopBroadcast}
+                />
+
                 <StatsModal
                     visible={showStats}
                     onClose={() => setShowStats(false)}
@@ -527,6 +643,16 @@ export default function LiveScreen() {
                     onClose={() => setShowFullLog(false)}
                     history={history}
                     roster={roster}
+                />
+
+                <ServeChoiceModal
+                    visible={showServeChoice}
+                    myTeamName={myTeamName}
+                    opponentName={opponentName}
+                    currentSet={currentSet}
+                    totalSets={config.totalSets}
+                    suggestedServer={getSuggestedServer()}
+                    onChoose={handleServeChoice}
                 />
 
                 <EndOfSetModal
@@ -553,6 +679,7 @@ export default function LiveScreen() {
                         const isMatchDecided = myTotalWins >= setsToWin || oppTotalWins >= setsToWin;
 
                         if (isMatchDecided || currentSet >= config.totalSets) {
+                            finalizeBroadcast(); // Stop live broadcast if active
                             finalizeMatch();
                             router.replace('/summary');
                         } else {
@@ -604,122 +731,130 @@ export default function LiveScreen() {
                     />
                 </Modal>
 
-                {/* Stat Grid */}
+                {/* Stat Grid — only the active row renders to save vertical space */}
                 <View style={styles.statGrid}>
-                    <StatButton
-                        label="Serve"
-                        color={canServe ? "#4a90e2" : "#ccc"}
-                        disabled={!canServe}
-                        onPress={() => {
-                            setStatPicker({
-                                visible: true,
-                                title: 'Serve Result',
-                                team: 'myTeam',
-                                attribution: getAttribution('serve'),
-                                options: [
-                                    { label: 'Ace', subLabel: 'Point', value: 'ace', color: '#2196f3' },
-                                    { label: 'Good', subLabel: 'In Play', value: 'serve_good', color: '#4caf50' },
-                                    { label: 'Error', subLabel: 'Net/Out', value: 'serve_error', color: '#f44336' },
-                                ]
-                            });
-                            haptics('light');
-                        }}
-                        onLongPress={() => { handleStat('serve_error', 'myTeam', 'Serve Error'); haptics('error'); }}
-                    />
-                    <StatButton
-                        label="Receive"
-                        color={canReceive ? "#f5a623" : "#ccc"}
-                        disabled={!canReceive}
-                        onPress={() => {
-                            setStatPicker({
-                                visible: true,
-                                title: 'Receive Quality',
-                                team: 'myTeam',
-                                attribution: getAttribution('general'),
-                                options: [
-                                    { label: '3', subLabel: 'Perfect', value: 'receive_3', color: '#4caf50' },
-                                    { label: '2', subLabel: 'Good', value: 'receive_2', color: '#8bc34a' },
-                                    { label: '1', subLabel: 'Poor', value: 'receive_1', color: '#ffc107' },
-                                    { label: 'Error (No Point)', subLabel: 'Play Continues', value: 'receive_error', color: '#e91e63' },
-                                    { label: 'Error (Point)', subLabel: 'Ends Rally', value: 'receive_0', color: '#f44336' },
-                                ]
-                            });
-                            haptics('light');
-                        }}
-                        onLongPress={() => { handleStat('receive_0', 'myTeam', 'Receive Error'); haptics('error'); }}
-                    />
-
-                    <View style={styles.statRowSplit}>
-                        <StatButton
-                            label="Attack"
-                            color={inRally ? "#50c878" : "#ccc"}
-                            disabled={!inRally}
-                            style={{ flex: 1 }}
-                            onPress={() => {
-                                setStatPicker({
-                                    visible: true,
-                                    title: 'Attack Result',
-                                    team: 'myTeam',
-                                    attribution: getAttribution('attack'),
-                                    options: [
-                                        { label: 'Kill', subLabel: 'Point', value: 'kill', color: '#4caf50' },
-                                        { label: 'Good', subLabel: 'In Play', value: 'attack_good', color: '#8bc34a' },
-                                        { label: 'Error', subLabel: 'Net/Out', value: 'attack_error', color: '#f44336' },
-                                    ]
-                                });
-                                haptics('light');
-                            }}
-                            onLongPress={() => { handleStat('attack_error', 'myTeam', 'Attack Error'); haptics('error'); }}
-                        />
-                        <StatButton
-                            label="Block"
-                            color={inRally ? "#009688" : "#ccc"}
-                            disabled={!inRally}
-                            style={{ flex: 1 }}
-                            onPress={() => { handleStat('block', 'myTeam', 'Block'); haptics('success'); }}
-                        />
-                    </View>
-                    <View style={styles.statRowSplit}>
-                        <StatButton
-                            label="Dig"
-                            color={inRally ? "#bd10e0" : "#ccc"}
-                            disabled={!inRally}
-                            style={{ flex: 1 }}
-                            onPress={() => { handleStat('dig', 'myTeam', 'Dig'); haptics('light'); }}
-                        />
-                        <StatButton
-                            label="Error"
-                            color={inRally ? "#9013fe" : "#ccc"}
-                            disabled={!inRally}
-                            style={{ flex: 1 }}
-                            onPress={() => {
-                                setStatPicker({
-                                    visible: true,
-                                    title: 'Error Type',
-                                    team: 'myTeam',
-                                    attribution: getAttribution('general'),
-                                    descriptor: 'These errors result in a point for the opponent.',
-                                    options: [
-                                        { label: 'Drop', subLabel: 'Ball fell', value: 'drop', color: '#f44336' },
-                                        { label: 'Passing Error', subLabel: 'Shank/Double/Etc', value: 'pass_error', color: '#e91e63' },
-                                        { label: 'Setting Error', subLabel: 'Shank/Net/Etc', value: 'set_error', color: '#9c27b0' },
-                                    ]
-                                });
-                                haptics('light');
-                            }}
-                        />
-                    </View>
+                    {isPreServe ? (
+                        /* Pre-Serve: Serve & Receive */
+                        <View style={styles.statRow}>
+                            <StatButton
+                                label="Serve"
+                                color={canServe ? "#4a90e2" : colors.buttonDisabled}
+                                disabled={!canServe}
+                                onPress={() => {
+                                    setStatPicker({
+                                        visible: true,
+                                        title: 'Serve Result',
+                                        team: 'myTeam',
+                                        attribution: getAttribution('serve'),
+                                        options: [
+                                            { label: 'Ace', subLabel: 'Point', value: 'ace', color: '#2196f3' },
+                                            { label: 'Good', subLabel: 'In Play', value: 'serve_good', color: '#4caf50' },
+                                            { label: 'Error', subLabel: 'Net/Out', value: 'serve_error', color: '#f44336' },
+                                        ]
+                                    });
+                                    haptics('light');
+                                }}
+                                onLongPress={() => { handleStat('serve_error', 'myTeam', 'Serve Error'); haptics('error'); }}
+                            />
+                            <StatButton
+                                label="Receive"
+                                color={canReceive ? "#f5a623" : colors.buttonDisabled}
+                                disabled={!canReceive}
+                                onPress={() => {
+                                    setStatPicker({
+                                        visible: true,
+                                        title: 'Receive Quality',
+                                        team: 'myTeam',
+                                        attribution: getAttribution('general'),
+                                        options: [
+                                            { label: '3', subLabel: 'Perfect', value: 'receive_3', color: '#4caf50' },
+                                            { label: '2', subLabel: 'Good', value: 'receive_2', color: '#8bc34a' },
+                                            { label: '1', subLabel: 'Poor', value: 'receive_1', color: '#ffc107' },
+                                            { label: 'Error (No Point)', subLabel: 'Play Continues', value: 'receive_error', color: '#e91e63' },
+                                            { label: 'Error (Point)', subLabel: 'Ends Rally', value: 'receive_0', color: '#f44336' },
+                                        ]
+                                    });
+                                    haptics('light');
+                                }}
+                                onLongPress={() => { handleStat('receive_0', 'myTeam', 'Receive Error'); haptics('error'); }}
+                            />
+                        </View>
+                    ) : (
+                        /* In-Rally: Attack, Block, Dig, Error */
+                        <View style={styles.statRow}>
+                            <View style={styles.statRowSplit}>
+                                <StatButton
+                                    label="Attack"
+                                    color={inRally ? "#50c878" : colors.buttonDisabled}
+                                    disabled={!inRally}
+                                    style={{ flex: 1 }}
+                                    onPress={() => {
+                                        setStatPicker({
+                                            visible: true,
+                                            title: 'Attack Result',
+                                            team: 'myTeam',
+                                            attribution: getAttribution('attack'),
+                                            options: [
+                                                { label: 'Kill', subLabel: 'Point', value: 'kill', color: '#4caf50' },
+                                                { label: 'Good', subLabel: 'In Play', value: 'attack_good', color: '#8bc34a' },
+                                                { label: 'Error', subLabel: 'Net/Out', value: 'attack_error', color: '#f44336' },
+                                            ]
+                                        });
+                                        haptics('light');
+                                    }}
+                                    onLongPress={() => { handleStat('attack_error', 'myTeam', 'Attack Error'); haptics('error'); }}
+                                />
+                                <StatButton
+                                    label="Block"
+                                    color={inRally ? "#009688" : colors.buttonDisabled}
+                                    disabled={!inRally}
+                                    style={{ flex: 1 }}
+                                    onPress={() => { handleStat('block', 'myTeam', 'Block'); haptics('success'); }}
+                                />
+                            </View>
+                            <View style={styles.statRowSplit}>
+                                <StatButton
+                                    label="Dig"
+                                    color={inRally ? "#bd10e0" : colors.buttonDisabled}
+                                    disabled={!inRally}
+                                    style={{ flex: 1 }}
+                                    onPress={() => { handleStat('dig', 'myTeam', 'Dig'); haptics('light'); }}
+                                />
+                                <StatButton
+                                    label="Error"
+                                    color={inRally ? "#9013fe" : colors.buttonDisabled}
+                                    disabled={!inRally}
+                                    style={{ flex: 1 }}
+                                    onPress={() => {
+                                        setStatPicker({
+                                            visible: true,
+                                            title: 'Error Type',
+                                            team: 'myTeam',
+                                            attribution: getAttribution('general'),
+                                            descriptor: 'These errors result in a point for the opponent.',
+                                            options: [
+                                                { label: 'Drop', subLabel: 'Ball fell', value: 'drop', color: '#f44336' },
+                                                { label: 'Passing Error', subLabel: 'Shank/Double/Etc', value: 'pass_error', color: '#e91e63' },
+                                                { label: 'Setting Error', subLabel: 'Shank/Net/Etc', value: 'set_error', color: '#9c27b0' },
+                                            ]
+                                        });
+                                        haptics('light');
+                                    }}
+                                />
+                            </View>
+                        </View>
+                    )}
                 </View>
 
                 {/* Log Area & Undo */}
-                <View style={styles.logContainer}>
-                    <TouchableOpacity onPress={() => { undo(); haptics('medium'); }} disabled={history.length === 0} style={styles.undoBtn}>
-                        <Undo2 size={20} color="#666" />
-                        <Text style={styles.undoText}>Undo</Text>
+                <View style={[styles.logContainer, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <TouchableOpacity onPress={() => { undo(); haptics('medium'); }} disabled={history.length === 0} style={[styles.undoBtn, { backgroundColor: colors.bg }]}>
+                        <Undo2 size={20} color={colors.textSecondary} />
+                        <Text style={[styles.undoText, { color: colors.textSecondary }]}>Undo</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={() => setShowFullLog(true)} style={styles.expandLogBtn}>
-                        <Maximize2 size={16} color="#999" />
+                        <Maximize2 size={16} color={colors.textTertiary} />
                     </TouchableOpacity>
 
                     <View style={[styles.logContent, { flex: 1 }]}>
@@ -737,7 +872,7 @@ export default function LiveScreen() {
                                             // If we are flushing mid-rally (due to a sub), it's not a point yet usually.
 
                                             elements.push(
-                                                <Text key={keyPrefix} style={[styles.logText, { marginBottom: 4 }]}>
+                                                <Text key={keyPrefix} style={[styles.logText, { marginBottom: 4, color: colors.textSecondary }]}>
                                                     {rallyBuffer}
                                                 </Text>
                                             );
@@ -756,8 +891,9 @@ export default function LiveScreen() {
                                                 const { subIn, subOut, autoSwap, notes } = item.metadata;
 
                                                 if (notes) {
+                                                    const isAssignment = item.metadata?.isAssignment;
                                                     elements.push(
-                                                        <Text key={item.id} style={{ color: 'red', fontStyle: 'italic', marginBottom: 4, fontSize: 13, fontWeight: 'bold' }}>
+                                                        <Text key={item.id} style={{ color: isAssignment ? colors.textSecondary : colors.error, fontStyle: 'italic', marginBottom: 4, fontSize: 13, fontWeight: isAssignment ? '500' : 'bold' }}>
                                                             {notes}
                                                         </Text>
                                                     );
@@ -772,7 +908,7 @@ export default function LiveScreen() {
                                                     }
 
                                                     elements.push(
-                                                        <Text key={item.id} style={{ color: '#666', fontStyle: 'italic', marginBottom: 4, fontSize: 13 }}>
+                                                        <Text key={item.id} style={{ color: colors.textSecondary, fontStyle: 'italic', marginBottom: 4, fontSize: 13 }}>
                                                             SUBSTITUTION: {nameIn} for {nameOut}
                                                             {autoSwap ? ' (Auto)' : ''}
                                                         </Text>
@@ -780,7 +916,7 @@ export default function LiveScreen() {
                                                 }
                                             } else if (item.type === 'rotation') {
                                                 elements.push(
-                                                    <Text key={item.id} style={{ color: '#666', fontStyle: 'italic', marginBottom: 4, fontSize: 13 }}>
+                                                    <Text key={item.id} style={{ color: colors.textSecondary, fontStyle: 'italic', marginBottom: 4, fontSize: 13 }}>
                                                         ROTATION
                                                     </Text>
                                                 );
@@ -806,11 +942,11 @@ export default function LiveScreen() {
                                         }
 
                                         if (rallyBuffer.length > 0) {
-                                            rallyBuffer.push(<Text key={`sep-${item.id}`} style={{ color: '#ccc' }}> {' > '} </Text>);
+                                            rallyBuffer.push(<Text key={`sep-${item.id}`} style={{ color: colors.textTertiary }}> {' > '} </Text>);
                                         }
 
                                         rallyBuffer.push(
-                                            <Text key={item.id} style={{ color: isMyTeam ? '#0066cc' : '#cc0033', fontWeight: 'bold' }}>
+                                            <Text key={item.id} style={{ color: isMyTeam ? colors.primary : colors.opponent, fontWeight: 'bold' }}>
                                                 {typeLabel}{playerLabel}
                                             </Text>
                                         );
@@ -832,13 +968,13 @@ export default function LiveScreen() {
                                                 : perfTeam;
 
                                             rallyBuffer.push(
-                                                <Text key="result" style={styles.logScore}>
+                                                <Text key="result" style={[styles.logScore, { color: colors.textSecondary }]}>
                                                     {' - POINT '}{winner === 'myTeam' ? 'MY TEAM' : 'OPPONENT'}
                                                 </Text>
                                             );
                                         }
                                         elements.push(
-                                            <Text key="final-rally" style={styles.logText}>
+                                            <Text key="final-rally" style={[styles.logText, { color: colors.textSecondary }]}>
                                                 {rallyBuffer}
                                             </Text>
                                         );
@@ -848,15 +984,13 @@ export default function LiveScreen() {
                                 })()}
                             </View>
                         ) : (
-                            <Text style={styles.logPlaceholder}>Match started...</Text>
+                            <Text style={[styles.logPlaceholder, { color: colors.textTertiary }]}>Match started...</Text>
                         )}
                     </View>
                 </View>
 
-                {/* Ad Placeholder */}
-                <View style={styles.adContainer}>
-                    <Text style={styles.adText}>Ad Banner Placeholder</Text>
-                </View>
+                {/* Ad Banner */}
+                <AdBanner style={{ marginTop: 4 }} />
 
             </View >
         </SafeAreaView >
@@ -892,7 +1026,6 @@ function StatButton({ label, subLabel, color, onPress, onLongPress, style, disab
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
     },
     header: {
         flexDirection: 'row',
@@ -900,18 +1033,34 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 12,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     headerTitle: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#333',
         letterSpacing: -0.5,
     },
     menuBtn: {
         padding: 4,
+        position: 'relative',
+    },
+    viewerBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 8,
+        minWidth: 20,
+        justifyContent: 'center',
+    },
+    viewerBadgeText: {
+        color: '#ffffff',
+        fontSize: 9,
+        fontWeight: '800',
     },
     content: {
         padding: 16,
@@ -919,35 +1068,36 @@ const styles = StyleSheet.create({
     },
     // Momentum & Alerts
     timeoutBanner: {
-        backgroundColor: '#ff9800',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
         padding: 10,
         borderRadius: 8,
-        marginBottom: 12, // Gap below banner
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     timeoutBannerText: {
-        color: '#fff',
         fontWeight: 'bold',
         fontSize: 14,
     },
     momentumContainer: {
-        marginBottom: 16, // Gap below momentum bar
+        marginBottom: 16,
         justifyContent: 'center',
+        position: 'relative',
     },
     momentumBar: {
-        height: 8,
-        backgroundColor: '#e0e0e0', // Neutral grey base
-        borderRadius: 4,
+        height: 12,
+        borderRadius: 6,
         width: '100%',
         position: 'relative',
-        overflow: 'hidden', // Ensure bar doesn't overflow
+        overflow: 'hidden',
     },
     momentumLabels: {
         flexDirection: 'row',
@@ -958,7 +1108,6 @@ const styles = StyleSheet.create({
         fontSize: 10,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        color: '#999',
     },
     scoreControls: {
         flexDirection: 'row',
@@ -995,24 +1144,26 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     statGrid: {
+        gap: 8,
+        marginBottom: 8,
+    },
+    statRow: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8, // Tighter gap
-        marginBottom: 8, // Reduced margin
+        gap: 8,
     },
     statRowSplit: {
-        width: '48%',
+        flex: 1,
         flexDirection: 'row',
         minHeight: 75,
-        gap: 8, // Add gap to split rows
+        gap: 8,
     },
     statButton: {
-        width: '48%', // Approx half
-        padding: 8, // Reduced padding
+        flex: 1,
+        padding: 8,
         borderRadius: 12,
         minHeight: 75,
         justifyContent: 'center',
-        alignItems: 'center', // Center text
+        alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -1049,7 +1200,6 @@ const styles = StyleSheet.create({
     subsLabel: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#666',
     },
     subsDots: {
         flexDirection: 'row',
@@ -1060,17 +1210,10 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
     },
-    subDotAvailable: {
-        backgroundColor: '#0066cc',
-    },
-    subDotUsed: {
-        backgroundColor: '#e0e0e0',
-    },
     rotateInlineControls: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: '#e6f0ff',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -1081,54 +1224,34 @@ const styles = StyleSheet.create({
     rotateInlineLabel: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#0066cc',
     },
     // Log Area
     logContainer: {
-        backgroundColor: '#fff',
         flexDirection: 'row',
         alignItems: 'center',
         padding: 12,
         paddingHorizontal: 16,
         borderRadius: 12,
-        marginTop: 'auto', // Push to bottom if space allows
-        marginBottom: 8, // Reduced margin
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 }, // Shadow up?
+        marginTop: 'auto',
+        marginBottom: 8,
+        shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
         gap: 12,
     },
-    // Ads
-    adContainer: {
-        height: 50,
-        backgroundColor: '#f0f0f0',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderStyle: 'dashed',
-    },
-    adText: {
-        fontSize: 12,
-        color: '#999',
-        fontWeight: '600',
-    },
+    // (ad placeholder styles removed — now using AdBanner component)
     undoBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
         paddingVertical: 4,
         paddingHorizontal: 8,
-        backgroundColor: '#f5f5f5',
         borderRadius: 8,
     },
     undoText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
     },
     expandLogBtn: {
         padding: 4,
@@ -1139,22 +1262,18 @@ const styles = StyleSheet.create({
     },
     logText: {
         fontSize: 13,
-        color: '#444',
         lineHeight: 18,
     },
     logLabel: {
         fontSize: 10,
-        color: '#999',
         fontWeight: '700',
         marginBottom: 2,
     },
     logScore: {
-        color: '#666',
         fontWeight: '600',
     },
     logPlaceholder: {
         fontSize: 13,
-        color: '#999',
         fontStyle: 'italic',
     },
     endSetBtn: {

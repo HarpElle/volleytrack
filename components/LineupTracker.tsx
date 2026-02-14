@@ -2,6 +2,7 @@ import { User } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { useHaptics } from '../hooks/useHaptic';
 import { LineupPosition, Player } from '../types';
 
@@ -12,20 +13,21 @@ interface LineupTrackerProps {
     onSelectPlayer: (playerId: string) => void;
     selectedPlayerIds?: string[];
     highlightPosition?: number | null; // Slot to pulse
+    readOnly?: boolean; // Spectator mode — disables all interactions
 }
 
 // Sub-component for Animation Isolation to prevent re-rendering entire grid
-const PlayerCard = ({ pos, player, isLibero, isSelected, selectionIndex, borderColor, borderWidth, onSelect, onSub, haptics, shouldPulse }: any) => {
+const PlayerCard = ({ pos, player, isLibero, isSelected, selectionIndex, borderColor, borderWidth, onSelect, onSub, haptics, shouldPulse, cardBg, liberoCardBg, colors }: any) => {
     const isPad = (Platform as any).isPad;
     const scale = useSharedValue(1);
-    const bg = useSharedValue(isLibero ? '#333' : '#fff');
+    const bg = useSharedValue(isLibero ? liberoCardBg : cardBg);
 
     // Pulse Effect
     useEffect(() => {
         if (shouldPulse) {
             bg.value = withSequence(
                 withTiming('#ffeb3b', { duration: 2000 }), // Yellow Highlight (Longer per feedback)
-                withTiming(isLibero ? '#333' : '#fff', { duration: 1000 })
+                withTiming(isLibero ? liberoCardBg : cardBg, { duration: 1000 })
             );
             scale.value = withSequence(
                 withTiming(1.1, { duration: 200 }),
@@ -35,9 +37,9 @@ const PlayerCard = ({ pos, player, isLibero, isSelected, selectionIndex, borderC
             );
         } else {
             // Reset if logic changes away
-            bg.value = withTiming(isLibero ? '#333' : '#fff', { duration: 300 });
+            bg.value = withTiming(isLibero ? liberoCardBg : cardBg, { duration: 300 });
         }
-    }, [shouldPulse, isLibero]);
+    }, [shouldPulse, isLibero, cardBg, liberoCardBg]);
 
     const animatedStyle = useAnimatedStyle(() => {
         return {
@@ -66,28 +68,34 @@ const PlayerCard = ({ pos, player, isLibero, isSelected, selectionIndex, borderC
                 onLongPress={() => onSub(pos)}
                 delayLongPress={300}
             >
-                <Text style={styles.posLabel}>P{pos}</Text>
+                <Text style={[{ position: 'absolute', top: 2, left: 4, fontSize: 10, color: colors.textTertiary, fontWeight: '700' }]}>P{pos}</Text>
                 {isSelected && (
-                    <View style={styles.selectionBadge}>
-                        <Text style={styles.selectionBadgeText}>{selectionIndex! + 1}</Text>
+                    <View style={[{ position: 'absolute', top: -6, right: -6, backgroundColor: '#ffcc00', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', zIndex: 10, borderWidth: 1, borderColor: colors.bgCard }]}>
+                        <Text style={[{ fontSize: 10, fontWeight: 'bold', color: colors.text }]}>{selectionIndex! + 1}</Text>
                     </View>
                 )}
                 {player ? (
                     <View style={{ alignItems: 'center' }}>
-                        <Text style={[styles.gridNumber, isLibero && { color: '#fff' }, isPad && { fontSize: 24 }]}>#{player.jerseyNumber}</Text>
-                        <Text style={[styles.gridName, isLibero && { color: '#fff' }, isPad && { fontSize: 16 }]} numberOfLines={1}>{player.name}</Text>
+                        <Text style={[{ fontSize: 14, fontWeight: '800', color: colors.text }, isLibero && { color: '#ffffff' }, isPad && { fontSize: 24 }]}>#{player.jerseyNumber}</Text>
+                        <Text style={[{ fontSize: 10, color: colors.textSecondary }, isLibero && { color: '#ffffff' }, isPad && { fontSize: 16 }]} numberOfLines={1}>{player.name}</Text>
                     </View>
                 ) : (
-                    <User size={isPad ? 32 : 20} color="#ccc" />
+                    <User size={isPad ? 32 : 20} color={colors.textTertiary} />
                 )}
             </TouchableOpacity>
         </Animated.View>
     );
 }
 
-export default function LineupTracker({ rotation, roster, onSubstitute, onSelectPlayer, selectedPlayerIds = [], highlightPosition }: Omit<LineupTrackerProps, 'onRotate' | 'onRotateBack'>) {
+export default function LineupTracker({ rotation, roster, onSubstitute, onSelectPlayer, selectedPlayerIds = [], highlightPosition, readOnly = false }: Omit<LineupTrackerProps, 'onRotate' | 'onRotateBack'>) {
     const haptics = useHaptics();
+    const { colors } = useAppTheme();
     if (!rotation || rotation.length === 0) return null;
+
+    // No-op handlers for spectator mode
+    const noOp = () => {};
+    const effectiveOnSub = readOnly ? noOp : onSubstitute;
+    const effectiveOnSelect = readOnly ? noOp : onSelectPlayer;
 
     const getPlayer = (pos: number) => {
         const slot = rotation.find(p => p.position === pos);
@@ -103,7 +111,7 @@ export default function LineupTracker({ rotation, roster, onSubstitute, onSelect
         const selectionIndex = player ? selectedPlayerIds?.indexOf(player.id) : -1;
         const isSelected = selectionIndex !== undefined && selectionIndex !== -1;
 
-        const borderColor = isSelected ? '#ffcc00' : (isLibero ? '#333' : '#eee');
+        const borderColor = isSelected ? '#ffcc00' : (isLibero ? colors.text : colors.border);
         const borderWidth = isSelected ? 3 : 1;
 
         const shouldPulse = highlightPosition === pos;
@@ -118,17 +126,20 @@ export default function LineupTracker({ rotation, roster, onSubstitute, onSelect
                 selectionIndex={selectionIndex}
                 borderColor={borderColor}
                 borderWidth={borderWidth}
-                onSelect={onSelectPlayer}
-                onSub={onSubstitute}
+                onSelect={effectiveOnSelect}
+                onSub={effectiveOnSub}
                 haptics={haptics}
                 shouldPulse={shouldPulse}
+                cardBg={colors.bgCard}
+                liberoCardBg={colors.text}
+                colors={colors}
             />
         );
     };
 
     return (
-        <View style={styles.court}>
-            <View style={styles.netLine} />
+        <View style={[styles.court, { backgroundColor: colors.bg }]}>
+            <View style={[styles.netLine, { backgroundColor: colors.border }]} />
             {/* Front Row: 4, 3, 2 */}
             <View style={styles.row}>
                 {[4, 3, 2].map(renderPosition)}
@@ -141,13 +152,13 @@ export default function LineupTracker({ rotation, roster, onSubstitute, onSelect
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     container: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgCard,
         borderRadius: 12,
         padding: 12,
         marginBottom: 16,
-        shadowColor: '#000',
+        shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -158,7 +169,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     court: {
-        backgroundColor: '#f9f9f9',
         borderRadius: 8,
         padding: 8,
         position: 'relative',
@@ -170,7 +180,6 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 4,
-        backgroundColor: '#ccc',
         zIndex: 10,
     },
     row: {
@@ -181,35 +190,32 @@ const styles = StyleSheet.create({
     },
     gridItem: {
         // Flex 1 handled by Animated Parent
-        backgroundColor: '#fff', // Default but overridden
         borderRadius: 8,
         padding: 6,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#eee',
         minHeight: 75,
         justifyContent: 'center'
     },
     liberoItem: {
-        backgroundColor: '#333',
-        borderColor: '#333',
+        borderColor: colors.text,
     },
     posLabel: {
         position: 'absolute',
         top: 2,
         left: 4,
         fontSize: 10,
-        color: '#ccc',
+        color: colors.textTertiary,
         fontWeight: '700',
     },
     gridNumber: {
         fontSize: 14,
         fontWeight: '800',
-        color: '#333',
+        color: colors.text,
     },
     gridName: {
         fontSize: 10,
-        color: '#666',
+        color: colors.textSecondary,
     },
     selectionBadge: {
         position: 'absolute',
@@ -223,11 +229,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 10,
         borderWidth: 1,
-        borderColor: '#fff'
+        borderColor: colors.bgCard
     },
     selectionBadgeText: {
         fontSize: 10,
         fontWeight: 'bold',
-        color: '#333'
+        color: colors.text
     }
 });
+
+const styles = getStyles({} as any); // Placeholder for type checking

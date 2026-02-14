@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User profiles & synced data ──
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /{subcollection=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ── Live Match Broadcasts (Phase 4: Spectator View) ──
+    //  • Anyone can read (spectators don't need auth)
+    //  • Only authenticated users can create
+    //  • Only the coach who created the broadcast can update/delete
+    match /liveMatches/{matchCode} {
+      // Public read — spectators access via match code without signing in
+      allow read: if true;
+
+      // Create — must be authenticated; coachUid in doc must match caller
+      allow create: if request.auth != null
+                    && request.resource.data.coachUid == request.auth.uid;
+
+      // Update / Delete — only the owning coach
+      allow update, delete: if request.auth != null
+                            && resource.data.coachUid == request.auth.uid;
+    }
+  }
+}

@@ -2,11 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { Event, MatchRecord, Season } from '../types';
+import { fullSync, pushItem, deleteCloudItem } from '../services/firebase/syncService';
+
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
 
 interface DataState {
     seasons: Season[];
     events: Event[];
     savedMatches: MatchRecord[];
+
+    // Sync state
+    syncStatus: SyncStatus;
+    lastSyncedAt: number | null;
+    syncError: string | null;
 
     // Actions
     addSeason: (season: Season) => void;
@@ -24,6 +32,11 @@ interface DataState {
     deleteMatchRecord: (matchId: string) => void;
     resetMatchRecord: (matchId: string) => void;
 
+    // Sync actions
+    syncWithCloud: (uid: string) => Promise<void>;
+    pushItemToCloud: (uid: string, type: 'season' | 'event' | 'match', data: Season | Event | MatchRecord) => Promise<void>;
+    deleteItemFromCloud: (uid: string, type: 'season' | 'event' | 'match', id: string) => Promise<void>;
+
     // Helpers
     touchSeason: (id: string) => void;
     getAdHocMatches: () => MatchRecord[];
@@ -37,6 +50,9 @@ export const useDataStore = create<DataState>()(
             seasons: [],
             events: [],
             savedMatches: [],
+            syncStatus: 'idle' as SyncStatus,
+            lastSyncedAt: null,
+            syncError: null,
 
             addSeason: (season) => set((state) => ({ seasons: [...state.seasons, { ...season, lastAccessed: Date.now() }] })),
             updateSeason: (id, updates) => set((state) => ({
@@ -99,6 +115,50 @@ export const useDataStore = create<DataState>()(
                     };
                 })
             })),
+
+            // ── Sync Actions ──────────────────────────────────────────────────
+
+            syncWithCloud: async (uid: string) => {
+                set({ syncStatus: 'syncing', syncError: null });
+                try {
+                    const { seasons, events, savedMatches } = get();
+                    const result = await fullSync(uid, seasons, events, savedMatches);
+
+                    if (result.success) {
+                        set({
+                            seasons: result.mergedSeasons,
+                            events: result.mergedEvents,
+                            savedMatches: result.mergedMatches,
+                            syncStatus: 'synced',
+                            lastSyncedAt: Date.now(),
+                            syncError: null,
+                        });
+                    } else {
+                        set({ syncStatus: 'error', syncError: result.error || 'Sync failed' });
+                    }
+                } catch (err: any) {
+                    set({ syncStatus: 'error', syncError: err.message || 'Sync failed' });
+                }
+            },
+
+            pushItemToCloud: async (uid: string, type, data) => {
+                try {
+                    await pushItem(uid, type, data);
+                } catch (err) {
+                    // Silent fail for incremental pushes — full sync will catch up
+                    console.warn('[Sync] Incremental push failed:', err);
+                }
+            },
+
+            deleteItemFromCloud: async (uid: string, type, id) => {
+                try {
+                    await deleteCloudItem(uid, type, id);
+                } catch (err) {
+                    console.warn('[Sync] Cloud delete failed:', err);
+                }
+            },
+
+            // ── Helpers ──────────────────────────────────────────────────────
 
             getAdHocMatches: () => {
                 return get().savedMatches.filter((m) => !m.seasonId && !m.eventId);

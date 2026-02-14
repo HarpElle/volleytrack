@@ -90,7 +90,7 @@ export interface StatLog {
   timestamp: number;
   type: 'ace' | 'serve_error' | 'serve_good' | 'kill' | 'attack_error' | 'attack_good' | 'block' | 'dig' | 'dig_error' | 'set_error' | 'pass_error' | 'receive_error' | 'receive_0' | 'receive_1' | 'receive_2' | 'receive_3' | 'no_play' | 'point_adjust' | 'drop' | 'timeout' | 'substitution' | 'rotation';
   team: Team; // Who got the stat/point
-  scoreSnapshot: Score; // Score *after* this event
+  scoreSnapshot: Score; // Score *before* this event (used for undo restoration)
   setNumber: number;
   playerId?: string; // ID of the player who performed the action
   assistPlayerId?: string; // ID of the player who set/assisted (for kills)
@@ -124,6 +124,68 @@ export interface SetResult {
   setNumber: number;
   winner: Team;
   score: Score;
+}
+
+// Phase 5: Spectator Interactions — Alerts, Cheers, Viewer Presence
+export interface SpectatorAlert {
+  id: string;
+  type: 'score_correction';
+  senderDeviceId: string;
+  senderName: string;
+  timestamp: number;
+  suggestedScore?: Score; // What the spectator thinks the score should be
+  currentSet?: number;
+  message?: string;
+  acknowledged?: boolean;
+}
+
+export interface SpectatorViewer {
+  deviceId: string;
+  name: string;
+  joinedAt: number;
+  lastSeen: number;
+}
+
+// Phase 5: Super Fan Recap
+export interface SuperFanRecap {
+  playerIds: string[];
+  playerNames: string[];
+  recap: string;
+  generatedAt: number;
+}
+
+// Phase 4: Spectator View — Live Match Broadcast
+export interface LiveMatchSnapshot {
+  matchCode: string;
+  coachUid: string;
+  matchId: string;
+  isActive: boolean;
+  createdAt: number;
+  lastUpdated: number;
+  currentState: {
+    myTeamName: string;
+    opponentName: string;
+    currentSet: number;
+    scores: Score[];
+    setsWon: Score;
+    servingTeam: Team;
+    rallyState: 'pre-serve' | 'in-rally';
+    currentRotation: LineupPosition[];
+    myTeamRoster: Player[];
+    history: StatLog[];
+    setHistory: SetResult[];
+    timeoutsRemaining: Score;
+    subsRemaining: Score;
+    config: MatchConfig;
+    status: 'live' | 'between-sets' | 'completed';
+  };
+
+  // Phase 5: Spectator Interactions
+  spectators?: Record<string, SpectatorViewer>;
+  spectatorCount?: number;
+  spectatorAlerts?: SpectatorAlert[];
+  cheerCount?: number;
+  lastCheerAt?: number;
 }
 
 export interface MatchState {
@@ -163,10 +225,15 @@ export interface MatchState {
   nonLiberoDesignations?: string[]; // IDs of players explicitly marked as "Not a Libero" (e.g. starters)
   subPairs?: Record<string, string>; // PlayerID -> Paired PlayerID (for smart suggestions)
 
+  // Serve Tracking
+  firstServerPerSet?: Record<number, Team>; // Who served first in each set (for alternating suggestions)
+
   // Actions
   setSetup: (myTeam: string, opponent: string, config: MatchConfig, seasonId?: string, eventId?: string, matchId?: string, lineups?: Record<number, LineupPosition[]>, roster?: Player[]) => void;
   updateMatchSettings: (matchId: string, myTeam: string, opponent: string, config: MatchConfig, lineups?: Record<number, LineupPosition[]>) => void;
   setServingTeam: (team: Team) => void;
+  setFirstServer: (setNumber: number, team: Team) => void;
+  adjustStartingRotation: (direction: 'forward' | 'backward') => void;
   startRally: () => void;
   endRally: (winner: Team) => void; // Handles point increment & rotation
   incrementScore: (team: Team) => void;

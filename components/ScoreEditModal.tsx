@@ -1,6 +1,7 @@
 import { Delete } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 interface ScoreEditModalProps {
     visible: boolean;
@@ -12,6 +13,7 @@ interface ScoreEditModalProps {
 
 export default function ScoreEditModal({ visible, teamName, currentScore, onClose, onSave }: ScoreEditModalProps) {
     const [tempScore, setTempScore] = useState('');
+    const { colors } = useAppTheme();
 
     useEffect(() => {
         if (visible) {
@@ -44,22 +46,22 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
 
     const renderKey = (label: string, value?: string, icon?: React.ReactNode) => (
         <TouchableOpacity
-            style={styles.key}
+            style={[styles.key, { backgroundColor: colors.buttonSecondary }]}
             onPress={() => value ? handleNumberPress(value) : (label === 'C' ? handleClear() : null)}
         >
-            {icon ? icon : <Text style={styles.keyText}>{label}</Text>}
+            {icon ? icon : <Text style={[styles.keyText, { color: colors.text }]}>{label}</Text>}
         </TouchableOpacity>
     );
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.title}>Edit Score</Text>
-                    <Text style={styles.teamName}>{teamName}</Text>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.title, { color: colors.textSecondary }]}>Edit Score</Text>
+                    <Text style={[styles.teamName, { color: colors.text }]}>{teamName}</Text>
 
-                    <View style={styles.display}>
-                        <Text style={styles.displayText}>{tempScore}</Text>
+                    <View style={[styles.display, { backgroundColor: colors.buttonSecondary }]}>
+                        <Text style={[styles.displayText, { color: colors.text }]}>{tempScore}</Text>
                     </View>
 
                     <View style={styles.keypad}>
@@ -81,17 +83,17 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
                         <View style={styles.row}>
                             {renderKey('C')}
                             {renderKey('0', '0')}
-                            <TouchableOpacity style={styles.key} onPress={handleBackspace}>
-                                <Delete size={24} color="#333" />
+                            <TouchableOpacity style={[styles.key, { backgroundColor: colors.buttonSecondary }]} onPress={handleBackspace}>
+                                <Delete size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
                     </View>
 
                     <View style={styles.actions}>
-                        <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
-                            <Text style={styles.cancelText}>Cancel</Text>
+                        <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onClose}>
+                            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.actionBtn, styles.saveBtn]} onPress={handleSave}>
+                        <TouchableOpacity style={[styles.actionBtn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
                             <Text style={styles.saveText}>Save</Text>
                         </TouchableOpacity>
                     </View>
@@ -104,19 +106,16 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
     card: {
-        backgroundColor: '#fff',
         borderRadius: 20,
         padding: 24,
         width: '100%',
         maxWidth: 340,
         alignItems: 'center',
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 10,
@@ -125,19 +124,16 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#666',
         textTransform: 'uppercase',
         marginBottom: 8,
     },
     teamName: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 20,
         textAlign: 'center',
     },
     display: {
-        backgroundColor: '#f5f5f5',
         width: '100%',
         paddingVertical: 12,
         borderRadius: 12,
@@ -147,7 +143,6 @@ const styles = StyleSheet.create({
     displayText: {
         fontSize: 48,
         fontWeight: '800',
-        color: '#333',
         fontVariant: ['tabular-nums'],
     },
     keypad: {
@@ -164,14 +159,12 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
-        backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',
     },
     keyText: {
         fontSize: 24,
         fontWeight: '600',
-        color: '#333',
     },
     actions: {
         flexDirection: 'row',
@@ -184,16 +177,11 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: 'center',
     },
-    cancelBtn: {
-        backgroundColor: '#f5f5f5',
-    },
-    saveBtn: {
-        backgroundColor: '#0066cc',
-    },
+    cancelBtn: {},
+    saveBtn: {},
     cancelText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#666',
     },
     saveText: {
         fontSize: 16,

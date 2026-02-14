@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { Player } from '../../types';
 import { PlayerStats } from '../../types/stats';
 
@@ -9,6 +10,7 @@ interface LeaderboardProps {
 }
 
 export default function Leaderboard({ playerStats, roster }: LeaderboardProps) {
+    const { colors } = useAppTheme();
 
     const getTopPlayers = (metric: keyof PlayerStats, sortMetric?: keyof PlayerStats, limit: number = 3) => {
         const candidates = Object.values(playerStats).filter(p => (p[metric] as number) > 0 || (sortMetric && (p[sortMetric] as number) > 0));
@@ -29,10 +31,10 @@ export default function Leaderboard({ playerStats, roster }: LeaderboardProps) {
 
     const renderCard = (title: string, players: PlayerStats[], getValue: (p: PlayerStats) => string | number, isMain: boolean = false) => {
         return (
-            <View style={[styles.card, isMain && styles.mainCard]}>
-                <Text style={styles.cardTitle}>{title}</Text>
+            <View style={[styles.card, isMain && styles.mainCard, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                <Text style={[styles.cardTitle, { color: colors.textTertiary }]}>{title}</Text>
                 {players.length === 0 ? (
-                    <Text style={styles.emptyText}>-</Text>
+                    <Text style={[styles.emptyText, { color: colors.textTertiary }]}>-</Text>
                 ) : (
                     players.map((p, idx) => {
                         const player = roster.find(r => r.id === p.playerId);
@@ -40,14 +42,14 @@ export default function Leaderboard({ playerStats, roster }: LeaderboardProps) {
                         const number = player ? `#${player.jerseyNumber}` : '';
 
                         return (
-                            <View key={p.playerId} style={[styles.row, idx !== players.length - 1 && styles.borderBottom]}>
+                            <View key={p.playerId} style={[styles.row, idx !== players.length - 1 && styles.borderBottom, idx !== players.length - 1 && { borderBottomColor: colors.border }]}>
                                 <View style={styles.playerInfo}>
-                                    <View style={[styles.rankBadge, idx === 0 && styles.goldBadge]}>
-                                        <Text style={[styles.rankText, idx === 0 && styles.goldText]}>{idx + 1}</Text>
+                                    <View style={[styles.rankBadge, idx === 0 && styles.goldBadge, idx !== 0 && { backgroundColor: colors.buttonSecondary }]}>
+                                        <Text style={[styles.rankText, idx === 0 && styles.goldText, idx !== 0 && { color: colors.textTertiary }]}>{idx + 1}</Text>
                                     </View>
-                                    <Text style={styles.playerName} numberOfLines={1}>{number} {name}</Text>
+                                    <Text style={[styles.playerName, { color: colors.text }]} numberOfLines={1}>{number} {name}</Text>
                                 </View>
-                                <Text style={styles.value}>{getValue(p)}</Text>
+                                <Text style={[styles.value, { color: colors.text }]}>{getValue(p)}</Text>
                             </View>
                         );
                     })
@@ -112,30 +114,24 @@ const styles = StyleSheet.create({
     },
     card: {
         flex: 1,
-        backgroundColor: '#fff',
         borderRadius: 12,
         padding: 12,
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 1,
         minHeight: 110,
     },
-    mainCard: {
-        backgroundColor: '#fff', // Could be distinct?
-    },
+    mainCard: {},
     cardTitle: {
         fontSize: 11,
         fontWeight: '700',
-        color: '#999',
         marginBottom: 8,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     emptyText: {
         fontSize: 12,
-        color: '#ccc',
         textAlign: 'center',
         paddingVertical: 8,
     },
@@ -147,7 +143,6 @@ const styles = StyleSheet.create({
     },
     borderBottom: {
         borderBottomWidth: 1,
-        borderBottomColor: '#f9f9f9',
     },
     playerInfo: {
         flex: 1,
@@ -160,7 +155,6 @@ const styles = StyleSheet.create({
         width: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: '#f5f5f5',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -170,7 +164,6 @@ const styles = StyleSheet.create({
     rankText: {
         fontSize: 10,
         fontWeight: '700',
-        color: '#999',
     },
     goldText: {
         color: '#fbc02d',
@@ -178,13 +171,11 @@ const styles = StyleSheet.create({
     playerName: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#333',
         flexShrink: 1,
     },
     value: {
         fontSize: 14,
         fontWeight: '800',
-        color: '#333',
         minWidth: 30,
         textAlign: 'right',
     },

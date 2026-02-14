@@ -1,15 +1,39 @@
 import { useRouter } from 'expo-router';
-import { Calendar, ChevronRight, Play } from 'lucide-react-native';
+import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Play, RefreshCw, Settings, Sparkles } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdBanner } from '../components/AdBanner';
+import { PaywallModal } from '../components/PaywallModal';
+import { useAppTheme } from '../contexts/ThemeContext';
+import { useAutoSync } from '../hooks/useAutoSync';
+import { useAuth } from '../services/firebase';
+import { cleanupStaleBroadcasts } from '../services/firebase/liveMatchService';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
+import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { MatchRecord } from '../types';
 
 export default function DashboardScreen() {
     const router = useRouter();
-    const { seasons, savedMatches, events, touchSeason } = useDataStore();
-    const { setSetup } = useMatchStore();
+    const { seasons, savedMatches, events, touchSeason, syncStatus } = useDataStore();
+    const matchStore = useMatchStore();
+    const { user } = useAuth();
+    const { colors, spacing, fontSize, radius } = useAppTheme();
+
+    const isPro = useSubscriptionStore((s) => s.isPro);
+    const canCreateSeason = useSubscriptionStore((s) => s.canCreateSeason);
+    const [showPaywall, setShowPaywall] = useState(false);
+
+    // Auto-sync when signed in and app is active
+    useAutoSync();
+
+    // Clean up any stale broadcasts left by this coach (e.g. force-quit mid-broadcast)
+    useEffect(() => {
+        if (user?.uid) {
+            cleanupStaleBroadcasts(user.uid);
+        }
+    }, [user?.uid]);
 
     // Sorting Logic for Matches
     // 1. No Date (Top) -> Sorted by Created ID (desc) - "Upcoming/Drafts"
@@ -93,27 +117,14 @@ export default function DashboardScreen() {
     });
 
     const handleQuickMatch = () => {
-        setSetup(
-            'My Team',
-            'Opponent',
-            {
-                presetName: '3-Set',
-                totalSets: 3,
-                sets: [
-                    { targetScore: 25, winBy: 2, cap: 100 },
-                    { targetScore: 25, winBy: 2, cap: 100 },
-                    { targetScore: 15, winBy: 2, cap: 100 },
-                ],
-                timeoutsPerSet: 2,
-                subsPerSet: 15
-            },
-            undefined,
-            undefined
-        );
-        router.push('/live');
+        router.push('/quick-match-setup');
     };
 
     const handleNewSeason = () => {
+        if (!canCreateSeason(seasons.length)) {
+            setShowPaywall(true);
+            return;
+        }
         router.push('/season/create');
     };
 
@@ -145,22 +156,34 @@ export default function DashboardScreen() {
         const season = match.seasonId ? seasons.find(s => s.id === match.seasonId) : null;
         const myTeamName = season ? season.teamName : 'My Team';
 
+        const themedMatchStyles = {
+            matchEvent: {
+                color: colors.textSecondary,
+            },
+            matchOpponent: {
+                color: colors.text,
+            },
+            matchDate: {
+                color: colors.textTertiary,
+            },
+        };
+
         return (
             <TouchableOpacity
                 key={match.id}
-                style={styles.matchCard}
+                style={[styles.matchCard, { backgroundColor: colors.bgCard }]}
                 onPress={handlePress}
             >
                 <View style={styles.matchLeft}>
                     {event && (
-                        <Text style={styles.matchEvent}>{event.name}</Text>
+                        <Text style={[styles.matchEvent, themedMatchStyles.matchEvent]}>{event.name}</Text>
                     )}
-                    <Text style={styles.matchOpponent}>{myTeamName} vs {match.opponentName}</Text>
+                    <Text style={[styles.matchOpponent, themedMatchStyles.matchOpponent]}>{myTeamName} vs {match.opponentName}</Text>
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Calendar size={12} color="#999" />
-                        <Text style={styles.matchDate}>{date}</Text>
-                        {time ? <Text style={styles.matchDate}>• {time}</Text> : null}
-                        {match.courtNumber ? <Text style={styles.matchDate}>• Ct {match.courtNumber}</Text> : null}
+                        <Calendar size={12} color={colors.textTertiary} />
+                        <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>{date}</Text>
+                        {time ? <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>• {time}</Text> : null}
+                        {match.courtNumber ? <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>• Ct {match.courtNumber}</Text> : null}
                     </View>
                 </View>
             </TouchableOpacity>
@@ -168,63 +191,171 @@ export default function DashboardScreen() {
     };
 
     // Resume Logic
-    const { matchId: activeMatchId, history: activeHistory, myTeamName, opponentName, setsWon } = useMatchStore();
+    const { matchId: activeMatchId, history: activeHistory, myTeamName, opponentName, setsWon } = matchStore;
     const isMatchActive = activeMatchId && (activeHistory.length > 0 || setsWon.myTeam > 0 || setsWon.opponent > 0);
 
     const handleResumeMatch = () => {
         router.push('/live');
     };
 
+    const themedStyles = {
+        container: {
+            backgroundColor: colors.bg,
+        },
+        header: {
+            backgroundColor: colors.bgCard,
+            borderBottomColor: colors.headerBorder,
+        },
+        appName: {
+            color: colors.text,
+        },
+        quickMatchBtn: {
+            backgroundColor: colors.buttonPrimary,
+            shadowColor: colors.primary,
+        },
+        quickMatchTitle: {
+            color: colors.buttonPrimaryText,
+        },
+        quickMatchSub: {
+            color: colors.buttonPrimaryText,
+        },
+        resumeBtn: {
+            backgroundColor: colors.success,
+        },
+        sectionTitle: {
+            color: colors.text,
+        },
+        seeAll: {
+            color: colors.link,
+        },
+        emptyState: {
+            backgroundColor: colors.bgCard,
+            borderColor: colors.border,
+        },
+        emptyText: {
+            color: colors.textTertiary,
+        },
+        linkText: {
+            color: colors.link,
+        },
+        seasonCard: {
+            backgroundColor: colors.bgCard,
+            borderLeftColor: colors.primary,
+        },
+        seasonName: {
+            color: colors.text,
+        },
+        seasonTeam: {
+            color: colors.textSecondary,
+        },
+        seasonLevel: {
+            color: colors.primary,
+        },
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.appName}>VolleyTrack</Text>
+        <SafeAreaView style={[styles.container, themedStyles.container]}>
+            <View style={[styles.header, themedStyles.header]}>
+                <Text style={[styles.appName, themedStyles.appName]}>VolleyTrack</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {user && (
+                        syncStatus === 'syncing'
+                            ? <RefreshCw size={18} color={colors.primary} />
+                            : syncStatus === 'synced'
+                                ? <Cloud size={18} color={colors.success} />
+                                : syncStatus === 'error'
+                                    ? <CloudOff size={18} color={colors.error} />
+                                    : null
+                    )}
+                    <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8}>
+                        <Settings size={22} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Resume Active Match - Priority 0 */}
                 {isMatchActive && (
-                    <TouchableOpacity style={[styles.quickMatchBtn, { backgroundColor: '#22c55e', marginBottom: 16 }]} onPress={handleResumeMatch}>
+                    <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.resumeBtn, { marginBottom: 16 }]} onPress={handleResumeMatch}>
                         <View style={styles.quickMatchContent}>
-                            <Play size={32} color="#fff" fill="#fff" />
+                            <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
                             <View>
-                                <Text style={styles.quickMatchTitle}>Resume Match</Text>
-                                <Text style={styles.quickMatchSub}>{myTeamName} vs {opponentName}</Text>
+                                <Text style={[styles.quickMatchTitle, { color: colors.buttonPrimaryText }]}>Resume Match</Text>
+                                <Text style={[styles.quickMatchSub, { color: colors.buttonPrimaryText }]}>{myTeamName} vs {opponentName}</Text>
                             </View>
                         </View>
-                        <ChevronRight size={24} color="rgba(255,255,255,0.6)" />
+                        <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
                     </TouchableOpacity>
                 )}
 
                 {/* Hero Action: Quick Match */}
-                <TouchableOpacity style={styles.quickMatchBtn} onPress={handleQuickMatch}>
+                <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.quickMatchBtn]} onPress={handleQuickMatch}>
                     <View style={styles.quickMatchContent}>
-                        <Play size={32} color="#fff" fill="#fff" />
+                        <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
                         <View>
-                            <Text style={styles.quickMatchTitle}>Quick Match</Text>
-                            <Text style={styles.quickMatchSub}>Start tracking instantly</Text>
+                            <Text style={[styles.quickMatchTitle, themedStyles.quickMatchTitle]}>Quick Match</Text>
+                            <Text style={[styles.quickMatchSub, themedStyles.quickMatchSub]}>Score only or full lineup</Text>
                         </View>
                     </View>
-                    <ChevronRight size={24} color="rgba(255,255,255,0.6)" />
+                    <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
                 </TouchableOpacity>
+
+                {/* Watch Live Match */}
+                <TouchableOpacity
+                    style={[styles.watchLiveBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                    onPress={() => router.push('/spectate/join')}
+                >
+                    <Eye size={20} color={colors.primary} />
+                    <Text style={[styles.watchLiveText, { color: colors.text }]}>Watch a Live Match</Text>
+                    <ChevronRight size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+
+                {/* Feature Tour */}
+                <TouchableOpacity
+                    style={[styles.watchLiveBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                    // @ts-ignore - Route exists but types not yet generated
+                    onPress={() => router.push('/tour')}
+                >
+                    <Crown size={20} color={colors.primary} />
+                    <Text style={[styles.watchLiveText, { color: colors.text }]}>Feature Tour: See what you can do</Text>
+                    <ChevronRight size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+
+                {/* Pro Upgrade CTA — shown only for free users */}
+                {!isPro && (
+                    <TouchableOpacity
+                        style={[styles.proCta, { backgroundColor: colors.bgCard, borderColor: colors.primary }]}
+                        onPress={() => setShowPaywall(true)}
+                        activeOpacity={0.7}
+                    >
+                        <Sparkles size={18} color={colors.primary} />
+                        <View style={styles.proCtaText}>
+                            <Text style={[styles.proCtaTitle, { color: colors.text }]}>Upgrade to Pro</Text>
+                            <Text style={[styles.proCtaSub, { color: colors.textSecondary }]}>
+                                Ad-free, unlimited AI summaries, seasons & exports
+                            </Text>
+                        </View>
+                        <ChevronRight size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                )}
 
                 {/* Seasons Section (MRU) */}
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>My Seasons & Teams</Text>
+                    <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>My Seasons & Teams</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        {seasons.length > 0 && <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>}
+                        {seasons.length > 0 && <TouchableOpacity><Text style={[styles.seeAll, themedStyles.seeAll]}>See All</Text></TouchableOpacity>}
                         <TouchableOpacity onPress={handleNewSeason}>
-                            <Text style={[styles.seeAll, { color: '#0066cc' }]}>+ New</Text>
+                            <Text style={[styles.seeAll, themedStyles.seeAll]}>+ New</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {seasons.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>No active seasons</Text>
+                    <View style={[styles.emptyState, themedStyles.emptyState]}>
+                        <Text style={[styles.emptyText, themedStyles.emptyText]}>No active seasons</Text>
                         <TouchableOpacity onPress={handleNewSeason}>
-                            <Text style={styles.linkText}>Create your first season</Text>
+                            <Text style={[styles.linkText, themedStyles.linkText]}>Create your first season</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -232,12 +363,12 @@ export default function DashboardScreen() {
                         {sortedSeasons.map(season => (
                             <TouchableOpacity
                                 key={season.id}
-                                style={styles.seasonCard}
+                                style={[styles.seasonCard, themedStyles.seasonCard]}
                                 onPress={() => handleSeasonPress(season.id)}
                             >
-                                <Text style={styles.seasonName}>{season.name}</Text>
-                                <Text style={styles.seasonTeam}>{season.teamName}</Text>
-                                <Text style={styles.seasonLevel}>{season.level}</Text>
+                                <Text style={[styles.seasonName, themedStyles.seasonName]}>{season.name}</Text>
+                                <Text style={[styles.seasonTeam, themedStyles.seasonTeam]}>{season.teamName}</Text>
+                                <Text style={[styles.seasonLevel, themedStyles.seasonLevel]}>{season.level}</Text>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -246,16 +377,16 @@ export default function DashboardScreen() {
                 {/* Upcoming Matches */}
                 <View style={styles.sectionHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Calendar size={20} color="#444" />
-                        <Text style={styles.sectionTitle}>Upcoming Matches</Text>
+                        <Calendar size={20} color={colors.textSecondary} />
+                        <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Upcoming Matches</Text>
                     </View>
                 </View>
 
                 {upcomingMatches.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>No upcoming matches</Text>
+                    <View style={[styles.emptyState, themedStyles.emptyState]}>
+                        <Text style={[styles.emptyText, themedStyles.emptyText]}>No upcoming matches</Text>
                         <TouchableOpacity onPress={handleMatchSetup}>
-                            <Text style={styles.linkText}>Schedule a match</Text>
+                            <Text style={[styles.linkText, themedStyles.linkText]}>Schedule a match</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -265,6 +396,16 @@ export default function DashboardScreen() {
                 )}
 
             </ScrollView>
+
+            {/* Ad Banner — pinned to bottom edge */}
+            <AdBanner />
+
+            {/* Paywall Modal */}
+            <PaywallModal
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                trigger="season"
+            />
         </SafeAreaView>
     );
 }
@@ -272,32 +413,44 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
     },
     header: {
         paddingHorizontal: 20,
         paddingVertical: 16,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     appName: {
         fontSize: 22,
         fontWeight: '800',
-        color: '#1a1a1a',
         letterSpacing: -0.5,
     },
     content: {
         padding: 20,
     },
+    watchLiveBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 24,
+    },
+    watchLiveText: {
+        flex: 1,
+        fontSize: 15,
+        fontWeight: '600',
+    },
     quickMatchBtn: {
-        backgroundColor: '#0066cc',
         borderRadius: 16,
         padding: 24,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        shadowColor: '#0066cc',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.25,
         shadowRadius: 16,
@@ -310,12 +463,10 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     quickMatchTitle: {
-        color: '#fff',
         fontSize: 20,
         fontWeight: '700',
     },
     quickMatchSub: {
-        color: 'rgba(255,255,255,0.8)',
         fontSize: 14,
         fontWeight: '500',
     },
@@ -326,7 +477,6 @@ const styles = StyleSheet.create({
     },
     actionCard: {
         flex: 1,
-        backgroundColor: '#fff',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -349,7 +499,6 @@ const styles = StyleSheet.create({
     actionLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#444',
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -361,10 +510,8 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#222',
     },
     seeAll: {
-        color: '#0066cc',
         fontWeight: '600',
         fontSize: 14,
     },
@@ -372,20 +519,16 @@ const styles = StyleSheet.create({
         padding: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#fff',
         borderRadius: 12,
         borderStyle: 'dashed',
         borderWidth: 1,
-        borderColor: '#ddd',
         marginBottom: 24,
     },
     emptyText: {
-        color: '#999',
         fontSize: 14,
         marginBottom: 4,
     },
     linkText: {
-        color: '#0066cc',
         fontWeight: '600',
         fontSize: 14,
     },
@@ -395,7 +538,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     seasonCard: {
-        backgroundColor: '#fff',
         width: 160,
         padding: 16,
         borderRadius: 12,
@@ -406,31 +548,47 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 2,
         borderLeftWidth: 4,
-        borderLeftColor: '#0066cc',
     },
     seasonName: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
         marginBottom: 4,
     },
     seasonTeam: {
         fontSize: 13,
-        color: '#666',
         fontWeight: '500',
         marginBottom: 2,
     },
     seasonLevel: {
         fontSize: 11,
-        color: '#0066cc',
         fontWeight: '600',
         textTransform: 'uppercase',
+    },
+    proCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 24,
+    },
+    proCtaText: {
+        flex: 1,
+    },
+    proCtaTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    proCtaSub: {
+        fontSize: 12,
+        marginTop: 2,
     },
     list: {
         gap: 12,
     },
     matchCard: {
-        backgroundColor: '#fff',
         padding: 16,
         borderRadius: 12,
         flexDirection: 'row',
@@ -447,18 +605,15 @@ const styles = StyleSheet.create({
     },
     matchEvent: {
         fontSize: 12,
-        color: '#666',
         fontWeight: '600',
         textTransform: 'uppercase',
     },
     matchOpponent: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     matchDate: {
         fontSize: 12,
-        color: '#999',
     },
     matchRight: {
         alignItems: 'flex-end',
@@ -478,6 +633,5 @@ const styles = StyleSheet.create({
     matchScore: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#444',
     },
 });

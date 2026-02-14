@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Lock, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { LineupPosition, Player } from '../types';
 
 interface SubstituteModalContentProps {
@@ -27,6 +28,7 @@ export function SubstituteModalContent({
     onDesignateNonLibero
 }: SubstituteModalContentProps) {
     const [showIneligible, setShowIneligible] = useState(false);
+    const { colors } = useAppTheme();
 
     if (!subPicker) return null;
 
@@ -84,6 +86,10 @@ export function SubstituteModalContent({
         }
     });
 
+    // Sort both lists by jersey number for consistency with other player displays
+    eligible.sort((a, b) => parseInt(a.jerseyNumber, 10) - parseInt(b.jerseyNumber, 10));
+    ineligible.sort((a, b) => parseInt(a.player.jerseyNumber, 10) - parseInt(b.player.jerseyNumber, 10));
+
     const renderRosterItem = (item: Player, isDisabled: boolean = false, reason?: string) => {
         const isLibero = knownLiberos.includes(item.id);
         const isPartner = item.id === partnerId;
@@ -93,8 +99,9 @@ export function SubstituteModalContent({
                 key={item.id}
                 style={[
                     styles.rosterItem,
-                    isPartner && styles.rosterItemHighlight,
-                    isDisabled && styles.rosterItemDisabled
+                    { borderBottomColor: colors.border },
+                    isPartner && { backgroundColor: colors.primaryLight },
+                    isDisabled && { backgroundColor: colors.bg }
                 ]}
                 onPress={() => {
                     const isBackRow = [1, 5, 6].includes(currentPosition);
@@ -145,32 +152,32 @@ export function SubstituteModalContent({
                     }
                 }}
             >
-                <View style={[styles.jerseyCircle, isLibero && { backgroundColor: '#333' }, isDisabled && { opacity: 0.5 }]}>
-                    <Text style={[styles.jerseyText, isLibero && { color: '#fff' }]}>
+                <View style={[styles.jerseyCircle, { backgroundColor: colors.border }, isLibero && { backgroundColor: colors.text }, isDisabled && { opacity: 0.5 }]}>
+                    <Text style={[styles.jerseyText, { color: colors.text }, isLibero && { color: '#ffffff' }]}>
                         {item.jerseyNumber}
                     </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={[styles.rosterName, isDisabled && { color: '#999' }]}>
-                        {item.name} {isLibero && <Text style={{ fontWeight: 'bold', color: '#666' }}> (L)</Text>}
+                    <Text style={[styles.rosterName, { color: colors.text }, isDisabled && { color: colors.textTertiary }]}>
+                        {item.name} {isLibero && <Text style={{ fontWeight: 'bold', color: colors.textSecondary }}> (L)</Text>}
                     </Text>
-                    {isPartner && <Text style={styles.suggestedLabel}>Paired Partner</Text>}
-                    {reason && <Text style={styles.reasonLabel}>{reason}</Text>}
+                    {isPartner && <Text style={[styles.suggestedLabel, { color: colors.primary }]}>Paired Partner</Text>}
+                    {reason && <Text style={[styles.reasonLabel, { color: colors.textTertiary }]}>{reason}</Text>}
                 </View>
-                {isPartner && <Lock size={16} color="#0066cc" />}
+                {isPartner && <Lock size={16} color={colors.primary} />}
             </TouchableOpacity>
         );
     };
 
     return (
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.bgCard }]}>
             <View style={styles.modalHeader}>
                 <View>
-                    <Text style={styles.modalTitle}>Substitute P{currentPosition}</Text>
-                    {isFrontRow && <Text style={styles.modalSubtitle}>Front Row (No Liberos)</Text>}
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>Substitute P{currentPosition}</Text>
+                    {isFrontRow && <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Front Row (No Liberos)</Text>}
                 </View>
                 <TouchableOpacity onPress={onClose}>
-                    <X size={24} color="#333" />
+                    <X size={24} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
@@ -181,15 +188,15 @@ export function SubstituteModalContent({
                 ListFooterComponent={
                     <View>
                         {ineligible.length > 0 && (
-                            <View style={styles.ineligibleSection}>
+                            <View style={[styles.ineligibleSection, { borderTopColor: colors.border }]}>
                                 <TouchableOpacity
                                     style={styles.collapseHeader}
                                     onPress={() => setShowIneligible(!showIneligible)}
                                 >
-                                    <Text style={styles.collapseText}>
+                                    <Text style={[styles.collapseText, { color: colors.textSecondary }]}>
                                         {showIneligible ? "Hide" : "Show"} Ineligible Players ({ineligible.length})
                                     </Text>
-                                    {showIneligible ? <ChevronUp size={16} color="#666" /> : <ChevronDown size={16} color="#666" />}
+                                    {showIneligible ? <ChevronUp size={16} color={colors.textSecondary} /> : <ChevronDown size={16} color={colors.textSecondary} />}
                                 </TouchableOpacity>
 
                                 {showIneligible && (
@@ -204,8 +211,8 @@ export function SubstituteModalContent({
                 ListEmptyComponent={
                     eligible.length === 0 ? (
                         <View style={styles.emptyState}>
-                            <Text style={styles.emptyText}>No eligible players.</Text>
-                            <Text style={styles.emptySub}>Check ineligible list below.</Text>
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No eligible players.</Text>
+                            <Text style={[styles.emptySub, { color: colors.textTertiary }]}>Check ineligible list below.</Text>
                         </View>
                     ) : null
                 }
@@ -218,7 +225,6 @@ export function SubstituteModalContent({
 const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
-        backgroundColor: '#fff',
         padding: 16,
     },
     modalHeader: {
@@ -233,64 +239,52 @@ const styles = StyleSheet.create({
     },
     modalSubtitle: {
         fontSize: 12,
-        color: '#666',
     },
     filterRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 16,
-        backgroundColor: '#f9f9f9',
         padding: 8,
         borderRadius: 8,
     },
     filterLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#444',
     },
     rosterItem: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
         gap: 12,
     },
     rosterItemHighlight: {
-        backgroundColor: '#f0f9ff',
     },
     rosterItemDisabled: {
-        backgroundColor: '#f9f9f9',
     },
     rosterItemLibero: {
-        backgroundColor: '#fff',
     },
     jerseyCircle: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#eee',
         alignItems: 'center',
         justifyContent: 'center',
     },
     jerseyText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
     },
     rosterName: {
         fontSize: 16,
-        color: '#333',
     },
     suggestedLabel: {
         fontSize: 10,
-        color: '#0066cc',
         fontWeight: '700',
     },
     reasonLabel: {
         fontSize: 10,
-        color: '#999',
         fontStyle: 'italic',
     },
     emptyState: {
@@ -299,18 +293,15 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: '#666',
         fontWeight: '600',
     },
     emptySub: {
         fontSize: 14,
-        color: '#999',
         marginTop: 4,
     },
     ineligibleSection: {
         marginTop: 20,
         borderTopWidth: 1,
-        borderTopColor: '#eee',
         paddingTop: 10,
     },
     collapseHeader: {
@@ -322,7 +313,6 @@ const styles = StyleSheet.create({
     },
     collapseText: {
         fontSize: 14,
-        color: '#666',
         fontWeight: '600',
     }
 });

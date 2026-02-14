@@ -2,6 +2,7 @@ import { ChevronDown, Pencil } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { FlatList, LayoutChangeEvent, Modal, NativeScrollEvent, NativeSyntheticEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { LineupPosition, Player, StatLog } from '../types';
 import EditLogEntryModal from './EditLogEntryModal';
 
@@ -23,6 +24,8 @@ interface GroupedItem {
 }
 
 export default function FullLogModal({ visible, onClose, history, roster, lineups, onUpdateLog }: FullLogModalProps) {
+    const { colors } = useAppTheme();
+
     // Animation for Scroll Indicator
     const translateY = useSharedValue(0);
     const opacity = useSharedValue(0);
@@ -160,8 +163,8 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
         if (item.type === 'set_header') {
             const isStart = (item as any).isStart;
             return (
-                <View style={styles.setHeader}>
-                    <Text style={styles.setHeaderText}>
+                <View style={[styles.setHeader, { backgroundColor: colors.border }]}>
+                    <Text style={[styles.setHeaderText, { color: colors.text }]}>
                         {isStart ? `Set ${item.setNumber}` : `End of Set ${item.setNumber}`}
                     </Text>
                 </View>
@@ -177,22 +180,22 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                 const pIn = subIn ? roster.find(r => r.id === subIn) : null;
                 const pOut = subOut ? roster.find(r => r.id === subOut) : null;
                 if (pIn && pOut) {
-                    content = <Text style={styles.adminText}>SUBSTITUTION: #{pIn.jerseyNumber} {pIn.name} for #{pOut.jerseyNumber} {pOut.name}</Text>;
+                    content = <Text style={[styles.adminText, { color: colors.textSecondary }]}>SUBSTITUTION: #{pIn.jerseyNumber} {pIn.name} for #{pOut.jerseyNumber} {pOut.name}</Text>;
                 }
             } else if (log.type === 'rotation') {
-                content = <Text style={styles.adminText}>ROTATION</Text>;
+                content = <Text style={[styles.adminText, { color: colors.textSecondary }]}>ROTATION</Text>;
             } else if (log.type === 'timeout') {
-                content = <Text style={styles.adminText}>TIMEOUT taken by {log.team === 'myTeam' ? 'My Team' : 'Opponent'}</Text>;
+                content = <Text style={[styles.adminText, { color: colors.textSecondary }]}>TIMEOUT taken by {log.team === 'myTeam' ? 'My Team' : 'Opponent'}</Text>;
             }
 
             return (
-                <View style={[styles.logRow, styles.adminRow]}>
+                <View style={[styles.logRow, styles.adminRow, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
                     <View style={styles.timeContainer}>
-                        <Text style={styles.timestamp}>{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                        <Text style={[styles.timestamp, { color: colors.textTertiary }]}>{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                     </View>
                     <View style={styles.eventContainer}>{content}</View>
                     <View style={styles.scoreContainer}>
-                        <Text style={styles.scoreText}>({log.scoreSnapshot.myTeam}-{log.scoreSnapshot.opponent})</Text>
+                        <Text style={[styles.scoreText, { color: colors.textSecondary }]}>({log.scoreSnapshot.myTeam}-{log.scoreSnapshot.opponent})</Text>
                     </View>
                 </View>
             );
@@ -219,7 +222,7 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                     if (a) playerLabel += ` [${label}: #${a.jerseyNumber}]`;
                 }
 
-                if (idx > 0) rallyText.push(<Text key={`sep-${idx}`} style={{ color: '#ccc' }}> {' > '} </Text>);
+                if (idx > 0) rallyText.push(<Text key={`sep-${idx}`} style={{ color: colors.textTertiary }}> {' > '} </Text>);
                 rallyText.push(
                     <TouchableOpacity
                         key={log.id}
@@ -227,10 +230,10 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                         onPress={() => onUpdateLog && setEditEntry(log)}
                         disabled={!onUpdateLog}
                     >
-                        <Text style={{ color: isMyTeam ? '#0066cc' : '#cc0033', fontWeight: 'bold' }}>
+                        <Text style={{ color: isMyTeam ? colors.primary : colors.opponent, fontWeight: 'bold' }}>
                             {type}{playerLabel}
                         </Text>
-                        {onUpdateLog && <Pencil size={12} color="#999" style={styles.editIcon} />}
+                        {onUpdateLog && <Pencil size={12} color={colors.textTertiary} style={styles.editIcon} />}
                     </TouchableOpacity>
                 );
             });
@@ -250,9 +253,9 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
             }
 
             return (
-                <View style={styles.logRow}>
+                <View style={[styles.logRow, { borderBottomColor: colors.border }]}>
                     <View style={styles.timeContainer}>
-                        <Text style={styles.timestamp}>{new Date(lastLog.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                        <Text style={[styles.timestamp, { color: colors.textTertiary }]}>{new Date(lastLog.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                     </View>
                     <View style={styles.eventContainer}>
                         <View style={styles.rallyContainer}>
@@ -279,7 +282,7 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                                 else oppScore++;
                             }
 
-                            return <Text style={styles.scoreText}>({myScore}-{oppScore})</Text>;
+                            return <Text style={[styles.logScore, { color: colors.text }]}>({myScore}-{oppScore})</Text>;
                         })()}
                     </View>
                 </View>
@@ -291,9 +294,9 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-            <View style={styles.container}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>Match Log</Text>
+            <View style={[styles.container, { backgroundColor: colors.bgCard }]}>
+                <View style={[styles.header, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.title, { color: colors.text }]}>Match Log</Text>
                 </View>
 
                 <FlatList
@@ -301,7 +304,7 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={<Text style={styles.empty}>No stats recorded yet.</Text>}
+                    ListEmptyComponent={<Text style={[styles.empty, { color: colors.textTertiary }]}>No stats recorded yet.</Text>}
                     onLayout={(e: LayoutChangeEvent) => setVisibleHeight(e.nativeEvent.layout.height)}
                     onContentSizeChange={(w, h) => setContentHeight(h)}
                     onScroll={handleScroll}
@@ -310,14 +313,14 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
 
                 {/* Scroll Indicator */}
                 <Animated.View style={[styles.scrollIndicator, animatedChevronStyle]} pointerEvents="none">
-                    <Text style={styles.scrollText}>Scroll for more</Text>
-                    <ChevronDown size={20} color="#0066cc" />
+                    <Text style={[styles.scrollText, { color: colors.primary }]}>Scroll for more</Text>
+                    <ChevronDown size={20} color={colors.primary} />
                 </Animated.View>
 
                 {/* Floating Footer */}
-                <View style={styles.footer}>
-                    <TouchableOpacity style={styles.closeMainBtn} onPress={onClose}>
-                        <Text style={styles.closeMainText}>Close Log</Text>
+                <View style={[styles.footer, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
+                    <TouchableOpacity style={[styles.closeMainBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onClose}>
+                        <Text style={[styles.closeMainText, { color: colors.text }]}>Close Log</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -342,7 +345,6 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
     header: {
         flexDirection: 'row',
@@ -350,7 +352,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     title: {
         fontSize: 18,
@@ -369,10 +370,8 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#f5f5f5',
     },
     adminRow: {
-        backgroundColor: '#fafafa',
     },
     timeContainer: {
         width: 50,
@@ -380,7 +379,6 @@ const styles = StyleSheet.create({
     },
     timestamp: {
         fontSize: 11,
-        color: '#999',
         textAlign: 'right',
     },
     eventContainer: {
@@ -407,7 +405,6 @@ const styles = StyleSheet.create({
     adminText: {
         fontSize: 13,
         fontStyle: 'italic',
-        color: '#666',
     },
     scoreContainer: {
         width: 50,
@@ -416,17 +413,14 @@ const styles = StyleSheet.create({
     },
     scoreText: {
         fontSize: 13,
-        color: '#666',
         fontWeight: '500',
     },
     empty: {
         textAlign: 'center',
         marginTop: 40,
-        color: '#999',
         fontStyle: 'italic',
     },
     setHeader: {
-        backgroundColor: '#eee',
         paddingVertical: 8,
         paddingHorizontal: 16,
         marginTop: 8,
@@ -434,19 +428,15 @@ const styles = StyleSheet.create({
     setHeaderText: {
         fontWeight: 'bold',
         fontSize: 14,
-        color: '#333',
     },
     logScore: {
-        color: '#333',
         fontWeight: 'bold',
     },
     // Footer & Scroll Indicator
     footer: {
         padding: 20,
         paddingBottom: 32, // Safe Area padding mimic
-        backgroundColor: '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
         // Shadow for "Floating" effect
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
@@ -455,7 +445,6 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     closeMainBtn: {
-        backgroundColor: '#f0f0f0',
         paddingVertical: 14,
         borderRadius: 12,
         alignItems: 'center',
@@ -465,7 +454,6 @@ const styles = StyleSheet.create({
     closeMainText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
     },
     scrollIndicator: {
         position: 'absolute',
@@ -478,7 +466,6 @@ const styles = StyleSheet.create({
     },
     scrollText: {
         fontSize: 12,
-        color: '#0066cc',
         fontWeight: '600',
         marginBottom: 4,
         textTransform: 'uppercase',

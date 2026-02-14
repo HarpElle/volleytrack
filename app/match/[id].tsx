@@ -5,16 +5,20 @@ import { useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ViewShot from "react-native-view-shot";
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import { SocialSharePreview } from '../../components/ai/SocialSharePreview';
 import FullLogModal from '../../components/FullLogModal';
 import StatsModal from '../../components/StatsModal';
 import { AIError, GeminiService } from '../../services/ai/GeminiService';
 import { useDataStore } from '../../store/useDataStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
+import { PaywallModal } from '../../components/PaywallModal';
 
 export default function MatchDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
+    const { colors } = useAppTheme();
     const { savedMatches, seasons, events } = useDataStore();
 
     const match = savedMatches.find(m => m.id === id);
@@ -27,7 +31,12 @@ export default function MatchDetailScreen() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [failedPrompt, setFailedPrompt] = useState<string | undefined>(undefined);
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showPaywall, setShowPaywall] = useState(false);
     const viewShotRef = useRef<ViewShot>(null);
+
+    // Subscription gating for exports
+    const canUseExport = useSubscriptionStore((s) => s.canUseExport);
+    const incrementExports = useSubscriptionStore((s) => s.incrementExports);
 
     const handleGenerateAI = async () => {
         if (!match) return;
@@ -72,11 +81,19 @@ export default function MatchDetailScreen() {
     };
 
     const handleSocialShare = async () => {
+        // Check export limit for free tier
+        if (!canUseExport()) {
+            setShowPaywall(true);
+            return;
+        }
+
         if (!viewShotRef.current) return;
         try {
             const uri = await viewShotRef.current.capture?.();
             if (uri && await Sharing.isAvailableAsync()) {
                 await Sharing.shareAsync(uri);
+                // Track usage only after successful share
+                incrementExports();
             } else {
                 Alert.alert("Sharing not available", "Sharing is not supported on this device/simulator.");
             }
@@ -88,12 +105,12 @@ export default function MatchDetailScreen() {
 
     if (!match) {
         return (
-            <SafeAreaView style={styles.container}>
+            <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ChevronRight size={24} color="#333" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <ChevronRight size={24} color={colors.text} style={{ transform: [{ rotate: '180deg' }] }} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Match not found</Text>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Match not found</Text>
                 </View>
             </SafeAreaView>
         );
@@ -139,33 +156,33 @@ export default function MatchDetailScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ChevronRight size={24} color="#333" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <ChevronRight size={24} color={colors.text} style={{ transform: [{ rotate: '180deg' }] }} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Match Results</Text>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Match Results</Text>
                     <View style={{ width: 24 }} />
                 </View>
 
                 {/* Score Card */}
-                <View style={styles.card}>
-                    {event && <Text style={styles.eventName}>{event.name}</Text>}
-                    <Text style={styles.dateText}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard }]}>
+                    {event && <Text style={[styles.eventName, { color: colors.primary }]}>{event.name}</Text>}
+                    <Text style={[styles.dateText, { color: colors.textTertiary }]}>
                         {new Date(match.date).toLocaleDateString()}
                         {match.time ? ` • ${match.time}` : ''}
                     </Text>
-                    <Text style={styles.vsText}>{myTeamName} vs {match.opponentName}</Text>
+                    <Text style={[styles.vsText, { color: colors.text }]}>{myTeamName} vs {match.opponentName}</Text>
 
                     <View style={styles.scoreRow}>
-                        <Text style={[styles.bigScore, wonMatch ? styles.winner : styles.loser]}>
+                        <Text style={[styles.bigScore, wonMatch ? { color: colors.primary } : { color: colors.text }]}>
                             {match.setsWon.myTeam}
                         </Text>
-                        <Text style={styles.dash}>-</Text>
-                        <Text style={[styles.bigScore, !wonMatch ? styles.winner : styles.loser]}>
+                        <Text style={[styles.dash, { color: colors.border }]}>-</Text>
+                        <Text style={[styles.bigScore, !wonMatch ? { color: colors.primary } : { color: colors.text }]}>
                             {match.setsWon.opponent}
                         </Text>
                     </View>
@@ -175,8 +192,8 @@ export default function MatchDetailScreen() {
                         {(match.scores || []).map((setScore, index) => {
                             const weWonSet = setScore.myTeam > setScore.opponent;
                             return (
-                                <View key={index} style={[styles.pill, weWonSet ? styles.pillWon : styles.pillLost]}>
-                                    <Text style={[styles.pillText, weWonSet ? styles.pillTextWon : styles.pillTextLost]}>
+                                <View key={index} style={[styles.pill, weWonSet ? { backgroundColor: colors.successLight, borderColor: colors.success } : { backgroundColor: colors.errorLight, borderColor: colors.error }]}>
+                                    <Text style={[styles.pillText, weWonSet ? { color: colors.success } : { color: colors.error }]}>
                                         {setScore.myTeam}-{setScore.opponent}
                                     </Text>
                                 </View>
@@ -184,43 +201,43 @@ export default function MatchDetailScreen() {
                         })}
                     </View>
 
-                    <Text style={styles.resultText}>
+                    <Text style={[styles.resultText, { color: colors.textSecondary }]}>
                         {match.result === 'Win' ? 'Victory' : match.result === 'Loss' ? 'Defeat' : match.result}
                     </Text>
                 </View>
 
                 {/* Stats */}
-                <Text style={styles.sectionTitle}>Performance</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Performance</Text>
                 <View style={styles.statsGrid}>
-                    <StatBox label="Aces" value={stats.ace} />
-                    <StatBox label="Kills" value={stats.kill} />
-                    <StatBox label="Errors" value={stats.totalErrors} />
+                    <StatBox label="Aces" value={stats.ace} colors={colors} />
+                    <StatBox label="Kills" value={stats.kill} colors={colors} />
+                    <StatBox label="Errors" value={stats.totalErrors} colors={colors} />
                 </View>
 
                 {/* Actions */}
-                <TouchableOpacity style={styles.actionBtn} onPress={() => setShowLog(true)}>
-                    <AlignLeft color="#fff" size={20} />
-                    <Text style={styles.actionText}>View Full Log</Text>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => setShowLog(true)}>
+                    <AlignLeft color={'#ffffff'} size={20} />
+                    <Text style={[styles.actionText, { color: '#ffffff' }]}>View Full Log</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: '#4caf50', marginBottom: 24 }]}
+                    style={[styles.actionBtn, { backgroundColor: colors.success, marginBottom: 24 }]}
                     onPress={() => setShowStats(true)}
                 >
-                    <AlignLeft color="#fff" size={20} />
-                    <Text style={styles.actionText}>View Match Stats</Text>
+                    <AlignLeft color={'#ffffff'} size={20} />
+                    <Text style={[styles.actionText, { color: '#ffffff' }]}>View Match Stats</Text>
                 </TouchableOpacity>
 
                 {/* AI Magic Section */}
-                <Text style={styles.sectionTitle}>AI Analysis</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>AI Analysis</Text>
 
                 {!match.aiNarrative && !isGenerating ? (
-                    <TouchableOpacity style={styles.generateCard} onPress={handleGenerateAI}>
-                        <View style={styles.sparkleIcon}>
-                            <Sparkles size={24} color="#fff" />
+                    <TouchableOpacity style={[styles.generateCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]} onPress={handleGenerateAI}>
+                        <View style={[styles.sparkleIcon, { backgroundColor: '#8A2BE2' }]}>
+                            <Sparkles size={24} color={'#ffffff'} />
                         </View>
-                        <Text style={styles.generateTitle}>Generate AI Analysis</Text>
-                        <Text style={styles.generateSub}>
+                        <Text style={[styles.generateTitle, { color: colors.text }]}>Generate AI Analysis</Text>
+                        <Text style={[styles.generateSub, { color: colors.textSecondary }]}>
                             Get instant tactical insights & social recaps
                         </Text>
                     </TouchableOpacity>
@@ -233,17 +250,17 @@ export default function MatchDetailScreen() {
                             failedPrompt={failedPrompt}
                         />
                         {match.aiNarrative && (
-                            <TouchableOpacity style={styles.socialBtn} onPress={() => setShowShareModal(true)}>
-                                <Sparkles color="#fff" size={20} />
-                                <Text style={styles.socialBtnText}>Create Social Post</Text>
+                            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#8A2BE2' }]} onPress={() => setShowShareModal(true)}>
+                                <Sparkles color={'#ffffff'} size={20} />
+                                <Text style={[styles.socialBtnText, { color: '#ffffff' }]}>Create Social Post</Text>
                             </TouchableOpacity>
                         )}
                     </>
                 )}
 
-                <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={handleShare}>
-                    <Share2 color="#333" size={20} />
-                    <Text style={[styles.actionText, styles.secondaryText]}>Share Result</Text>
+                <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]} onPress={handleShare}>
+                    <Share2 color={colors.text} size={20} />
+                    <Text style={[styles.actionText, styles.secondaryText, { color: colors.text }]}>Share Result</Text>
                 </TouchableOpacity>
 
             </ScrollView>
@@ -271,11 +288,11 @@ export default function MatchDetailScreen() {
                 presentationStyle="pageSheet"
                 onRequestClose={() => setShowShareModal(false)}
             >
-                <View style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Social Share Preview</Text>
+                <View style={[styles.modalContainer, { backgroundColor: colors.bg }]}>
+                    <View style={[styles.modalHeader, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Social Share Preview</Text>
                         <TouchableOpacity onPress={() => setShowShareModal(false)}>
-                            <X color="#333" size={24} />
+                            <X color={colors.text} size={24} />
                         </TouchableOpacity>
                     </View>
 
@@ -293,27 +310,34 @@ export default function MatchDetailScreen() {
                         )}
                     </View>
 
-                    <View style={styles.modalFooter}>
-                        <Text style={styles.helperText}>
+                    <View style={[styles.modalFooter, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
+                        <Text style={[styles.helperText, { color: colors.textSecondary }]}>
                             This image is generated on-device with reliable match data.
                         </Text>
-                        <TouchableOpacity style={styles.shareNowBtn} onPress={handleSocialShare}>
-                            <Share2 color="#fff" size={20} />
-                            <Text style={styles.shareNowText}>Share Image Now</Text>
+                        <TouchableOpacity style={[styles.shareNowBtn, { backgroundColor: colors.primary }]} onPress={handleSocialShare}>
+                            <Share2 color={'#ffffff'} size={20} />
+                            <Text style={[styles.shareNowText, { color: '#ffffff' }]}>Share Image Now</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
+
+            {/* Paywall Modal */}
+            <PaywallModal
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                trigger="export"
+            />
         </SafeAreaView>
     );
 }
 
-function StatBox({ label, value, sub }: any) {
+function StatBox({ label, value, sub, colors }: any) {
     return (
-        <View style={styles.statBox}>
-            <Text style={styles.statValue}>{value}</Text>
-            <Text style={styles.statLabel}>{label}</Text>
-            {sub && <Text style={styles.statSub}>{sub}</Text>}
+        <View style={[styles.statBox, { backgroundColor: colors.bgCard }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
+            {sub && <Text style={[styles.statSub, { color: colors.textTertiary }]}>{sub}</Text>}
         </View>
     );
 }
@@ -322,16 +346,13 @@ const styles = StyleSheet.create({
     // ... existing styles ...
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
     },
     // Add new styles here
     generateCard: {
-        backgroundColor: '#fff',
         borderRadius: 16,
         padding: 24,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#EFEFEF',
         borderStyle: 'dashed',
         marginBottom: 24
     },
@@ -339,7 +360,6 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#8A2BE2',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 12
@@ -347,19 +367,16 @@ const styles = StyleSheet.create({
     generateTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
         marginBottom: 4
     },
     generateSub: {
         fontSize: 14,
-        color: '#666',
         textAlign: 'center'
     },
     socialBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#8A2BE2',
         padding: 16,
         borderRadius: 12,
         gap: 8,
@@ -367,22 +384,18 @@ const styles = StyleSheet.create({
         marginBottom: 24
     },
     socialBtnText: {
-        color: '#fff',
         fontWeight: 'bold',
         fontSize: 16
     },
     modalContainer: {
         flex: 1,
-        backgroundColor: '#f5f7fa'
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee'
     },
     modalTitle: {
         fontSize: 18,
@@ -396,18 +409,14 @@ const styles = StyleSheet.create({
     },
     modalFooter: {
         padding: 24,
-        backgroundColor: '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#eee'
     },
     helperText: {
         textAlign: 'center',
         marginBottom: 16,
-        color: '#666',
         fontSize: 12
     },
     shareNowBtn: {
-        backgroundColor: '#0066cc',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -416,7 +425,6 @@ const styles = StyleSheet.create({
         gap: 8
     },
     shareNowText: {
-        color: '#fff',
         fontWeight: 'bold',
         fontSize: 16
     },
@@ -435,10 +443,8 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     card: {
-        backgroundColor: '#fff',
         padding: 24,
         borderRadius: 20,
         alignItems: 'center',
@@ -452,20 +458,17 @@ const styles = StyleSheet.create({
     eventName: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#0066cc',
         marginBottom: 4,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     dateText: {
         fontSize: 12,
-        color: '#999',
         fontWeight: '600',
         marginBottom: 8,
     },
     vsText: {
         fontSize: 16,
-        color: '#333',
         fontWeight: '700',
         marginBottom: 16,
     },
@@ -480,14 +483,11 @@ const styles = StyleSheet.create({
         lineHeight: 72,
     },
     winner: {
-        color: '#0066cc',
     },
     loser: {
-        color: '#333',
     },
     dash: {
         fontSize: 40,
-        color: '#ccc',
         marginHorizontal: 16,
     },
     pillRow: {
@@ -502,34 +502,26 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     pillWon: {
-        backgroundColor: '#e8f5e9',
-        borderColor: '#c8e6c9',
     },
     pillLost: {
-        backgroundColor: '#ffebee',
-        borderColor: '#ffcdd2',
     },
     pillText: {
         fontSize: 14,
         fontWeight: '700',
     },
     pillTextWon: {
-        color: '#2e7d32',
     },
     pillTextLost: {
-        color: '#c62828',
     },
     resultText: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#444',
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 16,
         marginLeft: 4,
-        color: '#333',
     },
     statsGrid: {
         flexDirection: 'row',
@@ -539,7 +531,6 @@ const styles = StyleSheet.create({
     },
     statBox: {
         width: '31%', // Fits 3 perfectly with gap logic approx
-        backgroundColor: '#fff',
         padding: 12,
         borderRadius: 12,
         alignItems: 'center',
@@ -547,19 +538,15 @@ const styles = StyleSheet.create({
     statValue: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#333',
     },
     statLabel: {
         fontSize: 12,
-        color: '#666',
         fontWeight: '600',
     },
     statSub: {
         fontSize: 10,
-        color: '#999',
     },
     actionBtn: {
-        backgroundColor: '#0066cc',
         borderRadius: 16,
         height: 56,
         flexDirection: 'row',
@@ -569,25 +556,18 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     actionText: {
-        color: '#fff',
         fontSize: 16,
         fontWeight: '700',
     },
     analysisBtn: {
-        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: '#0066cc',
         borderStyle: 'dashed',
     },
     analysisText: {
-        color: '#0066cc',
     },
     secondaryBtn: {
-        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: '#ddd',
     },
     secondaryText: {
-        color: '#333',
     },
 });

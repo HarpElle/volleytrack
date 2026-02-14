@@ -1,4 +1,5 @@
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 export interface StatOption {
     label: string;
@@ -26,6 +27,8 @@ export default function StatPickerModal({
     onSelect,
     onClose,
 }: StatPickerModalProps) {
+    const { colors } = useAppTheme();
+
     return (
         <Modal
             visible={visible}
@@ -34,20 +37,20 @@ export default function StatPickerModal({
             statusBarTranslucent
         >
             <TouchableOpacity
-                style={styles.overlay}
+                style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <View style={styles.card}>
-                    <Text style={styles.title}>{title}</Text>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
 
                     {attribution && (
-                        <Text style={styles.attribution}>{attribution}</Text>
+                        <Text style={[styles.attribution, { color: colors.textSecondary }]}>{attribution}</Text>
                     )}
 
                     {descriptor && (
-                        <View style={styles.descriptorContainer}>
-                            <Text style={styles.descriptor}>{descriptor}</Text>
+                        <View style={[styles.descriptorContainer, { backgroundColor: colors.warningLight, borderColor: colors.warning }]}>
+                            <Text style={[styles.descriptor, { color: colors.warning }]}>{descriptor}</Text>
                         </View>
                     )}
 
@@ -55,7 +58,7 @@ export default function StatPickerModal({
                         {options.map((option) => (
                             <TouchableOpacity
                                 key={option.value}
-                                style={[styles.optionBtn, option.color ? { backgroundColor: option.color } : undefined]}
+                                style={[styles.optionBtn, option.color ? { backgroundColor: option.color } : { backgroundColor: colors.buttonSecondary }]}
                                 onPress={() => onSelect(option.value)}
                             >
                                 <Text style={styles.optionLabel}>{option.label}</Text>
@@ -66,8 +69,8 @@ export default function StatPickerModal({
                         ))}
                     </View>
 
-                    <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-                        <Text style={styles.cancelText}>Cancel</Text>
+                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onClose}>
+                        <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
@@ -78,16 +81,13 @@ export default function StatPickerModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         padding: 24,
     },
     card: {
-        backgroundColor: '#fff',
         borderRadius: 20,
         padding: 20,
         alignItems: 'center',
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -99,28 +99,23 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 8,
     },
     attribution: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
         marginBottom: 16,
         textAlign: 'center'
     },
     descriptorContainer: {
-        backgroundColor: '#fff3e0',
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 8,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#ffe0b2'
     },
     descriptor: {
         fontSize: 13,
-        color: '#e65100', // Warning Orange
         fontWeight: '600',
         textAlign: 'center'
     },
@@ -134,7 +129,6 @@ const styles = StyleSheet.create({
         paddingVertical: 0, // Reset vertical padding
         minHeight: 75, // Match Action buttons
         paddingHorizontal: 20,
-        backgroundColor: '#eee',
         borderRadius: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -162,11 +156,9 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 32,
         borderRadius: 20,
-        backgroundColor: '#f5f5f5',
     },
     cancelText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#666',
     },
 });

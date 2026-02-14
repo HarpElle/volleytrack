@@ -1,5 +1,6 @@
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useHaptics } from '../hooks/useHaptic';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { Score } from '../types';
 
 interface EndOfSetModalProps {
@@ -26,6 +27,7 @@ export default function EndOfSetModal({
     onCorrectScore,
 }: EndOfSetModalProps) {
     const haptics = useHaptics();
+    const { colors } = useAppTheme();
     const myScore = score.myTeam;
     const oppScore = score.opponent;
     const iWon = myScore > oppScore;
@@ -44,41 +46,41 @@ export default function EndOfSetModal({
             animationType="fade"
             statusBarTranslucent
         >
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.title}>Set {setNumber} Finished</Text>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.title, { color: colors.text }]}>Set {setNumber} Finished</Text>
 
                     <View style={styles.resultContainer}>
                         <View style={styles.teamRow}>
-                            <Text style={[styles.teamName, iWon && styles.winner]}>{myTeamName}</Text>
-                            <Text style={[styles.score, iWon && styles.winnerScore]}>{myScore}</Text>
+                            <Text style={[styles.teamName, iWon && styles.winner, { color: iWon ? colors.primary : colors.textSecondary }]}>{myTeamName}</Text>
+                            <Text style={[styles.score, iWon && styles.winnerScore, { color: iWon ? colors.primary : colors.textSecondary }]}>{myScore}</Text>
                         </View>
                         <View style={styles.teamRow}>
-                            <Text style={[styles.teamName, !iWon && styles.winner]}>{opponentName}</Text>
-                            <Text style={[styles.score, !iWon && styles.winnerScore]}>{oppScore}</Text>
+                            <Text style={[styles.teamName, !iWon && styles.winner, { color: !iWon ? colors.primary : colors.textSecondary }]}>{opponentName}</Text>
+                            <Text style={[styles.score, !iWon && styles.winnerScore, { color: !iWon ? colors.primary : colors.textSecondary }]}>{oppScore}</Text>
                         </View>
                     </View>
 
-                    <Text style={styles.winnerLabel}>
+                    <Text style={[styles.winnerLabel, { color: colors.text }]}>
                         Winner: {iWon ? myTeamName : opponentName}
                     </Text>
 
                     <View style={styles.actions}>
                         {/* Primary Flow Actions */}
-                        <TouchableOpacity style={styles.primaryBtn} onPress={() => { onNextSet(); haptics('success'); }}>
-                            <Text style={styles.primaryBtnText}>
+                        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.text }]} onPress={() => { onNextSet(); haptics('success'); }}>
+                            <Text style={[styles.primaryBtnText, { color: colors.bg }]}>
                                 {isMatchFinished ? 'Finish Match' : 'Start Next Set'}
                             </Text>
                         </TouchableOpacity>
 
                         {/* Secondary Corrections */}
                         <View style={styles.secondaryActions}>
-                            <TouchableOpacity style={styles.smallBtn} onPress={() => { onCorrectScore(); haptics('medium'); }}>
-                                <Text style={styles.smallBtnText}>Wait, Correct Score</Text>
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary }]} onPress={() => { onCorrectScore(); haptics('medium'); }}>
+                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Wait, Correct Score</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.smallBtn} onPress={onNextSet}>
-                                <Text style={styles.smallBtnText}>Continue Set</Text>
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onNextSet}>
+                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Continue Set</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

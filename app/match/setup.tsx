@@ -1,7 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronDown, ChevronUp, Minus, Plus, Settings2, Trash2, User } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { useDataStore } from '../../store/useDataStore';
 import { useMatchStore } from '../../store/useMatchStore';
 import { LineupPosition, MatchConfig, MatchRecord, Player, SetConfig } from '../../types';
@@ -31,6 +32,7 @@ export default function MatchSetupScreen() {
     const router = useRouter();
     const isPad = (Platform as any).isPad;
     const params = useLocalSearchParams<{ seasonId?: string; eventId?: string; matchId?: string; mode?: string }>();
+    const { colors, isDark } = useAppTheme();
     const {
         setSetup,
         updateMatchSettings,
@@ -152,6 +154,21 @@ export default function MatchSetupScreen() {
     // Player Picker State
     const [showPlayerPicker, setShowPlayerPicker] = useState(false);
     const [editingSlot, setEditingSlot] = useState<{ pos: number; current: LineupPosition | undefined } | null>(null);
+
+    // Player Picker Sort
+    const [pickerSortBy, setPickerSortBy] = useState<'name' | 'jersey'>('name');
+    const sortedPickerRoster = useMemo(() => {
+        return [...(activeSeason?.roster || [])].sort((a, b) => {
+            if (pickerSortBy === 'jersey') {
+                const numA = parseInt(a.jerseyNumber, 10);
+                const numB = parseInt(b.jerseyNumber, 10);
+                if (isNaN(numA)) return 1;
+                if (isNaN(numB)) return -1;
+                return numA - numB;
+            }
+            return a.name.localeCompare(b.name);
+        });
+    }, [activeSeason?.roster, pickerSortBy]);
 
     // Helper: Initialize a default empty lineup
     const createEmptyLineup = (): LineupPosition[] => {
@@ -319,18 +336,18 @@ export default function MatchSetupScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bgCard }]}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
                 <ScrollView contentContainerStyle={styles.scrollContent}>
 
-                    <View style={styles.headerRow}>
+                    <View style={[styles.headerRow, { backgroundColor: colors.bgCard }]}>
                         <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
-                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                            <Text style={[styles.cancelBtnText, { color: colors.opponent }]}>Cancel</Text>
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{params.matchId ? 'Edit Match' : 'New Match'}</Text>
+                        <Text style={[styles.headerTitle, { color: colors.text }]}>{params.matchId ? 'Edit Match' : 'New Match'}</Text>
 
                         {/* Reset Button (Only if NOT resuming, or if user explicitly wants to reset active match) */}
                         {isResume ? (
@@ -350,7 +367,7 @@ export default function MatchSetupScreen() {
                                     ]
                                 );
                             }}>
-                                <Text style={styles.cancelBtnText}>Reset</Text>
+                                <Text style={[styles.cancelBtnText, { color: colors.opponent }]}>Reset</Text>
                             </TouchableOpacity>
                         ) : (
                             <View style={{ width: 40 }} />
@@ -362,17 +379,17 @@ export default function MatchSetupScreen() {
                         <View style={styles.contextHeader}>
                             {activeSeason && (
                                 <View>
-                                    <Text style={styles.contextLabel}>SEASON</Text>
+                                    <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>SEASON</Text>
                                     <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-                                        <Text style={styles.contextValue}>{activeSeason.name}</Text>
-                                        <Text style={styles.contextSub}>{activeSeason.teamName}</Text>
+                                        <Text style={[styles.contextValue, { color: colors.text }]}>{activeSeason.name}</Text>
+                                        <Text style={[styles.contextSub, { color: colors.textSecondary }]}>{activeSeason.teamName}</Text>
                                     </View>
                                 </View>
                             )}
                             {activeEvent && (
                                 <View style={{ marginTop: 12 }}>
-                                    <Text style={styles.contextLabel}>EVENT</Text>
-                                    <Text style={styles.contextValue}>{activeEvent.name}</Text>
+                                    <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>EVENT</Text>
+                                    <Text style={[styles.contextValue, { color: colors.text }]}>{activeEvent.name}</Text>
                                 </View>
                             )}
                         </View>
@@ -380,19 +397,19 @@ export default function MatchSetupScreen() {
 
                     {/* Match Details Section */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Match Details</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Match Details</Text>
 
                         {/* Opponent Input */}
                         <View style={styles.inputRow}>
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.label}>Opponent</Text>
+                            <View style={[styles.inputContainer, { borderBottomColor: colors.border }]}>
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>Opponent</Text>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, { color: colors.text }]}
                                     value={opponent}
                                     onChangeText={setOpponent}
                                     placeholder="Enter Opponent Name"
-                                    placeholderTextColor="#ccc"
-                                //                                     autoFocus={!params.matchId} 
+                                    placeholderTextColor={colors.textTertiary}
+                                //                                     autoFocus={!params.matchId}
                                 />
                             </View>
                         </View>
@@ -400,14 +417,15 @@ export default function MatchSetupScreen() {
                         {/* Metadata (Date, Time) */}
                         <View style={[styles.inputRow, { flexDirection: 'row', gap: 24, marginBottom: 0 }]}>
                             {/* Date Input */}
-                            <View style={[styles.inputContainer, { flex: 1 }]}>
-                                <Text style={styles.label}>Date</Text>
+                            <View style={[styles.inputContainer, { flex: 1, borderBottomColor: colors.border }]}>
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>Date</Text>
                                 {Platform.OS === 'ios' ? (
                                     <DateTimePicker
                                         value={new Date(matchDate)}
                                         mode="date"
                                         display="compact"
                                         onChange={onDateChange}
+                                        themeVariant={isDark ? 'dark' : 'light'}
                                         style={{ alignSelf: 'flex-start', marginLeft: -10 }}
                                     />
                                 ) : (
@@ -415,7 +433,7 @@ export default function MatchSetupScreen() {
                                         <TouchableOpacity
                                             onPress={() => setShowDatePicker(true)}
                                         >
-                                            <Text style={styles.input}>{new Date(matchDate).toLocaleDateString()}</Text>
+                                            <Text style={[styles.input, { color: colors.text }]}>{new Date(matchDate).toLocaleDateString()}</Text>
                                         </TouchableOpacity>
                                         {showDatePicker && (
                                             <DateTimePicker
@@ -430,14 +448,15 @@ export default function MatchSetupScreen() {
                             </View>
 
                             {/* Time Input */}
-                            <View style={[styles.inputContainer, { flex: 1 }]}>
-                                <Text style={styles.label}>Time</Text>
+                            <View style={[styles.inputContainer, { flex: 1, borderBottomColor: colors.border }]}>
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>Time</Text>
                                 {Platform.OS === 'ios' ? (
                                     <DateTimePicker
                                         value={timeDate}
                                         mode="time"
                                         display="compact"
                                         onChange={onTimeChange}
+                                        themeVariant={isDark ? 'dark' : 'light'}
                                         style={{ alignSelf: 'flex-start', marginLeft: -10 }}
                                     />
                                 ) : (
@@ -445,7 +464,7 @@ export default function MatchSetupScreen() {
                                         <TouchableOpacity
                                             onPress={() => setShowTimePicker(true)}
                                         >
-                                            <Text style={[styles.input, !matchTime && { color: '#ccc' }]}>
+                                            <Text style={[styles.input, !matchTime && { color: colors.textTertiary }, { color: colors.text }]}>
                                                 {matchTime || 'Set Time'}
                                             </Text>
                                         </TouchableOpacity>
@@ -465,16 +484,16 @@ export default function MatchSetupScreen() {
 
                     {/* Quick Config */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Match Format</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Match Format</Text>
 
                         <View style={styles.presetRow}>
                             {(['3-Set', '5-Set', '2-Set-Seeding'] as const).map((p) => (
                                 <TouchableOpacity
                                     key={p}
-                                    style={[styles.presetBtn, preset === p && styles.presetBtnActive]}
+                                    style={[styles.presetBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }, preset === p && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
                                     onPress={() => applyPreset(p)}
                                 >
-                                    <Text style={[styles.presetBtnText, preset === p && styles.presetBtnTextActive]}>
+                                    <Text style={[styles.presetBtnText, { color: colors.textSecondary }, preset === p && { color: colors.primary }]}>
                                         {p === '2-Set-Seeding' ? '2-Set' : p}
                                     </Text>
                                 </TouchableOpacity>
@@ -482,43 +501,43 @@ export default function MatchSetupScreen() {
                         </View>
 
                         <TouchableOpacity
-                            style={[styles.expandConfigBtn, { marginTop: 16 }]}
+                            style={[styles.expandConfigBtn, { marginTop: 16, backgroundColor: colors.bgCard, borderColor: colors.border }]}
                             onPress={() => setIsConfigExpanded(!isConfigExpanded)}
                         >
-                            <Settings2 size={18} color="#0066cc" />
-                            <Text style={styles.expandConfigText}>
+                            <Settings2 size={18} color={colors.primary} />
+                            <Text style={[styles.expandConfigText, { color: colors.textSecondary }]}>
                                 {isConfigExpanded ? 'Hide Advanced Rules' : 'Customize Rules & Scoring'}
                             </Text>
-                            {isConfigExpanded ? <ChevronUp size={18} color="#0066cc" /> : <ChevronDown size={18} color="#0066cc" />}
+                            {isConfigExpanded ? <ChevronUp size={18} color={colors.primary} /> : <ChevronDown size={18} color={colors.primary} />}
                         </TouchableOpacity>
 
                         {/* Expanded Configuration */}
                         {isConfigExpanded && (
-                            <View style={styles.advancedConfig}>
+                            <View style={[styles.advancedConfig, { backgroundColor: colors.bgCard, borderTopColor: colors.border, borderBottomColor: colors.border }]}>
 
                                 {/* Global Rules */}
                                 <View style={styles.rulesRow}>
-                                    <View style={styles.ruleItem}>
-                                        <Text style={styles.ruleLabel}>Timeouts</Text>
-                                        <View style={styles.stepper}>
+                                    <View style={[styles.ruleItem, { borderBottomColor: colors.border }]}>
+                                        <Text style={[styles.ruleLabel, { color: colors.text }]}>Timeouts</Text>
+                                        <View style={[styles.stepper, { backgroundColor: colors.buttonSecondary }]}>
                                             <TouchableOpacity onPress={() => setTimeoutsPerSet(Math.max(0, timeoutsPerSet - 1))}>
-                                                <Minus size={16} color="#666" />
+                                                <Minus size={16} color={colors.textSecondary} />
                                             </TouchableOpacity>
-                                            <Text style={styles.stepperValue}>{timeoutsPerSet}</Text>
+                                            <Text style={[styles.stepperValue, { color: colors.text }]}>{timeoutsPerSet}</Text>
                                             <TouchableOpacity onPress={() => setTimeoutsPerSet(timeoutsPerSet + 1)}>
-                                                <Plus size={16} color="#666" />
+                                                <Plus size={16} color={colors.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-                                    <View style={styles.ruleItem}>
-                                        <Text style={styles.ruleLabel}>Subs</Text>
-                                        <View style={styles.stepper}>
+                                    <View style={[styles.ruleItem, { borderBottomColor: colors.border }]}>
+                                        <Text style={[styles.ruleLabel, { color: colors.text }]}>Subs</Text>
+                                        <View style={[styles.stepper, { backgroundColor: colors.buttonSecondary }]}>
                                             <TouchableOpacity onPress={() => setSubsPerSet(Math.max(0, subsPerSet - 1))}>
-                                                <Minus size={16} color="#666" />
+                                                <Minus size={16} color={colors.textSecondary} />
                                             </TouchableOpacity>
-                                            <Text style={styles.stepperValue}>{subsPerSet}</Text>
+                                            <Text style={[styles.stepperValue, { color: colors.text }]}>{subsPerSet}</Text>
                                             <TouchableOpacity onPress={() => setSubsPerSet(subsPerSet + 1)}>
-                                                <Plus size={16} color="#666" />
+                                                <Plus size={16} color={colors.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -529,45 +548,45 @@ export default function MatchSetupScreen() {
                                     {setsConfig.map((_, idx) => (
                                         <TouchableOpacity
                                             key={idx}
-                                            style={[styles.tab, activeSetTab === idx && styles.tabActive]}
+                                            style={[styles.tab, { backgroundColor: colors.bgCard, borderColor: colors.border }, activeSetTab === idx && { backgroundColor: colors.text, borderColor: colors.text }]}
                                             onPress={() => setActiveSetTab(idx)}
                                         >
-                                            <Text style={[styles.tabText, activeSetTab === idx && styles.tabTextActive]}>
+                                            <Text style={[styles.tabText, { color: colors.textSecondary }, activeSetTab === idx && { color: colors.bg }]}>
                                                 Set {idx + 1}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
 
-                                <View style={styles.setForm}>
+                                <View style={[styles.setForm, { backgroundColor: colors.buttonSecondary }]}>
                                     <View style={styles.formRow}>
-                                        <Text style={styles.formLabel}>Target Score</Text>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Target Score</Text>
                                         <TextInput
-                                            style={styles.numInput}
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
                                             keyboardType="number-pad"
                                             value={setsConfig[activeSetTab].targetScore.toString()}
                                             onChangeText={(t) => updateSetConfig(activeSetTab, 'targetScore', parseInt(t) || 0)}
                                         />
                                     </View>
                                     <View style={styles.formRow}>
-                                        <Text style={styles.formLabel}>Win By</Text>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Win By</Text>
                                         <TextInput
-                                            style={styles.numInput}
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
                                             keyboardType="number-pad"
                                             value={setsConfig[activeSetTab].winBy.toString()}
                                             onChangeText={(t) => updateSetConfig(activeSetTab, 'winBy', parseInt(t) || 0)}
                                         />
                                     </View>
                                     <View style={styles.formRow}>
-                                        <Text style={styles.formLabel}>Cap</Text>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Cap</Text>
                                         <TextInput
-                                            style={styles.numInput}
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
                                             keyboardType="number-pad"
                                             value={setsConfig[activeSetTab].cap.toString()}
                                             onChangeText={(t) => updateSetConfig(activeSetTab, 'cap', parseInt(t) || 0)}
                                         />
                                     </View>
-                                    <Text style={styles.helperText}>Score to win (must win by {setsConfig[activeSetTab].winBy})</Text>
+                                    <Text style={[styles.helperText, { color: colors.textTertiary }]}>Score to win (must win by {setsConfig[activeSetTab].winBy})</Text>
                                 </View>
 
                             </View>
@@ -578,7 +597,7 @@ export default function MatchSetupScreen() {
                     {/* LINEUP & ROSTER CARD */}
                     {activeSeason && (
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Starting Lineup</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Starting Lineup</Text>
 
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
                                 {Array.from({ length: totalSets }).map((_, i) => {
@@ -587,18 +606,21 @@ export default function MatchSetupScreen() {
                                     return (
                                         <TouchableOpacity
                                             key={setNum}
-                                            style={[styles.tab, isActive && styles.tabActive]}
+                                            style={[styles.tab, { backgroundColor: colors.bgCard, borderColor: colors.border }, isActive && { backgroundColor: colors.text, borderColor: colors.text }]}
                                             onPress={() => handleLineupTabPress(setNum)}
                                         >
-                                            <Text style={[styles.tabText, isActive && styles.tabTextActive]}>Set {setNum}</Text>
+                                            <Text style={[styles.tabText, { color: colors.textSecondary }, isActive && { color: colors.bg }]}>Set {setNum}</Text>
                                         </TouchableOpacity>
                                     );
                                 })}
                             </ScrollView>
 
-                            <View style={[styles.courtContainer, isPad && { minHeight: 450, padding: 32 }]}>
-                                <View style={[styles.netLine, isPad && { top: 30 }]} />
-                                <Text style={[styles.netText, isPad && { fontSize: 14, paddingHorizontal: 8 }]}>NET</Text>
+                            <View style={[styles.courtContainer, { backgroundColor: colors.bgCard, borderColor: colors.border }, isPad && { minHeight: 450, padding: 32 }]}>
+                                <View style={[styles.netDivider, isPad && { marginBottom: 16 }]}>
+                                    <View style={[styles.netDividerLine, { backgroundColor: colors.textSecondary }]} />
+                                    <Text style={[styles.netDividerLabel, { color: colors.textSecondary }]}>NET</Text>
+                                    <View style={[styles.netDividerLine, { backgroundColor: colors.textSecondary }]} />
+                                </View>
 
                                 <View style={[styles.gridRow, isPad && { marginBottom: 32, marginTop: 32 }]}>
                                     {[4, 3, 2].map(pos => {
@@ -609,32 +631,35 @@ export default function MatchSetupScreen() {
                                                 key={pos}
                                                 style={[
                                                     styles.gridItem,
+                                                    { borderColor: colors.border },
                                                     slot?.isLibero && styles.liberoItem,
                                                     isPad && { width: 140, height: 140 }
                                                 ]}
                                                 onPress={() => openPlayerPicker(pos)}
                                             >
-                                                <Text style={[styles.posLabel, isPad && { fontSize: 14, top: 8, left: 8 }]}>P{pos}</Text>
+                                                <Text style={[styles.posLabel, { color: colors.textTertiary }, isPad && { fontSize: 14, top: 8, left: 8 }]}>P{pos}</Text>
                                                 {player ? (
                                                     <View style={{ alignItems: 'center' }}>
                                                         <Text style={[
                                                             styles.gridNumber,
-                                                            slot?.isLibero && { color: '#fff' },
+                                                            { color: colors.text },
+                                                            slot?.isLibero && { color: colors.textInverse },
                                                             isPad && { fontSize: 32 }
                                                         ]}>#{player.jerseyNumber}</Text>
                                                         <Text style={[
                                                             styles.gridName,
-                                                            slot?.isLibero && { color: '#fff' },
+                                                            { color: colors.textSecondary },
+                                                            slot?.isLibero && { color: colors.textInverse },
                                                             isPad && { fontSize: 14, marginTop: 4 }
                                                         ]} numberOfLines={1}>{player.name}</Text>
                                                         {slot?.isLibero && (
-                                                            <View style={[styles.liberoBadge, isPad && { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, bottom: -10 }]}>
-                                                                <Text style={[styles.liberoText, isPad && { fontSize: 12 }]}>L</Text>
+                                                            <View style={[styles.liberoBadge, { backgroundColor: colors.primary }, isPad && { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, bottom: -10 }]}>
+                                                                <Text style={[styles.liberoText, { color: colors.textInverse }, isPad && { fontSize: 12 }]}>L</Text>
                                                             </View>
                                                         )}
                                                     </View>
                                                 ) : (
-                                                    <User size={isPad ? 40 : 24} color="#ccc" />
+                                                    <User size={isPad ? 40 : 24} color={colors.textTertiary} />
                                                 )}
                                             </TouchableOpacity>
                                         );
@@ -650,39 +675,42 @@ export default function MatchSetupScreen() {
                                                 key={pos}
                                                 style={[
                                                     styles.gridItem,
+                                                    { borderColor: colors.border },
                                                     slot?.isLibero && styles.liberoItem,
                                                     isPad && { width: 140, height: 140 }
                                                 ]}
                                                 onPress={() => openPlayerPicker(pos)}
                                             >
-                                                <Text style={[styles.posLabel, isPad && { fontSize: 14, top: 8, left: 8 }]}>P{pos}</Text>
+                                                <Text style={[styles.posLabel, { color: colors.textTertiary }, isPad && { fontSize: 14, top: 8, left: 8 }]}>P{pos}</Text>
                                                 {player ? (
                                                     <View style={{ alignItems: 'center' }}>
                                                         <Text style={[
                                                             styles.gridNumber,
-                                                            slot?.isLibero && { color: '#fff' },
+                                                            { color: colors.text },
+                                                            slot?.isLibero && { color: colors.textInverse },
                                                             isPad && { fontSize: 32 }
                                                         ]}>#{player.jerseyNumber}</Text>
                                                         <Text style={[
                                                             styles.gridName,
-                                                            slot?.isLibero && { color: '#fff' },
+                                                            { color: colors.textSecondary },
+                                                            slot?.isLibero && { color: colors.textInverse },
                                                             isPad && { fontSize: 14, marginTop: 4 }
                                                         ]} numberOfLines={1}>{player.name}</Text>
                                                         {slot?.isLibero && (
-                                                            <View style={[styles.liberoBadge, isPad && { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, bottom: -10 }]}>
-                                                                <Text style={[styles.liberoText, isPad && { fontSize: 12 }]}>L</Text>
+                                                            <View style={[styles.liberoBadge, { backgroundColor: colors.primary }, isPad && { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, bottom: -10 }]}>
+                                                                <Text style={[styles.liberoText, { color: colors.textInverse }, isPad && { fontSize: 12 }]}>L</Text>
                                                             </View>
                                                         )}
                                                     </View>
                                                 ) : (
-                                                    <User size={isPad ? 40 : 24} color="#ccc" />
+                                                    <User size={isPad ? 40 : 24} color={colors.textTertiary} />
                                                 )}
                                             </TouchableOpacity>
                                         );
                                     })}
                                 </View>
                             </View>
-                            <Text style={styles.helperText}>
+                            <Text style={[styles.helperText, { color: colors.textTertiary }]}>
                                 Set 1 lineup will automatically copy to future sets to save time.
                                 You can tap other tabs to customize sets individually.
                             </Text>
@@ -693,17 +721,22 @@ export default function MatchSetupScreen() {
 
                 {/* Player Picker Modal */}
                 <Modal visible={showPlayerPicker} animationType="slide" presentationStyle="pageSheet">
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Player for P{editingSlot?.pos}</Text>
-                            <TouchableOpacity onPress={() => setShowPlayerPicker(false)}>
-                                <Text style={styles.closeText}>Close</Text>
-                            </TouchableOpacity>
+                    <View style={[styles.modalContainer, { backgroundColor: colors.bg }]}>
+                        <View style={[styles.modalHeader, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Player for P{editingSlot?.pos}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                                <TouchableOpacity onPress={() => setPickerSortBy(prev => prev === 'name' ? 'jersey' : 'name')}>
+                                    <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {pickerSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setShowPlayerPicker(false)}>
+                                    <Text style={[styles.closeText, { color: colors.primary }]}>Close</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         {activeSeason && (
                             <FlatList
-                                data={[{ id: 'clear', name: 'Clear Position', jerseyNumber: '', positions: [] } as Player, ...activeSeason.roster]}
+                                data={[{ id: 'clear', name: 'Clear Position', jerseyNumber: '', positions: [] } as Player, ...sortedPickerRoster]}
                                 keyExtractor={(item) => item.id}
                                 renderItem={({ item }: { item: Player }) => {
                                     const isAssigned = Object.values(lineups[activeLineupSet] || {}).some(
@@ -713,17 +746,17 @@ export default function MatchSetupScreen() {
                                     if (item.id === 'clear') {
                                         return (
                                             <TouchableOpacity
-                                                style={styles.rosterItem}
+                                                style={[styles.rosterItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}
                                                 onPress={() => handleSelectPlayer(null)}
                                             >
-                                                <Trash2 size={20} color="#ff4444" />
-                                                <Text style={[styles.rosterName, { color: '#ff4444' }]}>Clear Position</Text>
+                                                <Trash2 size={20} color={colors.opponent} />
+                                                <Text style={[styles.rosterName, { color: colors.opponent }]}>Clear Position</Text>
                                             </TouchableOpacity>
                                         );
                                     }
 
                                     return (
-                                        <View style={[styles.rosterItem, isAssigned && { opacity: 0.5 }]}>
+                                        <View style={[styles.rosterItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }, isAssigned && { opacity: 0.5 }]}>
                                             <TouchableOpacity
                                                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
                                                 disabled={isAssigned}
@@ -732,10 +765,10 @@ export default function MatchSetupScreen() {
                                                     handleSelectPlayer(item);
                                                 }}
                                             >
-                                                <View style={styles.jerseyCircle}>
-                                                    <Text style={styles.jerseyText}>{item.jerseyNumber}</Text>
+                                                <View style={[styles.jerseyCircle, { backgroundColor: colors.buttonSecondary }]}>
+                                                    <Text style={[styles.jerseyText, { color: colors.text }]}>{item.jerseyNumber}</Text>
                                                 </View>
-                                                <Text style={styles.rosterName}>{item.name}</Text>
+                                                <Text style={[styles.rosterName, { color: colors.text }]}>{item.name}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     );
@@ -749,21 +782,21 @@ export default function MatchSetupScreen() {
 
                 {/* Scroll Indicator (Visual Hint) */}
                 <Animated.View style={[styles.scrollIndicator, animatedChevronStyle]} pointerEvents="none">
-                    <ChevronDown size={24} color="#0066cc" />
-                    <Text style={{ fontSize: 10, color: '#0066cc', marginTop: -4 }}>Scroll</Text>
+                    <ChevronDown size={24} color={colors.primary} />
+                    <Text style={{ fontSize: 10, color: colors.primary, marginTop: -4 }}>Scroll</Text>
                 </Animated.View>
 
-                <View style={styles.footer}>
+                <View style={[styles.footer, { backgroundColor: colors.bgCard }]}>
                     {!isResume && (
                         <>
-                            <TouchableOpacity style={[styles.startBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc', flex: 1 }]} onPress={handleScheduleMatch}>
-                                <Text style={[styles.startBtnText, { color: '#333' }]}>{params.matchId ? 'Update' : 'Schedule'}</Text>
+                            <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, flex: 1 }]} onPress={handleScheduleMatch}>
+                                <Text style={[styles.startBtnText, { color: colors.text }]}>{params.matchId ? 'Update' : 'Schedule'}</Text>
                             </TouchableOpacity>
                             <View style={{ width: 12 }} />
                         </>
                     )}
-                    <TouchableOpacity style={[styles.startBtn, { flex: 2 }]} onPress={handleStartMatch}>
-                        <Text style={styles.startBtnText}>
+                    <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.primary, flex: 2 }]} onPress={handleStartMatch}>
+                        <Text style={[styles.startBtnText, { color: '#ffffff' }]}>
                             {isResume ? 'Update & Resume Match' : 'Start Match'}
                         </Text>
                     </TouchableOpacity>
@@ -777,7 +810,6 @@ export default function MatchSetupScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
     headerRow: {
         flexDirection: 'row',
@@ -786,19 +818,16 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 16,
         paddingBottom: 8,
-        backgroundColor: '#fff',
     },
     cancelBtn: {
         padding: 8,
     },
     cancelBtnText: {
         fontSize: 16,
-        color: '#ff4444',
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
     },
     // Context & Header
     contextHeader: {
@@ -808,7 +837,6 @@ const styles = StyleSheet.create({
     },
     contextLabel: {
         fontSize: 10,
-        color: '#999',
         textTransform: 'uppercase',
         letterSpacing: 1.2,
         marginBottom: 6,
@@ -817,12 +845,10 @@ const styles = StyleSheet.create({
     contextValue: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#111',
         letterSpacing: -0.5,
     },
     contextSub: {
         fontSize: 15,
-        color: '#666',
         fontWeight: '500',
     },
     // Sections
@@ -833,7 +859,6 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
         marginBottom: 16,
     },
     // Form Inputs
@@ -842,20 +867,17 @@ const styles = StyleSheet.create({
     },
     inputContainer: {
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
         paddingVertical: 8,
     },
     label: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#666',
         marginBottom: 4,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     input: {
         fontSize: 18,
-        color: '#111',
         fontWeight: '500',
         paddingVertical: 4,
     },
@@ -867,48 +889,36 @@ const styles = StyleSheet.create({
     },
     presetBtn: {
         flex: 1,
-        backgroundColor: '#fff',
         paddingVertical: 14,
         borderRadius: 8,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#eee',
     },
     presetBtnActive: {
-        backgroundColor: '#e6f0ff',
-        borderColor: '#0066cc',
     },
     presetBtnText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
     },
     presetBtnTextActive: {
-        color: '#0066cc',
     },
     expandConfigBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 12,
-        backgroundColor: '#fff',
         // Removed margins, handled by JSX marginTop
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
     },
     expandConfigText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#555',
         marginRight: 8,
     },
     advancedConfig: {
-        backgroundColor: '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#eee',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
         padding: 16,
         marginBottom: 24,
     },
@@ -921,30 +931,25 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#f9f9f9',
     },
     ruleLabel: {
         fontSize: 15,
-        color: '#333',
     },
     stepper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
         borderRadius: 8,
         padding: 4,
     },
     stepperValue: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
         marginHorizontal: 12,
         minWidth: 20,
         textAlign: 'center',
     },
     setForm: {
         marginTop: 12,
-        backgroundColor: '#f9f9f9',
         padding: 12,
         borderRadius: 8,
     },
@@ -956,10 +961,8 @@ const styles = StyleSheet.create({
     },
     formLabel: {
         fontSize: 14,
-        color: '#666',
     },
     numInput: {
-        backgroundColor: '#fff',
         borderRadius: 6,
         paddingHorizontal: 12,
         paddingVertical: 8,
@@ -967,7 +970,6 @@ const styles = StyleSheet.create({
         minWidth: 60,
         textAlign: 'center',
         borderWidth: 1,
-        borderColor: '#eee',
     },
     // Lineup / Tabs
     tabsScroll: {
@@ -978,76 +980,59 @@ const styles = StyleSheet.create({
         paddingBottom: 100,
     },
     tab: {
-        backgroundColor: '#fff',
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
         marginRight: 8,
         borderWidth: 1,
-        borderColor: '#eee',
     },
     tabActive: {
-        backgroundColor: '#333',
-        borderColor: '#333',
     },
     tabText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
     },
     tabTextActive: {
-        color: '#fff',
     },
     // Court Grid
     courtContainer: {
-        backgroundColor: '#fff',
         borderRadius: 8,
         padding: 16,
         marginHorizontal: 16,
         borderWidth: 1,
-        borderColor: '#eee',
         minHeight: 300,
         position: 'relative',
     },
-    netLine: {
-        height: 2,
-        backgroundColor: '#ccc',
-        width: '100%',
+    netDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 8,
-        position: 'absolute',
-        top: 20,
-        left: 0,
-        right: 0,
     },
-    netText: {
-        alignSelf: 'center',
+    netDividerLine: {
+        flex: 1,
+        height: 2,
+    },
+    netDividerLabel: {
         fontSize: 10,
-        color: '#999',
-        backgroundColor: '#fff',
-        paddingHorizontal: 4,
-        marginBottom: 16,
-        zIndex: 10,
+        fontWeight: '700',
+        paddingHorizontal: 8,
     },
     gridRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'space-evenly',
         marginBottom: 16,
         marginTop: 16,
     },
     gridItem: {
         width: 90,
         height: 90,
-        backgroundColor: '#f9f9f9',
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
     },
     liberoItem: {
-        backgroundColor: '#e6f0ff',
-        borderColor: '#0066cc',
     },
     posLabel: {
         position: 'absolute',
@@ -1055,22 +1040,18 @@ const styles = StyleSheet.create({
         left: 4,
         fontSize: 10,
         fontWeight: '700',
-        color: '#ccc',
     },
     gridNumber: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#333',
     },
     gridName: {
         fontSize: 10,
-        color: '#666',
         marginTop: 2,
     },
     liberoBadge: {
         position: 'absolute',
         bottom: -6,
-        backgroundColor: '#0066cc',
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 8,
@@ -1078,11 +1059,9 @@ const styles = StyleSheet.create({
     liberoText: {
         fontSize: 8,
         fontWeight: '700',
-        color: '#fff',
     },
     helperText: {
         fontSize: 13,
-        color: '#888',
         fontStyle: 'italic',
         textAlign: 'center',
         marginTop: 16,
@@ -1096,7 +1075,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 20,
         paddingBottom: Platform.OS === 'ios' ? 32 : 24,
-        backgroundColor: '#fff',
         // Shadow for "Floating" effect
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
@@ -1117,7 +1095,6 @@ const styles = StyleSheet.create({
     },
     startBtn: {
         flex: 1,
-        backgroundColor: '#0066cc',
         paddingVertical: 14,
         borderRadius: 12,
         alignItems: 'center',
@@ -1126,29 +1103,27 @@ const styles = StyleSheet.create({
     startBtnText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
     },
     modalContainer: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     modalTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
     },
     closeText: {
         fontSize: 16,
-        color: '#0066cc',
+        fontWeight: '600',
+    },
+    sortToggleText: {
+        fontSize: 14,
         fontWeight: '600',
     },
     rosterItem: {
@@ -1156,15 +1131,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         paddingHorizontal: 16,
-        backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
     },
     jerseyCircle: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#f0f0f0',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -1172,11 +1144,9 @@ const styles = StyleSheet.create({
     jerseyText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
     },
     rosterName: {
         fontSize: 16,
-        color: '#333',
     },
 });
 

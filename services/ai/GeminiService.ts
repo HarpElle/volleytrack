@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
-import { AINarrative, MatchRecord, MatchState, Score, StatLog } from "../../types";
+import { AINarrative, MatchRecord, MatchState, Player, Score, StatLog, SuperFanRecap } from "../../types";
 
 // In a real app, this should come from process.env or a secure storage
 // We access the env variable exposed by Expo (prefixed with EXPO_PUBLIC_)
@@ -260,6 +260,131 @@ ${promptData}
         `;
 
         return this.executeGeneration(analystPrompt, reporterPrompt);
+    }
+
+    // --- Super Fan Recap for Spectators ---
+
+    /**
+     * Generate a celebratory, family-friendly recap focused on specific player(s).
+     * Designed for spectators (parents/fans) to share via text or social media.
+     */
+    async generateSuperFanRecap(
+        teamName: string,
+        opponentName: string,
+        scores: Score[],
+        setsWon: Score,
+        logs: StatLog[],
+        roster: Player[],
+        selectedPlayerIds: string[],
+        matchStatus: 'live' | 'between-sets' | 'completed'
+    ): Promise<SuperFanRecap> {
+        // Build player-focused data
+        const selectedPlayers = selectedPlayerIds
+            .map(id => roster.find(p => p.id === id))
+            .filter(Boolean) as Player[];
+
+        const playerNames = selectedPlayers.map(p => `${p.name} (#${p.jerseyNumber})`);
+
+        // Calculate per-player stats from logs
+        const playerStatsMap = selectedPlayerIds.map(pid => {
+            const playerLogs = logs.filter(l => l.team === 'myTeam' && l.playerId === pid);
+            const assists = logs.filter(l => l.team === 'myTeam' && l.assistPlayerId === pid);
+            const player = roster.find(p => p.id === pid);
+
+            return {
+                name: player ? `${player.name} (#${player.jerseyNumber})` : 'Unknown',
+                aces: playerLogs.filter(l => l.type === 'ace').length,
+                kills: playerLogs.filter(l => l.type === 'kill').length,
+                blocks: playerLogs.filter(l => l.type === 'block').length,
+                digs: playerLogs.filter(l => l.type === 'dig').length,
+                goodServes: playerLogs.filter(l => l.type === 'serve_good').length,
+                goodAttacks: playerLogs.filter(l => l.type === 'attack_good').length,
+                assists: assists.length,
+                errors: playerLogs.filter(l => l.type.includes('error')).length,
+                receptions: playerLogs.filter(l => ['receive_1', 'receive_2', 'receive_3'].includes(l.type)).length,
+                perfectReceptions: playerLogs.filter(l => l.type === 'receive_3').length,
+            };
+        });
+
+        const isCompleted = matchStatus === 'completed';
+        const scoreString = scores.map((s, i) => `Set ${i + 1}: ${s.myTeam}-${s.opponent}`).join(", ");
+        const winner = setsWon.myTeam > setsWon.opponent ? teamName : opponentName;
+
+        const playerStatsText = playerStatsMap.map(ps =>
+            `${ps.name}: ${ps.aces} Aces, ${ps.kills} Kills, ${ps.blocks} Blocks, ${ps.digs} Digs, ${ps.assists} Assists, ${ps.goodServes} Good Serves, ${ps.receptions} Receptions (${ps.perfectReceptions} perfect)`
+        ).join("\n");
+
+        const prompt = `
+You are a proud, enthusiastic volleyball fan writing a celebratory match update${isCompleted ? '' : ' (match still in progress!)'} to share with family and friends.
+Your focus is on celebrating ${playerNames.join(' and ')} — these are the players the fan is specifically cheering for (likely their kid or loved one).
+
+IMPORTANT GUIDELINES:
+1. TONE: Warm, celebratory, proud, family-friendly. Think "proud parent texting the grandparents".
+2. Keep it SHORT — perfect for a text message or Instagram story (150-250 words max).
+3. LEAD with the featured player(s) — their name should appear in the first sentence.
+4. Highlight their BEST stats and moments. If stats are modest, celebrate effort, teamwork, and hustle.
+5. Include the team result and score for context.
+6. End with a fun, shareable sign-off.
+7. Use emojis naturally but don't overdo it (3-5 total).
+8. PLAIN TEXT ONLY. No markdown, no bold, no italics.
+9. Do NOT invent or hallucinate specific plays not supported by the data. Stick to what the stats show.
+10. If the match is still in progress, frame it as a live update rather than a final recap.
+
+MATCH DATA:
+Team: ${teamName} vs ${opponentName}
+${isCompleted ? `Result: ${winner} won` : 'Status: Match in progress'}
+Scores: ${scoreString}
+Sets Won: ${teamName} ${setsWon.myTeam} - ${setsWon.opponent} ${opponentName}
+
+FEATURED PLAYER STATS:
+${playerStatsText}
+
+Write the fan recap now:
+        `;
+
+        // Use the same model fallback chain
+        const safetySettings = [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ];
+
+        const candidateModels = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-lite-001",
+            "gemini-flash-latest",
+            "gemini-2.0-flash",
+            "gemini-pro"
+        ];
+
+        let lastError: any = null;
+
+        for (const modelId of candidateModels) {
+            try {
+                const model = this.genAI.getGenerativeModel({ model: modelId, safetySettings });
+                if (lastError) await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const result = await model.generateContent(prompt);
+                const recap = result.response.text();
+
+                return {
+                    playerIds: selectedPlayerIds,
+                    playerNames: selectedPlayers.map(p => p.name),
+                    recap,
+                    generatedAt: Date.now(),
+                };
+            } catch (error: any) {
+                console.warn(`⚠️ Fan Recap Failed: ${modelId}`);
+                lastError = error;
+            }
+        }
+
+        const errorMsg = lastError?.message || "AI Generation failed";
+        if (errorMsg.includes("429") || errorMsg.includes("quota")) {
+            throw new AIError("AI Quota Exceeded. Please wait a minute and try again.", prompt);
+        }
+        throw new AIError("AI Generation failed. Please try again.", prompt);
     }
 
     async executeGeneration(analystPrompt: string, reporterPrompt: string): Promise<AINarrative> {

@@ -15,11 +15,13 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { useDataStore } from '../../store/useDataStore';
 import { Event } from '../../types';
 
 export default function ManageEventScreen() {
     const router = useRouter();
+    const { colors } = useAppTheme();
     const { seasonId, id } = useLocalSearchParams<{ seasonId: string, id?: string }>();
     const { addEvent, updateEvent, events, deleteEvent } = useDataStore();
 
@@ -101,47 +103,47 @@ export default function ManageEventScreen() {
     const formattedDate = date.toLocaleDateString();
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.content}>
 
                     <View style={styles.headerRow}>
                         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                            <X color="#1a1a1a" size={24} />
+                            <X color={colors.text} size={24} />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{isEditing ? 'Edit Event' : 'New Event'}</Text>
+                        <Text style={[styles.headerTitle, { color: colors.text }]}>{isEditing ? 'Edit Event' : 'New Event'}</Text>
                         <View style={{ width: 24 }} />
                     </View>
 
-                    <View style={styles.card}>
+                    <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Event Name</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>Event Name</Text>
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { backgroundColor: colors.buttonSecondary, color: colors.text, borderColor: colors.border }]}
                                 value={name}
                                 onChangeText={setName}
                                 placeholder="e.g. Windy City Qualifier"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textTertiary}
                             />
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Location</Text>
-                            <View style={styles.iconInput}>
-                                <MapPin size={18} color="#666" style={{ marginRight: 8 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>Location</Text>
+                            <View style={[styles.iconInput, { backgroundColor: colors.buttonSecondary, borderColor: colors.border }]}>
+                                <MapPin size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                                 <TextInput
-                                    style={{ flex: 1, fontSize: 16, color: '#333' }}
+                                    style={[{ flex: 1, fontSize: 16, color: colors.text }]}
                                     value={location}
                                     onChangeText={setLocation}
                                     placeholder="e.g. Chicago, IL"
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor={colors.textTertiary}
                                 />
                             </View>
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Start Date</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date</Text>
                             {/* Platform specific date picker logic */}
                             {Platform.OS === 'ios' ? (
                                 <View style={{ alignItems: 'flex-start' }}>
@@ -155,11 +157,11 @@ export default function ManageEventScreen() {
                                 </View>
                             ) : (
                                 <TouchableOpacity
-                                    style={styles.iconInput}
+                                    style={[styles.iconInput, { backgroundColor: colors.buttonSecondary, borderColor: colors.border }]}
                                     onPress={() => setShowDatePicker(true)}
                                 >
-                                    <Calendar size={18} color="#666" style={{ marginRight: 8 }} />
-                                    <Text style={{ fontSize: 16, color: '#333' }}>
+                                    <Calendar size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                                    <Text style={[{ fontSize: 16, color: colors.text }]}>
                                         {formattedDate}
                                     </Text>
                                 </TouchableOpacity>
@@ -179,13 +181,13 @@ export default function ManageEventScreen() {
 
                     {isEditing && (
                         <View style={{ gap: 12 }}>
-                            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-                                <Trash2 size={20} color="#ff4444" />
-                                <Text style={styles.deleteText}>Delete Event</Text>
+                            <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.bgOverlay }]} onPress={handleDelete}>
+                                <Trash2 size={20} color={colors.opponent} />
+                                <Text style={[styles.deleteText, { color: colors.opponent }]}>Delete Event</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={[styles.deleteBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ff4444' }]}
+                                style={[styles.deleteBtn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.opponent }]}
                                 onPress={() => {
                                     Alert.alert(
                                         "Reset Event",
@@ -208,16 +210,16 @@ export default function ManageEventScreen() {
                                     );
                                 }}
                             >
-                                <Trash2 size={20} color="#ff4444" />
-                                <Text style={styles.deleteText}>Reset Event Data</Text>
+                                <Trash2 size={20} color={colors.opponent} />
+                                <Text style={[styles.deleteText, { color: colors.opponent }]}>Reset Event Data</Text>
                             </TouchableOpacity>
                         </View>
                     )}
 
                 </ScrollView>
 
-                <View style={styles.footer}>
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <View style={[styles.footer, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleSave}>
                         <Save size={20} color="#fff" style={{ marginRight: 8 }} />
                         <Text style={styles.saveBtnText}>Save Event</Text>
                     </TouchableOpacity>
@@ -231,7 +233,6 @@ export default function ManageEventScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
     },
     content: {
         padding: 20,
@@ -248,14 +249,11 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#1a1a1a',
     },
     card: {
-        backgroundColor: '#fff',
         borderRadius: 16,
         padding: 20,
         marginBottom: 24,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
@@ -267,31 +265,24 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
         marginBottom: 8,
     },
     input: {
-        backgroundColor: '#f9f9f9',
         borderWidth: 1,
-        borderColor: '#eee',
         borderRadius: 10,
         padding: 12,
         fontSize: 16,
-        color: '#333',
     },
     iconInput: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f9f9f9',
         borderWidth: 1,
-        borderColor: '#eee',
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 12,
     },
     helper: {
         fontSize: 12,
-        color: '#999',
         marginTop: 4,
         marginLeft: 4,
     },
@@ -301,28 +292,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         paddingVertical: 16,
-        backgroundColor: '#fff0f0',
         borderRadius: 12,
     },
     deleteText: {
-        color: '#ff4444',
         fontWeight: '600',
         fontSize: 16,
     },
     footer: {
         padding: 20,
-        backgroundColor: '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#eee',
     },
     saveBtn: {
-        backgroundColor: '#0066cc',
         height: 56,
         borderRadius: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#0066cc',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,

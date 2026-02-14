@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 interface ComparisonChartProps {
     label: string;
@@ -18,6 +19,7 @@ export default function ComparisonChart({
     higherIsBetter = true,
     maxValue
 }: ComparisonChartProps) {
+    const { colors } = useAppTheme();
 
     // Determine Scale
     // Max scale should be at least slightly higher than max(actual, target)
@@ -38,14 +40,14 @@ export default function ComparisonChart({
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
             <View style={styles.header}>
-                <Text style={styles.label}>{label}</Text>
+                <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
                 <View style={styles.values}>
                     <Text style={[styles.actualValue, { color: barColor }]}>
                         {formatValue(actual)}
                     </Text>
-                    <Text style={styles.targetValue}>
+                    <Text style={[styles.targetValue, { color: colors.textTertiary }]}>
                         / {formatValue(target)}
                     </Text>
                 </View>
@@ -53,13 +55,13 @@ export default function ComparisonChart({
 
             <View style={styles.chartArea}>
                 {/* Background Track */}
-                <View style={styles.track} />
+                <View style={[styles.track, { backgroundColor: colors.buttonSecondary }]} />
 
                 {/* Actual Bar */}
                 <View style={[styles.bar, { width: `${actualPct}%`, backgroundColor: barColor }]} />
 
                 {/* Target Marker */}
-                <View style={[styles.targetLine, { left: `${targetPct}%` }]} />
+                <View style={[styles.targetLine, { left: `${targetPct}%`, backgroundColor: colors.text }]} />
             </View>
         </View>
     );
@@ -68,11 +70,9 @@ export default function ComparisonChart({
 const styles = StyleSheet.create({
     container: {
         marginBottom: 16,
-        backgroundColor: '#fff',
         padding: 12,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
     },
     header: {
         flexDirection: 'row',
@@ -83,7 +83,6 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
     },
     values: {
         flexDirection: 'row',
@@ -95,7 +94,6 @@ const styles = StyleSheet.create({
     },
     targetValue: {
         fontSize: 14,
-        color: '#999',
         marginLeft: 4,
     },
     chartArea: {
@@ -106,7 +104,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: '100%',
         height: 8,
-        backgroundColor: '#f0f0f0',
         borderRadius: 4,
     },
     bar: {
@@ -118,9 +115,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 2,
         height: 20, // Taller than bar
-        backgroundColor: '#333',
-        top: 2, // Centered vertically relative to 24px height? 
-        // 24 height. Bar is 8. Target line 20. 
+        top: 2, // Centered vertically relative to 24px height?
+        // 24 height. Bar is 8. Target line 20.
         // Track top: (24-8)/2 = 8.
         // Target top: (24-20)/2 = 2.
     }

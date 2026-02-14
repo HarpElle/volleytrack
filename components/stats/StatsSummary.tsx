@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { TeamStats } from '../../types/stats';
 
 interface StatsSummaryProps {
@@ -8,6 +9,8 @@ interface StatsSummaryProps {
 }
 
 export default function StatsSummary({ stats, targets, matchesWon }: StatsSummaryProps & { matchesWon?: number }) {
+    const { colors } = useAppTheme();
+
     if (!stats) return null;
 
     const items = [
@@ -22,10 +25,10 @@ export default function StatsSummary({ stats, targets, matchesWon }: StatsSummar
     return (
         <View style={styles.container}>
             {items.map((item, idx) => (
-                <View key={idx} style={styles.card}>
-                    <Text style={styles.value}>{item.value}</Text>
-                    <Text style={styles.label}>{item.label}</Text>
-                    <Text style={styles.sub}>{item.sub}</Text>
+                <View key={idx} style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.value, { color: colors.text }]}>{item.value}</Text>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>{item.label}</Text>
+                    <Text style={[styles.sub, { color: colors.textTertiary }]}>{item.sub}</Text>
                 </View>
             ))}
         </View>
@@ -42,11 +45,9 @@ const styles = StyleSheet.create({
     },
     card: {
         width: '31%', // 3 columns
-        backgroundColor: '#fff',
         padding: 12,
         borderRadius: 12,
         alignItems: 'center',
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -55,17 +56,14 @@ const styles = StyleSheet.create({
     value: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 2,
     },
     label: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#666',
         marginBottom: 2,
     },
     sub: {
         fontSize: 10,
-        color: '#999',
     },
 });

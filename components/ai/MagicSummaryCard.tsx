@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { BarChart2, Bug, Copy, Sparkles, Terminal, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../../contexts/ThemeContext';
 import { AINarrative } from '../../types';
 
 interface MagicSummaryCardProps {
@@ -12,6 +13,7 @@ interface MagicSummaryCardProps {
 }
 
 export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, onGenerate, isGenerating, failedPrompt }) => {
+    const { colors } = useAppTheme();
     const [activeTab, setActiveTab] = useState<'coach' | 'social'>('coach');
 
     const handleCopy = async () => {
@@ -35,18 +37,18 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
 
     if (!narrative && !isGenerating) {
         return (
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderColor: colors.border }]}>
                 <View style={styles.promoContent}>
                     <Sparkles size={32} color="#8A2BE2" />
-                    <Text style={styles.promoTitle}>AI Match Insights</Text>
-                    <Text style={styles.promoText}>
+                    <Text style={[styles.promoTitle, { color: colors.text }]}>AI Match Insights</Text>
+                    <Text style={[styles.promoText, { color: colors.textSecondary }]}>
                         Generate instant tactical analysis and exciting game recaps.
                     </Text>
 
                     {failedPrompt && (
-                        <View style={styles.errorContainer}>
+                        <View style={[styles.errorContainer, { backgroundColor: colors.errorLight }]}>
                             <Text style={styles.errorText}>Generation failed. Help us debug?</Text>
-                            <TouchableOpacity style={styles.debugButton} onPress={handleCopyDebug}>
+                            <TouchableOpacity style={[styles.debugButton, { backgroundColor: colors.bgCard, borderColor: '#d32f2f' }]} onPress={handleCopyDebug}>
                                 <Bug size={16} color="#d32f2f" />
                                 <Text style={styles.debugButtonText}>Copy Debug Info</Text>
                             </TouchableOpacity>
@@ -62,38 +64,38 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderColor: colors.border }]}>
             <View style={styles.header}>
-                <View style={styles.tabs}>
+                <View style={[styles.tabs, { backgroundColor: colors.buttonSecondary }]}>
                     <TouchableOpacity
                         style={[styles.tab, activeTab === 'coach' && styles.activeTab]}
                         onPress={() => setActiveTab('coach')}
                     >
-                        <BarChart2 size={16} color={activeTab === 'coach' ? '#fff' : '#666'} />
-                        <Text style={[styles.tabText, activeTab === 'coach' && styles.activeTabText]}>Analyst Report</Text>
+                        <BarChart2 size={16} color={activeTab === 'coach' ? '#fff' : colors.textSecondary} />
+                        <Text style={[styles.tabText, activeTab === 'coach' && styles.activeTabText, activeTab !== 'coach' && { color: colors.textSecondary }]}>Analyst Report</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.tab, activeTab === 'social' && styles.activeTab]}
                         onPress={() => setActiveTab('social')}
                     >
-                        <Users size={16} color={activeTab === 'social' ? '#fff' : '#666'} />
-                        <Text style={[styles.tabText, activeTab === 'social' && styles.activeTabText]}>Fan Recap</Text>
+                        <Users size={16} color={activeTab === 'social' ? '#fff' : colors.textSecondary} />
+                        <Text style={[styles.tabText, activeTab === 'social' && styles.activeTabText, activeTab !== 'social' && { color: colors.textSecondary }]}>Fan Recap</Text>
                     </TouchableOpacity>
                 </View>
                 {isGenerating ? (
                     <ActivityIndicator size="small" color="#8A2BE2" />
                 ) : (
                     <TouchableOpacity style={styles.actionButton} onPress={handleCopy}>
-                        <Copy size={20} color="#666" />
+                        <Copy size={20} color={colors.textSecondary} />
                     </TouchableOpacity>
                 )}
             </View>
 
             <ScrollView style={styles.contentScroll} nestedScrollEnabled>
                 {isGenerating ? (
-                    <Text style={styles.loadingText}>Analyzing match data... identifying key plays...</Text>
+                    <Text style={[styles.loadingText, { color: colors.textTertiary }]}>Analyzing match data... identifying key plays...</Text>
                 ) : (
-                    <Text style={styles.summaryText}>
+                    <Text style={[styles.summaryText, { color: colors.text }]}>
                         {activeTab === 'coach' ? narrative?.coachSummary : narrative?.socialSummary}
                     </Text>
                 )}
@@ -103,13 +105,13 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                 <View style={styles.footer}>
                     {narrative?.debugPrompt && (
                         <TouchableOpacity onPress={handleCopyDebugPrompt} style={styles.debugLink}>
-                            <Terminal size={14} color="#999" />
-                            <Text style={styles.debugText}>Copy Prompt</Text>
+                            <Terminal size={14} color={colors.textTertiary} />
+                            <Text style={[styles.debugText, { color: colors.textTertiary }]}>Copy Prompt</Text>
                         </TouchableOpacity>
                     )}
                     {narrative && (
                         <TouchableOpacity onPress={onGenerate} style={styles.regenerateLink}>
-                            <Text style={styles.regenerateText}>Regenerate</Text>
+                            <Text style={[styles.regenerateText, { color: colors.textSecondary }]}>Regenerate</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -120,17 +122,14 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#fff',
         borderRadius: 16,
         padding: 16,
         marginVertical: 12,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
         borderWidth: 1,
-        borderColor: '#EFEFEF'
     },
     promoContent: {
         alignItems: 'center',
@@ -141,11 +140,9 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginTop: 12,
         marginBottom: 8,
-        color: '#1a1a1a'
     },
     promoText: {
         fontSize: 14,
-        color: '#666',
         textAlign: 'center',
         marginBottom: 20,
         lineHeight: 20
@@ -173,7 +170,6 @@ const styles = StyleSheet.create({
     },
     tabs: {
         flexDirection: 'row',
-        backgroundColor: '#F5F5F5',
         borderRadius: 20,
         padding: 4,
     },
@@ -191,7 +187,6 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#666'
     },
     activeTabText: {
         color: '#fff'
@@ -204,14 +199,12 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         fontStyle: 'italic',
-        color: '#888',
         textAlign: 'center',
         padding: 20
     },
     summaryText: {
         fontSize: 15,
         lineHeight: 24,
-        color: '#333'
     },
     footer: {
         marginTop: 12,
@@ -227,21 +220,18 @@ const styles = StyleSheet.create({
     },
     debugText: {
         fontSize: 12,
-        color: '#999',
     },
     regenerateLink: {
         padding: 4
     },
     regenerateText: {
         fontSize: 12,
-        color: '#666',
         textDecorationLine: 'underline'
     },
     errorContainer: {
         alignItems: 'center',
         marginVertical: 12,
         padding: 8,
-        backgroundColor: '#fee',
         borderRadius: 8,
         width: '100%'
     },
@@ -254,7 +244,6 @@ const styles = StyleSheet.create({
     debugButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
