@@ -1,19 +1,26 @@
+import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Radio, WifiOff } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { ArrowLeft, Check, Radio, Save, WifiOff } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppTheme } from '../../contexts/ThemeContext';
-import { useSpectatorMatch } from '../../hooks/useSpectatorMatch';
-import { useSpectatorInteractions } from '../../hooks/useSpectatorInteractions';
-import ScoreBoard from '../../components/ScoreBoard';
-import LineupTracker from '../../components/LineupTracker';
 import { AdBanner } from '../../components/AdBanner';
-import { SpectatorNamePrompt } from '../../components/SpectatorNamePrompt';
+import FullLogModal from '../../components/FullLogModal';
+import LineupTracker from '../../components/LineupTracker';
+import { PaywallModal } from '../../components/PaywallModal';
+import { ReactionFloater } from '../../components/ReactionFloater';
+import ScoreBoard from '../../components/ScoreBoard';
+import CheerMeter from '../../components/spectator/CheerMeter';
+import { SpectatorLobbyModal } from '../../components/SpectatorLobbyModal';
+import { SpectatorOnboardingModal } from '../../components/SpectatorOnboardingModal';
 import { SpectatorReactionBar } from '../../components/SpectatorReactionBar';
 import { SuperFanRecapModal } from '../../components/SuperFanRecapModal';
-import { PaywallModal } from '../../components/PaywallModal';
-import { StatLog } from '../../types';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { useIncomingReactions } from '../../hooks/useIncomingReactions';
+import { useSpectatorInteractions } from '../../hooks/useSpectatorInteractions';
+import { useSpectatorMatch } from '../../hooks/useSpectatorMatch';
+import { useDataStore } from '../../store/useDataStore';
+import { MatchRecord, StatLog } from '../../types';
 
 // Stat types that end a rally and award a point
 const POINT_SCORERS = ['ace', 'kill', 'block'];
@@ -83,12 +90,23 @@ export default function SpectateScreen() {
     const { colors } = useAppTheme();
     const { match, loading, error, isConnected } = useSpectatorMatch(code || '');
 
+    // Keep screen awake
+    useKeepAwake();
+
     // Spectator interactions (alerts, cheers, viewer presence)
     const interactions = useSpectatorInteractions(code || '', match);
+    const incomingReactions = useIncomingReactions(code || '');
+
+
+
+    // ... (existing code)
 
     // Modal states
     const [showFanRecap, setShowFanRecap] = useState(false);
+    const [showFullLog, setShowFullLog] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [showLobby, setShowLobby] = useState(false);
+    const [showMeter, setShowMeter] = useState(false);
     const [namePromptDismissed, setNamePromptDismissed] = useState(false);
 
     const state = match?.currentState;
@@ -96,12 +114,44 @@ export default function SpectateScreen() {
 
     // Recent events for play-by-play (last 15, reversed for newest-first)
     // Filter out rotations and initial lineup assignments (not real game actions)
-    const recentEvents = (state?.history || [])
-        .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
-        .slice(-15)
-        .reverse();
 
-    const noOp = () => {};
+
+    const noOp = () => { };
+
+    // Track previous rotation for check-in alerts
+    const prevRotationRef = useRef<string[]>([]);
+
+    // Check-in Alert Logic
+    // Check-in Alert Logic
+    useEffect(() => {
+        if (!state?.currentRotation || !interactions.cheeringFor || interactions.cheeringFor.length === 0) return;
+
+        // Extract player IDs from current rotation (LineupPosition[])
+        const currentIds = state.currentRotation
+            .map(pos => pos.playerId)
+            .filter((id): id is string => !!id);
+
+        const prevIds = prevRotationRef.current;
+
+        // Find players who just checked in (in current, not in prev)
+        const newPlayers = currentIds.filter(id => !prevIds.includes(id));
+
+        // Check if any of them are players we are cheering for
+        const cheeringForIds = interactions.cheeringFor;
+        const relevantCheckIns = newPlayers.filter(id => cheeringForIds.includes(id));
+
+        if (relevantCheckIns.length > 0) {
+            // Find player names
+            const playerNames = relevantCheckIns.map(id => {
+                const p = state.myTeamRoster.find(r => r.id === id);
+                return p ? p.name : 'Your player';
+            }).join(' and ');
+
+            Alert.alert('Player Check-In!', `${playerNames} is now on the court!`);
+        }
+
+        prevRotationRef.current = currentIds;
+    }, [state?.currentRotation, interactions.cheeringFor]);
 
     // Handle score correction alert
     const handleScoreAlert = () => {
@@ -117,12 +167,34 @@ export default function SpectateScreen() {
                 {
                     text: 'Send Alert',
                     onPress: async () => {
-                        const success = await interactions.sendAlert(
-                            undefined,
-                            'A spectator thinks the score may need checking'
-                        );
+                        const success = await interactions.sendAlert('score_correction', {
+                            message: 'A spectator thinks the score may need checking'
+                        });
                         if (success) {
                             Alert.alert('Sent', 'The coach has been notified.');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    // Handle Emergency Alert
+    const handleEmergencyAlert = () => {
+        Alert.alert(
+            'Emergency Stop',
+            'This will loudly buzz the coach to STOP the match immediately (e.g. injury, wrong score, safety issue).\n\nAre you sure?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'STOP MATCH',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const success = await interactions.sendAlert('emergency', {
+                            message: 'URGENT: Spectator requested match stop!'
+                        });
+                        if (success) {
+                            Alert.alert('Alert Sent', 'The coach has been notified urgently.');
                         }
                     },
                 },
@@ -135,8 +207,38 @@ export default function SpectateScreen() {
         await interactions.sendCheer();
     };
 
+    // Save Match Logic
+    const { saveSpectatorMatch, savedSpectatorMatches } = useDataStore();
+    const isSaved = savedSpectatorMatches.some(m => m.id === match?.matchId);
+
+    const handleSaveMatch = () => {
+        if (!match || !state) return;
+
+        const result: MatchRecord['result'] =
+            match.isActive ? 'In Progress' :
+                (state.setsWon.myTeam > state.setsWon.opponent ? 'Win' :
+                    (state.setsWon.myTeam < state.setsWon.opponent ? 'Loss' : 'In Progress')); // Draw?
+
+        const record: MatchRecord = {
+            id: match.matchId,
+            opponentName: state.opponentName,
+            date: match.createdAt,
+            result,
+            setsWon: state.setsWon,
+            scores: state.scores,
+            history: state.history,
+            config: state.config,
+            lineups: {}, // We might not have full lineups in snapshot, strictly
+            // Could add team name to a custom field if MatchRecord supported it, but opponentName is there.
+            // We assume "My Team" is the perspective.
+        };
+
+        saveSpectatorMatch(record);
+        Alert.alert('Saved', 'This match has been saved to your history.');
+    };
+
     // Show name prompt?
-    const showNamePrompt = !interactions.isNameSet && !namePromptDismissed && !loading && match;
+    const showNamePrompt = !interactions.isProfileSet && !loading && match;
 
     // Loading state
     if (loading) {
@@ -177,6 +279,14 @@ export default function SpectateScreen() {
     const currentScore = state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 };
     const setConfig = state.config.sets[state.currentSet - 1] || { targetScore: 25, winBy: 2, cap: 100 };
 
+    // Recent events for play-by-play (last 15, reversed for newest-first)
+    // Filter out rotations and initial lineup assignments (not real game actions)
+    const recentEvents = (state.history || [])
+        .filter(e => e.setNumber === state.currentSet)
+        .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
+        .slice(-15)
+        .reverse();
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
             {/* Header */}
@@ -204,7 +314,13 @@ export default function SpectateScreen() {
                         )}
                     </View>
                 </View>
-                <View style={{ width: 22 }} />
+                <TouchableOpacity onPress={handleSaveMatch} disabled={isSaved} hitSlop={12}>
+                    {isSaved ? (
+                        <Check size={22} color={colors.primary} />
+                    ) : (
+                        <Save size={22} color={colors.text} />
+                    )}
+                </TouchableOpacity>
             </View>
 
             <FlatList
@@ -213,14 +329,16 @@ export default function SpectateScreen() {
                 contentContainerStyle={styles.scrollContent}
                 ListHeaderComponent={
                     <>
-                        {/* Name prompt for first-time spectators */}
+                        {/* Onboarding for first-time spectators */}
                         {showNamePrompt && (
-                            <SpectatorNamePrompt
-                                onSubmit={(name) => {
-                                    interactions.setViewerName(name);
-                                    setNamePromptDismissed(true);
+                            <SpectatorOnboardingModal
+                                visible={!!showNamePrompt}
+                                onComplete={(name, cheeringFor) => {
+                                    interactions.joinMatch(name, cheeringFor);
                                 }}
-                                onSkip={() => setNamePromptDismissed(true)}
+                                roster={state.myTeamRoster}
+                                initialName={interactions.viewerName}
+                                initialCheeringFor={interactions.cheeringFor}
                             />
                         )}
 
@@ -312,10 +430,30 @@ export default function SpectateScreen() {
                         </View>
                     ) : null
                 }
+                ListFooterComponent={
+                    (!loading && !error) ? (
+                        <TouchableOpacity
+                            style={[styles.fullLogBtn, { borderColor: colors.border }]}
+                            onPress={() => setShowFullLog(true)}
+                        >
+                            <Text style={[styles.fullLogBtnText, { color: colors.primary }]}>View Full Match Log</Text>
+                        </TouchableOpacity>
+                    ) : null
+                }
             />
 
             {/* Ad Banner */}
             <AdBanner />
+
+            {/* Reaction Floater Overlay */}
+            <ReactionFloater reactions={incomingReactions} />
+
+            {/* Cheer Meter Overlay */}
+            {showMeter && (
+                <View style={styles.meterOverlay}>
+                    <CheerMeter onCheerPulse={interactions.sendCheerLevel} />
+                </View>
+            )}
 
             {/* Spectator Reaction Bar (replaces old static footer) */}
             <SpectatorReactionBar
@@ -327,8 +465,22 @@ export default function SpectateScreen() {
                 alertCooldownRemaining={interactions.alertCooldownRemaining}
                 matchCode={code || ''}
                 onCheer={handleCheer}
+                onReaction={interactions.sendReaction}
                 onAlert={handleScoreAlert}
+                onEmergency={handleEmergencyAlert}
                 onFanRecap={() => setShowFanRecap(true)}
+                onOpenLobby={() => setShowLobby(true)}
+                onToggleMeter={() => setShowMeter(!showMeter)}
+                isMeterVisible={showMeter}
+            />
+
+            {/* Spectator Lobby Modal */}
+            <SpectatorLobbyModal
+                visible={showLobby}
+                onClose={() => setShowLobby(false)}
+                viewers={interactions.viewers}
+                roster={state.myTeamRoster}
+                currentViewerId={interactions.deviceId}
             />
 
             {/* Super Fan Recap Modal */}
@@ -347,6 +499,16 @@ export default function SpectateScreen() {
                 visible={showPaywall}
                 onClose={() => setShowPaywall(false)}
                 trigger="ai_narrative"
+            />
+
+            {/* Full Log Modal (Read-Only for Spectators) */}
+            <FullLogModal
+                visible={showFullLog}
+                onClose={() => setShowFullLog(false)}
+                history={state.history}
+                roster={state.myTeamRoster}
+
+            // No onUpdateLog prop means read-only
             />
         </SafeAreaView>
     );
@@ -492,4 +654,26 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 14,
     },
+    fullLogBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        marginTop: 16,
+        borderRadius: 8,
+        borderWidth: 1,
+        gap: 8,
+    },
+    fullLogBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    meterOverlay: {
+        position: 'absolute',
+        bottom: 80, // Above reaction bar
+        left: 16,
+        right: 16,
+        zIndex: 100,
+        alignItems: 'center',
+    }
 });

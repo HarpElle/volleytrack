@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { AINarrative, LineupPosition, MatchConfig, MatchRecord, MatchState, Player, Score, SetResult, StatLog } from '../types';
+import { logger } from '../utils/logger';
 
 /* 
   Mocking generateId for now to avoid extra files if not strictly needed yet.
@@ -394,15 +395,70 @@ export const useMatchStore = create<MatchState>()(
                     // Identify winner
                     const winner = score.myTeam > score.opponent ? 'myTeam' : 'opponent';
 
-                    // Serve selection is now handled by the ServeChoiceModal
-                    // which shows at the start of each set
+                    const nextSetVal = state.currentSet + 1;
+                    let nextRotation = state.lineups?.[nextSetVal];
+
+                    // Cascade Lineup Lookup: Try current set, then look back
+                    if (!nextRotation) {
+                        for (let i = nextSetVal - 1; i >= 1; i--) {
+                            if (state.lineups?.[i]) {
+                                // Clone the previous lineup to avoid reference issues
+                                nextRotation = [...state.lineups[i]];
+
+                                // INTELLIGENT AUTO-ROTATE
+                                // Check who served first in the PREVIOUS set (the one just finished)
+                                const prevFirstServer = state.firstServerPerSet?.[state.currentSet];
+
+                                if (prevFirstServer) {
+                                    // If we served first last time, we are likely RECEIVING first now.
+                                    // Standard practice: Rotate BACKWARD one spot so P1 moves to P2, 
+                                    // ready to rotate into serving position after the first side-out.
+                                    if (prevFirstServer === 'myTeam') {
+                                        nextRotation = nextRotation.map(slot => {
+                                            let newPos = slot.position;
+                                            // Backward: 1->2, 2->3, 3->4, 4->5, 5->6, 6->1
+                                            if (slot.position === 6) newPos = 1;
+                                            else if (slot.position === 5) newPos = 6;
+                                            else if (slot.position === 4) newPos = 5;
+                                            else if (slot.position === 3) newPos = 4;
+                                            else if (slot.position === 2) newPos = 3;
+                                            else if (slot.position === 1) newPos = 2;
+                                            return { ...slot, position: newPos as any };
+                                        });
+                                    }
+                                    // If opponent served first last time, we are likely SERVING first now.
+                                    // Standard practice: Rotate FORWARD one spot (restore serving lineup).
+                                    else if (prevFirstServer === 'opponent') {
+                                        nextRotation = nextRotation.map(slot => {
+                                            let newPos = slot.position;
+                                            // Forward: 1->6, 6->5, 5->4, 4->3, 3->2, 2->1
+                                            if (slot.position === 1) newPos = 6;
+                                            else if (slot.position === 6) newPos = 5;
+                                            else if (slot.position === 5) newPos = 4;
+                                            else if (slot.position === 4) newPos = 3;
+                                            else if (slot.position === 3) newPos = 2;
+                                            else if (slot.position === 2) newPos = 1;
+                                            return { ...slot, position: newPos as any };
+                                        });
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    const finalRotation = nextRotation || [];
+
+                    // Predict next server (alternating pattern)
+                    const prevServer = state.firstServerPerSet?.[state.currentSet];
+                    const likelyNextServer = prevServer === 'myTeam' ? 'opponent' : 'myTeam';
 
                     return {
-                        currentSet: state.currentSet + 1,
+                        currentSet: nextSetVal,
                         scores: [...state.scores, { myTeam: 0, opponent: 0 }],
                         setsWon: { ...state.setsWon, [winner]: state.setsWon[winner] + 1 },
                         setHistory: [...state.setHistory, { setNumber: state.currentSet, winner, score }],
                         rallyState: 'pre-serve',
+                        servingTeam: likelyNextServer, // Set default, can be overridden by Modal
                         timeoutsRemaining: {
                             myTeam: state.config.timeoutsPerSet ?? 2,
                             opponent: state.config.timeoutsPerSet ?? 2
@@ -411,13 +467,18 @@ export const useMatchStore = create<MatchState>()(
                             myTeam: state.config.subsPerSet ?? 15,
                             opponent: state.config.subsPerSet ?? 15
                         },
-                        currentRotation: state.lineups?.[state.currentSet + 1] || state.lineups?.[state.currentSet] || [], // Initialize next set rotation (cascade if needed)
+                        currentRotation: finalRotation,
                         liberoIds: [],
                         // Auto-Designate Starters as Non-Liberos for the new set
-                        nonLiberoDesignations: (state.lineups?.[state.currentSet + 1] || state.lineups?.[state.currentSet] || [])
+                        nonLiberoDesignations: finalRotation
                             .filter(p => p.playerId)
                             .map(p => p.playerId as string),
-                        subPairs: {}
+                        subPairs: {},
+                        // Set the predicted server in the map too, so it persists if they don't change it
+                        firstServerPerSet: {
+                            ...state.firstServerPerSet,
+                            [nextSetVal]: likelyNextServer
+                        }
                     };
                 });
             },
@@ -584,12 +645,12 @@ export const useMatchStore = create<MatchState>()(
                     scores: state.scores,
                     history: state.history,
                     lineups: state.lineups,
-                    // Preserve existing narrative if we aren't generating a new one right now? 
-                    // Usually narrative is generated AFTER finalization. 
-                    // But if we had one, keep it? 
+                    // Preserve existing narrative if we aren't generating a new one right now?
+                    // Usually narrative is generated AFTER finalization.
+                    // But if we had one, keep it?
                     // Actually state.aiNarrative is current live state, so use that.
                     aiNarrative: state.aiNarrative || existingMatch?.aiNarrative
-                });
+                }).catch((err: any) => logger.warn('[MatchStore] saveMatch:', err));
             },
 
 

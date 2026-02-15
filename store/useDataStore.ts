@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { deleteCloudItem, fullSync, pushItem } from '../services/firebase/syncService';
 import { Event, MatchRecord, Season } from '../types';
-import { fullSync, pushItem, deleteCloudItem } from '../services/firebase/syncService';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
 
@@ -27,6 +27,11 @@ interface DataState {
 
     saveMatchRecord: (match: MatchRecord) => void;
     updateLogEntry: (matchId: string, logId: string, updates: Partial<import('../types').StatLog>) => void;
+    updateMatchNarrative: (matchId: string, narrative: import('../types').AINarrative) => void;
+
+    // Spectator History
+    savedSpectatorMatches: MatchRecord[];
+    saveSpectatorMatch: (match: MatchRecord) => void;
 
     resetEvent: (eventId: string) => void;
     deleteMatchRecord: (matchId: string) => void;
@@ -50,6 +55,7 @@ export const useDataStore = create<DataState>()(
             seasons: [],
             events: [],
             savedMatches: [],
+            savedSpectatorMatches: [],
             syncStatus: 'idle' as SyncStatus,
             lastSyncedAt: null,
             syncError: null,
@@ -93,9 +99,24 @@ export const useDataStore = create<DataState>()(
                 })
             })),
 
+            updateMatchNarrative: (matchId, narrative) => set((state) => ({
+                savedMatches: state.savedMatches.map(m => m.id === matchId ? { ...m, aiNarrative: narrative } : m)
+            })),
+
             deleteMatchRecord: (id) => set((state) => ({
                 savedMatches: state.savedMatches.filter((m) => m.id !== id)
             })),
+
+            // Spectator Match History
+            saveSpectatorMatch: (match) => set((state) => {
+                const exists = state.savedSpectatorMatches.find(m => m.id === match.id);
+                if (exists) {
+                    return {
+                        savedSpectatorMatches: state.savedSpectatorMatches.map(m => m.id === match.id ? match : m)
+                    };
+                }
+                return { savedSpectatorMatches: [...state.savedSpectatorMatches, match] };
+            }),
 
             resetEvent: (id) => set((state) => ({
                 savedMatches: state.savedMatches.filter((m) => m.eventId !== id)

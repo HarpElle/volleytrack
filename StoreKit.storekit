@@ -1,0 +1,95 @@
+{
+  "identifier" : "E2B3E7D1",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "79.99",
+      "familyShareable" : false,
+      "internalID" : "6759177245",
+      "localizations" : [
+        {
+          "description" : "Lifetime access to all pro features",
+          "displayName" : "VolleyTrack Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "pro_lifetime",
+      "referenceName" : "VolleyTrack Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21463162",
+      "localizations" : [
+        {
+          "description" : "VolleyTrack Pro Subscriptions",
+          "displayName" : "VolleyTrack Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "VolleyTrack Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6759176199",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Monthly access to all pro features",
+              "displayName" : "Monthly Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pro_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Pro",
+          "subscriptionGroupID" : "21463162",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "34.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6759177179",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Yearly access to all pro features",
+              "displayName" : "Annual Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pro_annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual Pro",
+          "subscriptionGroupID" : "21463162",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

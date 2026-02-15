@@ -60,36 +60,27 @@ export default function DashboardScreen() {
             const hasTimeA = !!a.time;
             const hasTimeB = !!b.time;
 
-            // Priority 1: No Date (Considered "TBD" or Top of mind draft)
-            // Wait, usually No Date means generic. User said: "If there are Matches with no dates, I would put those at the top"
             if (!hasDateA && hasDateB) return -1;
             if (hasDateA && !hasDateB) return 1;
-            if (!hasDateA && !hasDateB) return parseInt(b.id) - parseInt(a.id); // Newest created first ? "sorted by when they were created"
+            if (!hasDateA && !hasDateB) return parseInt(b.id) - parseInt(a.id);
 
             // Priority 2: Date, No Time
             if (!hasTimeA && hasTimeB) return -1;
             if (hasTimeA && !hasTimeB) return 1;
             if (!hasTimeA && !hasTimeB) {
-                // "sorted by when they were created". Assuming ID is timestamp.
                 return parseInt(b.id) - parseInt(a.id);
             }
 
             // Priority 3: Date + Time
-            // Sort by actual time.
             const dateA = new Date(a.date).setHours(0, 0, 0, 0);
             const dateB = new Date(b.date).setHours(0, 0, 0, 0);
 
             if (dateA !== dateB) return dateA - dateB;
 
-            // Parse time strings (e.g. "11:30 AM") into minutes for comparison
             const parseTime = (t: string) => {
                 if (!t) return -1;
-                // Regex to match "HH:MM AM/PM" with any whitespace (including non-breaking)
                 const match = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                if (!match) {
-                    // Fallback for 24h or simple format if needed, though we expect AM/PM
-                    return -1;
-                }
+                if (!match) return -1;
 
                 let [_, h, m, period] = match;
                 let hours = parseInt(h, 10);
@@ -106,7 +97,13 @@ export default function DashboardScreen() {
 
             return timeA - timeB;
         })
-        .slice(0, 5); // Keep list compact? Or show all? User didn't specify limit, but "Recent" had 5. Let's show 5.
+        .slice(0, 5);
+
+    // Filter Spectator Matches (newest first)
+    const { savedSpectatorMatches } = useDataStore();
+    const spectatorHistory = [...savedSpectatorMatches]
+        .sort((a, b) => (b.date || 0) - (a.date || 0))
+        .slice(0, 5);
 
     // Sorting Logic for Seasons (MRU)
     const sortedSeasons = [...seasons].sort((a, b) => {
@@ -137,12 +134,20 @@ export default function DashboardScreen() {
         router.push({ pathname: '/season/[id]', params: { id } });
     };
 
-    const renderMatchItem = (match: MatchRecord) => {
+    const renderMatchItem = (match: MatchRecord, source: 'coach' | 'spectator' = 'coach') => {
         const date = match.date ? new Date(match.date).toLocaleDateString() : 'Date TBD';
         const time = match.time || '';
         const event = match.eventId ? events.find(e => e.id === match.eventId) : null;
 
         const handlePress = () => {
+            if (source === 'spectator') {
+                router.push({
+                    pathname: '/summary',
+                    params: { matchId: match.id, source: 'spectator' }
+                });
+                return;
+            }
+
             router.push({
                 pathname: '/match/setup',
                 params: {
@@ -314,8 +319,7 @@ export default function DashboardScreen() {
                 {/* Feature Tour */}
                 <TouchableOpacity
                     style={[styles.watchLiveBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
-                    // @ts-ignore - Route exists but types not yet generated
-                    onPress={() => router.push('/tour')}
+                    onPress={() => router.push('/tour' as any)}
                 >
                     <Crown size={20} color={colors.primary} />
                     <Text style={[styles.watchLiveText, { color: colors.text }]}>Feature Tour: See what you can do</Text>
@@ -391,8 +395,23 @@ export default function DashboardScreen() {
                     </View>
                 ) : (
                     <View style={styles.list}>
-                        {upcomingMatches.map(match => renderMatchItem(match))}
+                        {upcomingMatches.map(match => renderMatchItem(match, 'coach'))}
                     </View>
+                )}
+
+                {/* Spectator History */}
+                {spectatorHistory.length > 0 && (
+                    <>
+                        <View style={styles.sectionHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Eye size={20} color={colors.textSecondary} />
+                                <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Watched Matches</Text>
+                            </View>
+                        </View>
+                        <View style={styles.list}>
+                            {spectatorHistory.map(match => renderMatchItem(match, 'spectator'))}
+                        </View>
+                    </>
                 )}
 
             </ScrollView>

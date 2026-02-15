@@ -31,7 +31,7 @@ export function SpectatorNamePrompt({ onSubmit, onSkip }: SpectatorNamePromptPro
         <View style={[styles.container, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
             <View style={styles.headerRow}>
                 <UserCircle size={20} color={colors.primary} />
-                <Text style={[styles.title, { color: colors.primary }]}>Who's watching?</Text>
+                <Text style={[styles.title, { color: colors.primary }]}>{"Who's watching?"}</Text>
             </View>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Add your name so the coach and other fans can see you

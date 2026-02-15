@@ -76,8 +76,8 @@ const PlayerCard = ({ pos, player, isLibero, isSelected, selectionIndex, borderC
                 )}
                 {player ? (
                     <View style={{ alignItems: 'center' }}>
-                        <Text style={[{ fontSize: 14, fontWeight: '800', color: colors.text }, isLibero && { color: '#ffffff' }, isPad && { fontSize: 24 }]}>#{player.jerseyNumber}</Text>
-                        <Text style={[{ fontSize: 10, color: colors.textSecondary }, isLibero && { color: '#ffffff' }, isPad && { fontSize: 16 }]} numberOfLines={1}>{player.name}</Text>
+                        <Text style={[{ fontSize: 14, fontWeight: '800', color: colors.text }, isLibero && { color: colors.bg }, isPad && { fontSize: 24 }]}>#{player.jerseyNumber}</Text>
+                        <Text style={[{ fontSize: 10, color: colors.textSecondary }, isLibero && { color: colors.bg }, isPad && { fontSize: 16 }]} numberOfLines={1}>{player.name}</Text>
                     </View>
                 ) : (
                     <User size={isPad ? 32 : 20} color={colors.textTertiary} />
@@ -93,7 +93,7 @@ export default function LineupTracker({ rotation, roster, onSubstitute, onSelect
     if (!rotation || rotation.length === 0) return null;
 
     // No-op handlers for spectator mode
-    const noOp = () => {};
+    const noOp = () => { };
     const effectiveOnSub = readOnly ? noOp : onSubstitute;
     const effectiveOnSelect = readOnly ? noOp : onSelectPlayer;
 

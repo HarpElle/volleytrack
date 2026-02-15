@@ -101,7 +101,7 @@ export default function ForgotPasswordScreen() {
                 <View style={styles.header}>
                     <Text style={themedStyles.title}>Reset Password</Text>
                     <Text style={themedStyles.subtitle}>
-                        Enter your email and we'll send you a link to reset your password.
+                        {"Enter your email and we'll send you a link to reset your password."}
                     </Text>
                 </View>
 
@@ -117,7 +117,7 @@ export default function ForgotPasswordScreen() {
                     <View style={themedStyles.successBanner}>
                         <Mail size={20} color={colors.success} />
                         <Text style={themedStyles.successText}>
-                            Check your inbox! We've sent a password reset link to {email}.
+                            {"Check your inbox! We've sent a password reset link to "}{email}{"."}
                         </Text>
                     </View>
                 )}

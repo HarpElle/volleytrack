@@ -4,6 +4,7 @@ import {
     ChevronRight,
     Hand,
     LayoutDashboard,
+    Mic,
     Trophy,
     Zap
 } from 'lucide-react-native';
@@ -68,6 +69,13 @@ export function CapabilitiesTour({ onClose }: CapabilitiesTourProps) {
             title: 'Power User: Full Analysis',
             description: 'Track every touch: Kills, Digs, Blocks, and Assists. Get deep insights like Sideout % and Earned Points.',
             proTip: 'Select multiple players in the rotation view for precise assist & kill tracking.',
+        },
+        {
+            icon: Mic,
+            iconColor: '#f59e0b', // Amber
+            title: 'Voice Input: Hands-Free Tracking',
+            description: 'Tap the mic and speak your rally actions. Say "number 3 with the kill" and VolleyTrack logs it for you.',
+            proTip: 'Speak clearly, use jersey numbers, and keep recordings to 1-3 actions for best results. Pro feature with 3 free matches to try!',
         },
     ];
 

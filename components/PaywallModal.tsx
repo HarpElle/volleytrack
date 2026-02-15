@@ -1,5 +1,5 @@
 import { Check, Crown, X, Zap } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -11,12 +11,12 @@ import {
     View,
 } from 'react-native';
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
-import { useAppTheme } from '../contexts/ThemeContext';
 import { PRICING } from '../constants/monetization';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { getOfferings, purchasePackage, restorePurchases } from '../services/revenuecat/RevenueCatService';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 
-export type PaywallTrigger = 'season' | 'ai_narrative' | 'export' | 'settings';
+export type PaywallTrigger = 'season' | 'ai_narrative' | 'export' | 'settings' | 'voice_input';
 
 interface PaywallModalProps {
     visible: boolean;
@@ -29,6 +29,7 @@ const TRIGGER_MESSAGES: Record<PaywallTrigger, string> = {
     ai_narrative: "You've used all 3 free AI narratives",
     export: "You've used all 3 free exports",
     settings: 'Unlock the full VolleyTrack experience',
+    voice_input: "You've used all 3 free Voice Input matches",
 };
 
 const PRO_FEATURES = [
@@ -36,6 +37,7 @@ const PRO_FEATURES = [
     'Unlimited seasons & teams',
     'Unlimited AI match narratives',
     'Unlimited match exports',
+    'Voice Input for hands-free stat tracking',
     'Advanced analytics (coming soon)',
 ];
 
@@ -199,13 +201,26 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
                                                 <Text style={styles.badgeText}>{plan.badge}</Text>
                                             </View>
                                         )}
-                                        <Text style={[styles.planLabel, { color: isSelected ? colors.primary : colors.textSecondary }]}>
+                                        <Text
+                                            style={[styles.planLabel, { color: isSelected ? colors.primary : colors.textSecondary }]}
+                                            numberOfLines={1}
+                                            adjustsFontSizeToFit
+                                        >
                                             {plan.label}
                                         </Text>
-                                        <Text style={[styles.planPrice, { color: isSelected ? colors.primary : colors.text }]}>
+                                        <Text
+                                            style={[styles.planPrice, { color: isSelected ? colors.primary : colors.text }]}
+                                            numberOfLines={1}
+                                            adjustsFontSizeToFit
+                                        >
                                             {plan.price}
                                         </Text>
-                                        <Text style={[styles.planDetail, { color: isSelected ? colors.primary : colors.textTertiary }]}>
+                                        <Text
+                                            style={[styles.planDetail, { color: isSelected ? colors.primary : colors.textTertiary }]}
+                                            numberOfLines={2}
+                                            adjustsFontSizeToFit
+                                            minimumFontScale={0.8}
+                                        >
                                             {plan.detail}
                                         </Text>
                                     </TouchableOpacity>

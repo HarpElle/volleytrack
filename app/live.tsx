@@ -1,31 +1,38 @@
 import { useNavigation } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import { useKeepAwake } from 'expo-keep-awake';
-import { AlertCircle, Eye, Maximize2, Menu, Radio, RotateCcw, RotateCw, Undo2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AlertCircle, Eye, Maximize2, Menu, Mic, Radio, RotateCcw, RotateCw, Undo2 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdBanner } from '../components/AdBanner';
+import { CoachAlertToast } from '../components/CoachAlertToast';
 import EndOfSetModal from '../components/EndOfSetModal';
 import FullLogModal from '../components/FullLogModal';
-import ServeChoiceModal from '../components/ServeChoiceModal';
 import LineupTracker from '../components/LineupTracker';
 import { MatchErrorBoundary } from '../components/MatchErrorBoundary';
 import MatchSettingsModal from '../components/MatchSettingsModal';
-import ShareMatchModal from '../components/ShareMatchModal';
+import { PaywallModal } from '../components/PaywallModal';
 import ScoreBoard from '../components/ScoreBoard';
 import ScoreEditModal from '../components/ScoreEditModal';
+import ServeChoiceModal from '../components/ServeChoiceModal';
+import ShareMatchModal from '../components/ShareMatchModal';
 import StatPickerModal from '../components/StatPickerModal';
 import StatsModal from '../components/StatsModal';
 import { SubstituteModalContent } from '../components/SubstituteModalContent';
-import { AdBanner } from '../components/AdBanner';
-import { CoachAlertToast } from '../components/CoachAlertToast';
+import { VoiceInputOverlay } from '../components/VoiceInputOverlay';
+import { VoiceInputTipsModal } from '../components/VoiceInputTipsModal';
+import { VOICE_COLORS, VOICE_INPUT_ENABLED, VOICE_TIPS_SEEN_KEY } from '../constants/voice';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useHaptics } from '../hooks/useHaptic';
 import { useLiveMatch } from '../hooks/useLiveMatch';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
+import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { Player, SpectatorAlert, StatLog } from '../types';
-import { MomentumState, MomentumTracker, SuggestionUrgency } from '../utils/MomentumTracker';
+import { MomentumState, MomentumTracker } from '../utils/MomentumTracker';
 
 export default function LiveScreenWithBoundary() {
     const router = useRouter();
@@ -86,7 +93,7 @@ function LiveScreen() {
         myTeamName, opponentName, currentSet, scores, setsWon,
         recordStat, incrementScore, decrementScore, setScore, undo,
         timeoutsRemaining, subsRemaining,
-        useTimeout, useSub, startNextSet, finalizeMatch, config,
+        useTimeout: callTimeout, useSub, startNextSet, finalizeMatch, config,
         history, setHistory, servingTeam, setServingTeam, rallyState,
         currentRotation, rotate, substitute, activeSeasonId,
         subPairs, nonLiberoDesignations, designateNonLibero,
@@ -100,12 +107,35 @@ function LiveScreen() {
     const roster = (activeSeason?.roster?.length ? activeSeason.roster : myTeamRoster) || [];
     const haptics = useHaptics();
 
-    const currentScore = scores[currentSet - 1];
+    // Voice Input
+    const voiceInput = useVoiceInput();
+    const { canUseVoiceInput } = useSubscriptionStore();
+    const matchId = useMatchStore(s => s.matchId);
+    const [showVoiceTips, setShowVoiceTips] = useState(false);
+    const [showVoicePaywall, setShowVoicePaywall] = useState(false);
 
-    // Hydration Guard: If store hasn't loaded scores yet, return null or loader
-    if (!currentScore) {
-        return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
-    }
+    const handleMicPress = async () => {
+        if (!VOICE_INPUT_ENABLED) return;
+
+        // Check free tier limit
+        if (!canUseVoiceInput(matchId)) {
+            setShowVoicePaywall(true);
+            return;
+        }
+
+        // Show tips on first use
+        const tipsSeen = await AsyncStorage.getItem(VOICE_TIPS_SEEN_KEY);
+        if (!tipsSeen) {
+            await AsyncStorage.setItem(VOICE_TIPS_SEEN_KEY, 'true');
+            setShowVoiceTips(true);
+            return;
+        }
+
+        voiceInput.startListening();
+        haptics('light');
+    };
+
+    const currentScore = scores[currentSet - 1];
 
     // Rally Flow Logic
     const isMyServe = servingTeam === 'myTeam';
@@ -356,6 +386,7 @@ function LiveScreen() {
 
     // Auto-Check Set Finished
     useEffect(() => {
+        if (!currentScore) return;
         const { targetScore, winBy, cap } = setConfig;
         const myScore = currentScore.myTeam;
         const oppScore = currentScore.opponent;
@@ -370,7 +401,6 @@ function LiveScreen() {
         }
     }, [currentScore, setConfig]);
 
-    // @ts-ignore
     const handleStat = (type: StatLog['type'], team: 'myTeam' | 'opponent', label: string) => {
         let statsMetadata: any = {};
         let finalPlayerId: string | undefined = undefined;
@@ -426,6 +456,11 @@ function LiveScreen() {
         setShowEndOfSet(true);
     };
 
+    // Hydration Guard: hooks are all declared above, safe to bail out here
+    if (!currentScore) {
+        return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+    }
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
@@ -462,7 +497,7 @@ function LiveScreen() {
                 {/* Momentum Gauge + Timeout Banner (overlaid to prevent layout shift) */}
                 <View style={styles.momentumContainer}>
                     {/* Timeout Recommendation — absolutely positioned overlay, no layout shift */}
-                    {momentum.suggestion.shouldTimeout && (
+                    {momentum.suggestion.shouldTimeout && timeoutsRemaining.myTeam > 0 && (
                         <TouchableOpacity
                             style={[
                                 styles.timeoutBanner,
@@ -479,7 +514,7 @@ function LiveScreen() {
                                             style: 'cancel',
                                             onPress: () => setDismissedAtScore(totalScore)
                                         },
-                                        { text: 'Call Timeout', onPress: () => useTimeout('myTeam') }
+                                        { text: 'Call Timeout', onPress: () => callTimeout('myTeam') }
                                     ]
                                 );
                             }}
@@ -533,7 +568,7 @@ function LiveScreen() {
                     servingTeam={servingTeam}
                     onToggleServe={handleToggleServe}
                     timeoutsRemaining={timeoutsRemaining}
-                    onUseTimeout={useTimeout}
+                    onUseTimeout={callTimeout}
                     configTimeouts={config.timeoutsPerSet || 2}
                     onIncrement={(team) => { incrementScore(team); haptics('medium'); }}
                     onDecrement={(team) => { decrementScore(team); haptics('light'); }}
@@ -543,8 +578,7 @@ function LiveScreen() {
                 <LineupTracker
                     rotation={currentRotation || []}
                     roster={roster}
-                    // @ts-ignore
-                    selectedPlayerIds={selectedPlayerIds}
+                    selectedPlayerIds={selectedPlayerIds as any}
                     onSelectPlayer={handlePlayerSelect}
                     onSubstitute={(pos) => setSubPicker({ visible: true, position: pos })}
                     highlightPosition={(() => {
@@ -591,14 +625,14 @@ function LiveScreen() {
 
                     <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
                         {/* Rotate Back */}
-                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => rotate('backward')}>
+                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => { rotate('backward'); haptics('light'); }}>
                             <RotateCcw size={18} color={colors.primary} />
                         </TouchableOpacity>
 
                         <Text style={[styles.rotateInlineLabel, { color: colors.primary }]}>Rotate</Text>
 
                         {/* Rotate Forward */}
-                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => rotate('forward')}>
+                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => { rotate('forward'); haptics('light'); }}>
                             <RotateCw size={18} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
@@ -666,6 +700,7 @@ function LiveScreen() {
                     onCorrectScore={() => setShowEndOfSet(false)}
                     onNextSet={() => {
                         setShowEndOfSet(false);
+                        dismissAllAlerts();
                         // setNonLiberoDesignations(new Set()); // Handled by Store now
 
                         // Check if match is actually finished (including the set just played)
@@ -705,8 +740,7 @@ function LiveScreen() {
                         options={statPicker.options}
                         onSelect={(value) => {
                             if (statPicker.team) {
-                                // @ts-ignore - Value is string but we know it matches StatLog['type']
-                                handleStat(value, statPicker.team, 'Stat');
+                                handleStat(value as StatLog['type'], statPicker.team, 'Stat');
                                 haptics('selection'); // Or heavy/success depending on stat?
                                 // Let's simplify: selection for menu pick
                             }
@@ -845,6 +879,27 @@ function LiveScreen() {
                         </View>
                     )}
                 </View>
+
+                {/* Voice Input Floating Mic Button */}
+                {VOICE_INPUT_ENABLED && (
+                    <TouchableOpacity
+                        style={[
+                            styles.voiceMicButton,
+                            {
+                                backgroundColor: voiceInput.phase !== 'idle' ? VOICE_COLORS.recording : colors.bgCard,
+                                shadowColor: colors.shadow,
+                            },
+                        ]}
+                        onPress={handleMicPress}
+                        disabled={voiceInput.phase !== 'idle'}
+                        activeOpacity={0.7}
+                    >
+                        <Mic
+                            size={22}
+                            color={voiceInput.phase !== 'idle' ? '#ffffff' : colors.primary}
+                        />
+                    </TouchableOpacity>
+                )}
 
                 {/* Log Area & Undo */}
                 <View style={[styles.logContainer, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
@@ -991,6 +1046,48 @@ function LiveScreen() {
 
                 {/* Ad Banner */}
                 <AdBanner style={{ marginTop: 4 }} />
+
+                {/* Voice Input Overlays */}
+                {VOICE_INPUT_ENABLED && (
+                    <>
+                        <VoiceInputOverlay
+                            visible={voiceInput.phase !== 'idle'}
+                            phase={voiceInput.phase}
+                            isListening={voiceInput.isListening}
+                            liveTranscript={voiceInput.liveTranscript}
+                            finalTranscript={voiceInput.finalTranscript}
+                            parsedActions={voiceInput.parsedActions}
+                            isParsing={voiceInput.isParsing}
+                            parseError={voiceInput.parseError}
+                            error={voiceInput.error}
+                            onStopAndParse={() => { voiceInput.stopListeningAndParse(); haptics('medium'); }}
+                            onCancel={() => { voiceInput.cancelSession(); haptics('light'); }}
+                            onRetry={() => { voiceInput.retryRecording(); haptics('light'); }}
+                            onRemoveAction={voiceInput.removeAction}
+                            onCommit={async () => {
+                                const success = await voiceInput.commitAll();
+                                if (success) haptics('success');
+                                return success;
+                            }}
+                        />
+
+                        <VoiceInputTipsModal
+                            visible={showVoiceTips}
+                            onClose={() => {
+                                setShowVoiceTips(false);
+                                // After closing tips, start listening
+                                voiceInput.startListening();
+                                haptics('light');
+                            }}
+                        />
+
+                        <PaywallModal
+                            visible={showVoicePaywall}
+                            onClose={() => setShowVoicePaywall(false)}
+                            trigger="voice_input"
+                        />
+                    </>
+                )}
 
             </View >
         </SafeAreaView >
@@ -1143,9 +1240,25 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
     },
+    voiceMicButton: {
+        position: 'absolute',
+        right: 0,
+        top: -4,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 4,
+    },
     statGrid: {
         gap: 8,
         marginBottom: 8,
+        position: 'relative', // For absolute positioning of mic button
     },
     statRow: {
         flexDirection: 'row',

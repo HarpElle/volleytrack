@@ -20,6 +20,7 @@ import {
 import { acknowledgeAlerts } from '../services/firebase/spectatorInteractionService';
 import { useMatchStore } from '../store/useMatchStore';
 import { SpectatorAlert } from '../types';
+import { logger } from '../utils/logger';
 
 const THROTTLE_MS = 1000; // Max 1 push per second
 
@@ -66,7 +67,7 @@ export function useLiveMatch() {
                 if (!result.success) {
                     setError(result.error || 'Push failed');
                 }
-            });
+            }).catch((err) => logger.warn('[LiveMatch]', err));
         };
 
         // If enough time has passed, push immediately
@@ -157,7 +158,7 @@ export function useLiveMatch() {
     const dismissAllAlerts = useCallback(() => {
         if (matchCode && pendingAlerts.length > 0) {
             // Mark as acknowledged in Firestore (best-effort)
-            acknowledgeAlerts(matchCode, pendingAlerts);
+            acknowledgeAlerts(matchCode, pendingAlerts).catch((err) => logger.warn('[LiveMatch] acknowledgeAlerts:', err));
         }
         setPendingAlerts([]);
     }, [matchCode, pendingAlerts]);
@@ -214,7 +215,7 @@ export function useLiveMatch() {
 
         // Push final state with 'completed' status
         const state = useMatchStore.getState();
-        await updateLiveMatch(matchCodeRef.current, user.uid, state, 'completed');
+        await updateLiveMatch(matchCodeRef.current, user.uid, state, 'completed').catch((err) => logger.warn('[LiveMatch] finalizeBroadcast:', err));
 
         setIsBroadcasting(false);
         setMatchCode(null);

@@ -21,7 +21,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.harpelleapps.volleytrack",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSpeechRecognitionUsageDescription": "VolleyTrack uses speech recognition for hands-free stat tracking during matches.",
+        "NSMicrophoneUsageDescription": "VolleyTrack needs microphone access to transcribe your voice commands for stat tracking."
       }
     },
     "android": {
@@ -33,7 +35,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -54,6 +59,13 @@
         }
       ],
       "@react-native-community/datetimepicker",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "VolleyTrack needs microphone access for voice-based stat tracking.",
+          "speechRecognitionPermission": "VolleyTrack uses speech recognition to convert your voice into stat entries."
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {

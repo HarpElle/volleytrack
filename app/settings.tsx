@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import {
     ArrowLeft,
     ChevronRight,
@@ -406,8 +407,7 @@ export default function SettingsScreen() {
                 {/* Help Section */}
                 <Text style={themed.sectionLabel}>Help & Support</Text>
                 <View style={themed.card}>
-                    {/* @ts-ignore - Route exists but types not yet generated */}
-                    <TouchableOpacity style={styles.row} onPress={() => router.push('/tour')}>
+                    <TouchableOpacity style={styles.row} onPress={() => router.push('/tour' as any)}>
                         <View style={styles.rowLeft}>
                             <Crown size={20} color={colors.primary} />
                             <Text style={themed.rowText}>Feature Tour</Text>
@@ -421,7 +421,7 @@ export default function SettingsScreen() {
                 <View style={themed.card}>
                     <View style={styles.row}>
                         <Text style={themed.rowText}>Version</Text>
-                        <Text style={themed.rowDetail}>1.0.0</Text>
+                        <Text style={themed.rowDetail}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>
                     </View>
                 </View>
 

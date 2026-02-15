@@ -19,21 +19,24 @@ interface StatsViewProps {
 export default function StatsView({ logs, roster, title = 'Match Stats', matchesWon }: StatsViewProps) {
     const { colors } = useAppTheme();
 
-    if (!logs || logs.length === 0) {
+    // Calculate Stats — hooks must be called unconditionally (Rules of Hooks)
+    const { teamStats, playerStats, advancedStats } = useMemo(() => {
+        if (!logs || logs.length === 0) {
+            return { teamStats: null, playerStats: null, advancedStats: null };
+        }
+        const tStats = StatsEngine.calculateTeamStats(logs);
+        const pStats = StatsEngine.calculatePlayerStats(logs);
+        const aStats = StatsEngine.calculateAdvancedTeamStats(logs);
+        return { teamStats: tStats, playerStats: pStats, advancedStats: aStats };
+    }, [logs]);
+
+    if (!logs || logs.length === 0 || !teamStats) {
         return (
             <View style={[styles.empty, { backgroundColor: colors.bg }]}>
                 <Text style={[styles.emptyText, { color: colors.textTertiary }]}>No stats recorded yet.</Text>
             </View>
         );
     }
-
-    // Calculate Stats
-    const { teamStats, playerStats, advancedStats } = useMemo(() => {
-        const tStats = StatsEngine.calculateTeamStats(logs);
-        const pStats = StatsEngine.calculatePlayerStats(logs);
-        const aStats = StatsEngine.calculateAdvancedTeamStats(logs);
-        return { teamStats: tStats, playerStats: pStats, advancedStats: aStats };
-    }, [logs]);
 
     // Calculate actual Hitting %
     const hittingPct = teamStats.attackAttempts > 0

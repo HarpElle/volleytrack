@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 import { AINarrative, MatchRecord, MatchState, Player, Score, StatLog, SuperFanRecap } from "../../types";
+import { logger } from "../../utils/logger";
 
 // In a real app, this should come from process.env or a secure storage
 // We access the env variable exposed by Expo (prefixed with EXPO_PUBLIC_)
@@ -11,11 +12,20 @@ export class GeminiService {
 
     constructor(apiKey: string = DEFAULT_API_KEY) {
         if (!apiKey) {
-            console.error("❌ GeminiService: No API Key found!");
+            logger.error("❌ GeminiService: No API Key found!");
         }
         this.genAI = new GoogleGenerativeAI(apiKey);
         // User reported this model worked previously. Quota errors may have been transient/rate-limit based.
         this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-001" });
+    }
+
+    private withTimeout<T>(promise: Promise<T>, ms: number = 30000): Promise<T> {
+        return Promise.race([
+            promise,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('AI request timed out. Please try again.')), ms)
+            ),
+        ]);
     }
 
     async checkAvailableModels() {
@@ -23,7 +33,7 @@ export class GeminiService {
             // Note: The Node SDK might not expose listModels directly on the main class in all versions,
             // but for debugging 404s, we can try a basic model or just log that we are attempting.
         } catch (e) {
-            console.error("Error listing models", e);
+            logger.error("Error listing models", e);
         }
     }
 
@@ -50,12 +60,87 @@ export class GeminiService {
             return player ? `${player.name} (#${player.jerseyNumber})` : `Player ${id.substring(0, 4)}`;
         };
 
-        // Simplify logs for token efficiency if needed, but 1.5/2.0 Flash handles 1M tokens.
-        const logSummary = logs.map(l => {
-            // ONLY show player details for My Team. For opponent, just show "Opponent".
-            const playerDetail = l.team === 'myTeam' && l.playerId ? `(${getPlayerLabel(l.playerId)})` : '';
-            return `[Set ${l.setNumber} | ${l.scoreSnapshot.myTeam}-${l.scoreSnapshot.opponent}] ${l.team} ${l.type} ${playerDetail}`;
-        }).join("\n");
+        // Helper to format a single event
+        const formatEvent = (l: StatLog) => {
+            let playerDetail = l.team === 'myTeam' && l.playerId ? `(${getPlayerLabel(l.playerId)})` : '';
+            if (l.team === 'myTeam' && l.assistPlayerId) {
+                const assistLabel = getPlayerLabel(l.assistPlayerId);
+                if (assistLabel) playerDetail += ` [ast: ${assistLabel.split(' ')[0]}]`;
+            }
+            return `${l.team === 'myTeam' ? 'MyTeam' : 'Opponent'} ${l.type} ${playerDetail}`;
+        };
+
+        // Group logs into Rallies
+        let rallyCount = 0;
+        let currentRallyEvents: StatLog[] = [];
+        const logLines: string[] = [];
+
+        // Sort chronologically for reconstruction
+        const sortedLogs = [...logs].sort((a, b) => a.timestamp - b.timestamp);
+        const terminalTypes = ['kill', 'ace', 'serve_error', 'attack_error', 'dig_error', 'receive_0', 'block', 'drop', 'set_error', 'pass_error'];
+
+        const flushRally = () => {
+            if (currentRallyEvents.length === 0) return;
+            rallyCount++;
+
+            // Determine result
+            const lastEvent = currentRallyEvents[currentRallyEvents.length - 1];
+            const startScore = currentRallyEvents[0].scoreSnapshot;
+
+            // Format rally header
+            const servingTeam = currentRallyEvents[0].servingTeamSnapshot === 'myTeam' ? 'We Served' : 'Opp Served';
+            logLines.push(`\nRALLY ${rallyCount} [Set ${lastEvent.setNumber} | ${startScore.myTeam}-${startScore.opponent} | ${servingTeam}]:`);
+
+            // List events
+            currentRallyEvents.forEach(e => {
+                logLines.push(`- ${formatEvent(e)}`);
+            });
+
+            // Note the point outcome if terminal
+            if (terminalTypes.includes(lastEvent.type)) {
+                const isMyError = lastEvent.team === 'myTeam' && ['serve_error', 'attack_error', 'dig_error', 'receive_0', 'set_error', 'pass_error', 'drop'].includes(lastEvent.type);
+                const isOppError = lastEvent.team === 'opponent' && ['serve_error', 'attack_error', 'dig_error', 'receive_0', 'set_error', 'pass_error', 'drop'].includes(lastEvent.type);
+
+                let winner = 'UNKNOWN';
+                if (isMyError) winner = 'OPPONENT POINT';
+                else if (isOppError) winner = 'MY TEAM POINT';
+                else if (lastEvent.team === 'myTeam') winner = 'MY TEAM POINT';
+                else winner = 'OPPONENT POINT';
+
+                logLines.push(`  -> RESULT: ${winner}`);
+            }
+
+            currentRallyEvents = [];
+        };
+
+        sortedLogs.forEach(l => {
+            if (['timeout', 'substitution', 'rotation', 'point_adjust'].includes(l.type)) {
+                flushRally();
+                const time = new Date(l.timestamp).toLocaleTimeString();
+                if (l.type === 'timeout') {
+                    logLines.push(`\n[${time}] TIMEOUT (${l.team === 'myTeam' ? 'My Team' : 'Opponent'})`);
+                } else if (l.type === 'substitution') {
+                    const subDetails = l.metadata ? `(In: ${l.metadata.subInName || 'Unknown'} #${l.metadata.subInNumber || '?'}, Out: ${l.metadata.subOutName || 'Unknown'} #${l.metadata.subOutNumber || '?'})` : '';
+                    logLines.push(`\n[${time}] SUBSTITUTION ${l.team === 'myTeam' ? 'MyTeam' : 'Opponent'} ${subDetails}`);
+                }
+            } else {
+                currentRallyEvents.push(l);
+                if (terminalTypes.includes(l.type)) {
+                    flushRally();
+                }
+            }
+        });
+        flushRally(); // Flush any remaining
+
+        const logSummary = logLines.join("\n");
+
+        // Calculate Top Scorer
+        const playerScores = new Map<string, number>();
+        logs.filter(l => l.team === 'myTeam' && (l.type === 'kill' || l.type === 'ace' || l.type === 'block')).forEach(l => {
+            if (l.playerId) playerScores.set(l.playerId, (playerScores.get(l.playerId) || 0) + 1);
+        });
+        const topScorerId = [...playerScores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        const topScorerLabel = topScorerId ? getPlayerLabel(topScorerId) : 'None';
 
         return `
 MATCH CONTEXT:
@@ -69,6 +154,7 @@ Opponent: ${state.opponentName}
 Result: ${winner} won
 Scores: ${scoreString}
 Key Stats (My Team): ${aces} Aces, ${kills} Kills, ${blocks} Blocks, ${errors} Errors.
+Top Scorer: ${topScorerLabel}
 
 PLAY-BY-PLAY LOG (filtered to emphasize My Team's perspective):
 ${logSummary}
@@ -365,7 +451,7 @@ Write the fan recap now:
                 const model = this.genAI.getGenerativeModel({ model: modelId, safetySettings });
                 if (lastError) await new Promise(resolve => setTimeout(resolve, 1000));
 
-                const result = await model.generateContent(prompt);
+                const result = await this.withTimeout(model.generateContent(prompt));
                 const recap = result.response.text();
 
                 return {
@@ -375,7 +461,7 @@ Write the fan recap now:
                     generatedAt: Date.now(),
                 };
             } catch (error: any) {
-                console.warn(`⚠️ Fan Recap Failed: ${modelId}`);
+                logger.warn(`⚠️ Fan Recap Failed: ${modelId}`);
                 lastError = error;
             }
         }
@@ -415,10 +501,12 @@ Write the fan recap now:
                 // Small delay to avoid hammering the API if multiple models fail fast
                 if (lastError) await new Promise(resolve => setTimeout(resolve, 1000));
 
-                const [coachResult, socialResult] = await Promise.all([
-                    model.generateContent(analystPrompt),
-                    model.generateContent(reporterPrompt)
-                ]);
+                const [coachResult, socialResult] = await this.withTimeout(
+                    Promise.all([
+                        model.generateContent(analystPrompt),
+                        model.generateContent(reporterPrompt)
+                    ])
+                );
 
                 return {
                     coachSummary: coachResult.response.text(),
@@ -427,12 +515,12 @@ Write the fan recap now:
                     debugPrompt: analystPrompt
                 };
             } catch (error: any) {
-                console.warn(`⚠️ Failed: ${modelId}`);
+                logger.warn(`⚠️ Failed: ${modelId}`);
                 const msg = error.message || "";
 
                 // Check specifically for Rate Limit / Quota Exceeded (429)
                 if (msg.includes("429") || msg.includes("quota")) {
-                    console.error("🚫 QUOTA EXCEEDED for model:", modelId);
+                    logger.error("🚫 QUOTA EXCEEDED for model:", modelId);
                 }
 
                 lastError = error;

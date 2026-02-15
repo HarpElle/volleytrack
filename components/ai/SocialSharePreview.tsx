@@ -84,7 +84,7 @@ export const SocialSharePreview: React.FC<SocialSharePreviewProps> = ({ narrativ
                     <View style={styles.narrativeBox}>
                         <Text style={styles.narrativeTitle}>MATCH RECAP</Text>
                         <Text style={styles.narrativeText} numberOfLines={5}>
-                            "{narrative.socialSummary}"
+                            {`\u201C${narrative.socialSummary}\u201D`}
                         </Text>
                     </View>
                 </View>

@@ -2,6 +2,11 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Prerequisites
+
+> [!WARNING]
+> **Important:** Ensure your project folder path does not contain spaces (e.g., `Claude Cowork` -> `Claude_Cowork`). Spaces in the path can cause Xcode build failures.
+
 ## Get started
 
 1. Install dependencies

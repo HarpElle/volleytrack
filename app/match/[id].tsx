@@ -103,24 +103,12 @@ export default function MatchDetailScreen() {
         }
     };
 
-    if (!match) {
-        return (
-            <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ChevronRight size={24} color={colors.text} style={{ transform: [{ rotate: '180deg' }] }} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: colors.text }]}>Match not found</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
+    const myTeamName = match ? (season ? season.teamName : 'My Team') : '';
+    const wonMatch = match ? match.setsWon.myTeam > match.setsWon.opponent : false;
 
-    const myTeamName = season ? season.teamName : 'My Team';
-    const wonMatch = match.setsWon.myTeam > match.setsWon.opponent;
-
-    // Helper to aggregate stats from History
+    // Helper to aggregate stats from History — hooks must be called unconditionally
     const stats = useMemo(() => {
+        if (!match) return { ace: 0, kill: 0, totalErrors: 0 };
         const s = {
             ace: 0,
             kill: 0,
@@ -139,7 +127,20 @@ export default function MatchDetailScreen() {
             });
         }
         return s;
-    }, [match.history]);
+    }, [match?.history]);
+
+    if (!match) {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                        <ChevronRight size={24} color={colors.text} style={{ transform: [{ rotate: '180deg' }] }} />
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Match not found</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const handleShare = async () => {
         try {

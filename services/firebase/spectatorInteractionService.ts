@@ -12,14 +12,16 @@
  */
 
 import {
+    addDoc,
     arrayUnion,
+    collection,
     deleteField,
     doc,
     increment,
     updateDoc,
 } from 'firebase/firestore';
+import { SpectatorAlert, SpectatorViewer } from '../../types';
 import { db } from './config';
-import { Score, SpectatorAlert, SpectatorViewer } from '../../types';
 
 const MAX_ALERTS = 20;
 
@@ -30,13 +32,15 @@ const MAX_ALERTS = 20;
 export async function registerSpectator(
     matchCode: string,
     deviceId: string,
-    name: string
+    name: string,
+    cheeringFor: string[] = []
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const docRef = doc(db, 'liveMatches', matchCode);
         const viewer: SpectatorViewer = {
             deviceId,
             name: name || 'Fan',
+            cheeringFor,
             joinedAt: Date.now(),
             lastSeen: Date.now(),
         };
@@ -88,10 +92,10 @@ export async function unregisterSpectator(
 }
 
 /**
- * Send a score correction alert from a spectator to the coach.
+ * Send a spectator alert (score correction, emergency, etc.) to the coach.
  * Uses arrayUnion for conflict-free appends.
  */
-export async function sendScoreCorrectionAlert(
+export async function sendSpectatorAlert(
     matchCode: string,
     alert: Omit<SpectatorAlert, 'id' | 'timestamp' | 'acknowledged'>
 ): Promise<{ success: boolean; error?: string }> {
@@ -169,5 +173,51 @@ export async function trimAlerts(
         });
     } catch (_) {
         // Best-effort
+    }
+}
+/**
+ * Send a floating reaction (e.g. 'fire', 'clap', 'heart', 'ball').
+ * Writes to a 'reactions' sub-collection to allow high throughput without
+ * contention on the main document.
+ */
+
+export async function sendReaction(
+    matchCode: string,
+    reactionType: string,
+    senderId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const reactionsRef = collection(db, 'liveMatches', matchCode, 'reactions');
+        await addDoc(reactionsRef, {
+            type: reactionType,
+            senderId,
+            timestamp: Date.now(),
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to send reaction' };
+    }
+}
+
+/**
+ * Send a cheer pulse (audio/tap intensity) to the match.
+ * Writes to 'reactions' collection with type 'cheer_pulse'.
+ */
+export async function sendCheerPulse(
+    matchCode: string,
+    senderId: string,
+    intensity: number // 0-100
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const reactionsRef = collection(db, 'liveMatches', matchCode, 'reactions');
+        await addDoc(reactionsRef, {
+            type: 'cheer_pulse',
+            senderId,
+            intensity,
+            timestamp: Date.now(),
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to send cheer pulse' };
     }
 }

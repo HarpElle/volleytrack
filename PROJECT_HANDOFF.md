@@ -15,6 +15,7 @@
 - Real-time match scoring with set/timeout/substitution tracking
 - Live player rotation and lineup management
 - Detailed stat logging (aces, kills, blocks, digs, serve/attack errors, passes, etc.)
+- **Voice input for hands-free stat tracking** (Gemini AI-powered speech parsing)
 - AI-generated post-match narratives (coach summary + social media summary)
 - Match export and sharing
 - Spectator mode (QR-code-based live match broadcast)
@@ -55,7 +56,13 @@
 ### AI & NLP
 - **Google Generative AI (Gemini)** `^0.24.1`
   - Match narrative generation (coach summary + social post)
+  - **Voice transcript parsing** (unstructured speech → structured StatLog entries)
   - Prompt engineering for contextual summaries
+
+### Speech Recognition
+- **expo-speech-recognition** — On-device speech-to-text for voice input feature
+  - Real-time transcription with interim results
+  - Used with Gemini for two-stage pipeline: speech → text → structured stats
 
 ### Storage & Persistence
 - **AsyncStorage** `2.2.0` — Local device storage for Zustand hydration
@@ -177,6 +184,7 @@ Manages free/Pro tier gating and usage tracking:
 - **Free Tier Counters (persisted locally):**
   - `aiNarrativesUsed` / `getRemainingAINarratives()` — Max 3 narratives
   - `exportsUsed` / `getRemainingExports()` — Max 3 exports
+  - `voiceMatchIds` / `getRemainingVoiceMatches()` — Max 3 voice-enabled matches
   - Free tier allows max 1 active season
 - **Actions:**
   - `initializeDevice()` — Async init/retrieve device UUID before RevenueCat init
@@ -184,6 +192,8 @@ Manages free/Pro tier gating and usage tracking:
   - `incrementAINarratives()` / `incrementExports()` — Track free tier usage
   - `canUseAINarrative()` — Check if user can generate another narrative
   - `canUseExport()` — Check if user can export another match
+  - `canUseVoiceInput(matchId)` — Check if voice input allowed (Pro or within free limit)
+  - `registerVoiceMatch(matchId)` — Track a match as voice-enabled for free tier counting
 
 **Design Note:** Free tier is device-based, not email-based. Users can create/switch Firebase accounts on the same device and still share the usage counters.
 
@@ -298,6 +308,7 @@ File: `/constants/monetization.ts`
 | Seasons | 1 | Unlimited |
 | AI Narratives | 3 per device | Unlimited |
 | Match Exports | 3 per device | Unlimited |
+| Voice Input | 3 matches per device | Unlimited |
 | Ads | Yes (banner) | No |
 | Spectator Mode | Yes | Yes |
 
@@ -486,6 +497,9 @@ VolleyTrack/
 │   ├── FullLogModal.tsx        # Complete match history
 │   ├── EndOfSetModal.tsx       # Set completion confirmation
 │   ├── OnboardingFlow.tsx      # First-launch tutorial
+│   ├── VoiceInputOverlay.tsx   # Voice recording/confirmation modal
+│   ├── VoiceActionCard.tsx     # Parsed voice action card (confirmation list)
+│   ├── VoiceInputTipsModal.tsx # First-use voice tips/guidance
 │   ├── ai/
 │   │   ├── MagicSummaryCard.tsx  # AI narrative display
 │   │   └── SocialSharePreview.tsx
@@ -503,7 +517,8 @@ VolleyTrack/
 │
 ├── services/                   # External services
 │   ├── ai/
-│   │   └── GeminiService.ts    # Google Gemini API wrapper
+│   │   ├── GeminiService.ts    # Google Gemini API wrapper
+│   │   └── VoiceParsingService.ts # Gemini voice transcript → stat parser
 │   ├── firebase/
 │   │   ├── config.ts           # Firebase init
 │   │   ├── AuthContext.tsx     # Auth provider
@@ -522,9 +537,11 @@ VolleyTrack/
 │   └── index.ts                # TypeScript interfaces (Season, Event, MatchRecord, StatLog, etc.)
 │
 ├── constants/
-│   └── monetization.ts         # Free tier limits, AdMob/RevenueCat config, product IDs, pricing
+│   ├── monetization.ts         # Free tier limits, AdMob/RevenueCat config, product IDs, pricing
+│   └── voice.ts                # Voice input feature flag, config, stat vocabulary
 │
 ├── hooks/                      # Custom React hooks
+│   ├── useVoiceInput.ts        # Voice input lifecycle (record → parse → confirm → commit)
 │   └── ... (theme, auth, etc.)
 │
 ├── contexts/                   # React contexts (implied)
@@ -634,6 +651,82 @@ Implemented free/Pro tier with RevenueCat + AdMob:
    - Device UUID generated via `expo-crypto`
    - UUID sent to RevenueCat for anonymous entitlement checks
 
+### Phase 6: Stats & Analytics (Advanced Insights)
+**Status:** ✅ Complete
+
+Comprehensive statistical analysis tools:
+1. **Season/Event Stats** — Aggregated stats across multiple matches
+2. **Leaderboards** — Top performers by category (Kills, Aces, Digs, Blocks)
+3. **Comparison Charts** — Visualizing team vs opponent performance
+4. **Detail Views** — Drill-down into specific match or player stats
+5. **Date Range Filtering** — Analyze performance over specific periods
+
+### Phase 7: User Onboarding & Discovery
+**Status:** ✅ Complete
+
+Features to help users master the app:
+1. **Capabilities Tour** — 4-slide interactive tour showing features from basic to advanced
+2. **Access Points** — "Feature Tour" available from Dashboard and Settings
+3. **Progressive Disclosure** — Guides users from simple scorekeeping to power-user stats
+4. **Native Integration** — Smooth animations and native-feel navigation
+
+### Phase 8: Post-Beta Refinements (AI & Spectator Experience)
+**Status:** ✅ Complete
+
+Refined AI analysis and spectator engagement based on user feedback:
+1. **AI Rally Reconstruction** — Implemented logic to group raw stat logs into rallies (Serve -> Dig -> Set -> Kill) before sending to Gemini, providing context on match flow and cause-and-effect.
+2. **Spectator Full Match Log** — Added a read-only "View Full History" modal to the spectator screen, allowing fans to review the entire match event-by-event.
+3. **Libero Visibility** — Fixed contrast issues for Libero player cards in Dark Mode (now uses adaptive background color).
+4. **AI Narrative Persistence** — Ensures AI summaries are saved to the match record immediately upon generation.
+
+### Phase 9: Spectator Experience 2.0 (Engagement & Social)
+**Status:** ✅ Complete
+
+Major overhaul of the spectator experience to increase engagement and retention:
+1. **"Who Are You Cheering For?" Onboarding** — New personalized onboarding flow where spectators select the player(s) they are supporting.
+2. **Smart Alerts** — Real-time notifications for spectators:
+   - **Player Check-In:** Alerts when a tracked player rotates onto the court.
+   - **Score Correction:** Dedicated button to flag score discrepancies to the coach.
+   - **Emergency Alert:** High-friction "Stop Match" button for urgent safety issues.
+3. **Community Overlay** — "Twitch-style" floating reaction stream (Fire, Clap, Volleyball emojis) and a "Lobby" view to see other active spectators.
+4. **Match History** — Spectators can now "Save" a match to their local history and view it later from the Dashboard.
+5. **Keep Awake** — Screen stays on automatically during match viewing (`expo-keep-awake` integration).
+
+### Phase 10: Voice Input — Hands-Free Stat Tracking
+**Status:** ✅ Complete
+
+AI-powered voice input as a supplement to button-based stat tracking:
+
+1. **On-Device Speech Recognition** — Uses `expo-speech-recognition` for real-time speech-to-text transcription with interim results and live transcript preview.
+2. **Gemini AI Parsing** — Sends raw transcript to Google Gemini (`VoiceParsingService.ts`) with full roster context (names, jersey numbers, IDs), match state (pre-serve/in-rally, serving team), and stat vocabulary with synonyms. Returns structured `ParsedVoiceAction[]` with type, team, player, confidence.
+3. **Confirmation Modal** — Parsed actions displayed as removable cards (`VoiceActionCard.tsx`) before committing. Users can delete individual actions, retry recording, or confirm all.
+4. **Sequential Commit** — On confirm, calls `recordStat()` for each action in order (handles rally state machine transitions automatically) with rollback via `undo()` on failure.
+5. **Feature Flag** — Entire feature gated behind `VOICE_INPUT_ENABLED` boolean in `constants/voice.ts`. Set to `false` to completely disable.
+6. **Premium Feature** — Free tier: 3 voice-enabled matches per device (tracked by match ID array). Pro users: unlimited. Paywall shown when limit reached.
+7. **User Guidance** — 4-slide tips modal (`VoiceInputTipsModal.tsx`) shown on first mic press. Covers best practices: speak naturally, keep it short, use jersey numbers, review before logging.
+8. **Capabilities Tour** — New slide added to `CapabilitiesTour.tsx` introducing voice input.
+9. **UI Integration** — Floating mic button positioned near the stat grid in `app/live.tsx`. Color-coded states: idle (blue), recording (red), parsing (amber), success (green).
+
+**Key Files:**
+- `constants/voice.ts` — Feature flag, limits, recording config, stat vocabulary
+- `services/ai/VoiceParsingService.ts` — Gemini transcript parsing
+- `hooks/useVoiceInput.ts` — Full lifecycle: recording → transcription → parsing → confirmation → commit
+- `components/VoiceInputOverlay.tsx` — Recording/confirmation overlay modal
+- `components/VoiceActionCard.tsx` — Individual parsed action card
+- `components/VoiceInputTipsModal.tsx` — First-use tips
+- `app/live.tsx` — Mic button integration + overlay wiring
+
+**Cost:** ~$0.003/match for Gemini parsing (negligible impact on operating costs).
+
+### Phase 11: Technical Maintenance & Hardening
+**Status:** ✅ Complete
+
+Addressed key technical debt and stability improvements:
+1. **Type Safety** — Enforced strict typing for `AuthContext` to prevent implicit `any` usage.
+2. **Error Handling** — Hardened `MatchErrorBoundary` against potential context crashes.
+3. **Infrastructure** — Resolved Firebase `getReactNativePersistence` export issues (with suppression for wrapper type definitions).
+4. **Documentation** — Added critical build warnings (folder naming) to README.
+
 ---
 
 ## 6. Monetization Details
@@ -645,6 +738,7 @@ File: `/constants/monetization.ts`
 export const FREE_AI_NARRATIVE_LIMIT = 3;
 export const FREE_EXPORT_LIMIT = 3;
 export const FREE_SEASON_LIMIT = 1;
+export const FREE_VOICE_MATCH_LIMIT = 3;  // from constants/voice.ts
 ```
 
 ### Pro Subscription Products
@@ -701,9 +795,11 @@ Free tier usage is tracked locally and **NOT synced to cloud** (to prevent shari
 interface SubscriptionState {
   aiNarrativesUsed: number;      // Incremented when narrative generated
   exportsUsed: number;           // Incremented when match exported
+  voiceMatchIds: string[];       // Match IDs that have used voice input
   // ...
   canUseAINarrative(): boolean;  // true if isPro || aiNarrativesUsed < 3
   canUseExport(): boolean;       // true if isPro || exportsUsed < 3
+  canUseVoiceInput(matchId): boolean; // true if isPro || matchId already registered || voiceMatchIds.length < 3
 }
 ```
 
@@ -833,6 +929,8 @@ interface LineupPosition {
 ## 8. Known Issues & Technical Debt
 
 ### Pre-Existing TypeScript Errors
+Detailed maintenance plan available in [TECHNICAL_MAINTENANCE.md](TECHNICAL_MAINTENANCE.md).
+
 These errors do not block builds but should be addressed:
 
 1. **FirebaseAuthContext Implicit Any**
@@ -881,7 +979,17 @@ These errors do not block builds but should be addressed:
 4. **Firebase Project Production Readiness**
    - Firestore security rules should restrict access to authenticated users only
    - Test with real App Store purchases to verify entitlement sync
+   - Test with real App Store purchases to verify entitlement sync
    - Monitor Firestore quotas
+
+### Phase 8: Security & Architecture (Pre-Launch Verified)
+**Status:** ✅ Complete
+
+Critical infrastructure hardening for production:
+1.  **API Security:** All API keys (Firebase, Gemini) moved to `.env` file (gitignored)
+2.  **Native Build:** iOS project regenerated (`prebuild --clean`) to fix `EXConstants` issues
+3.  **Path Safety:** Identified and verified fix for Xcode build failures caused by spaces in project path
+4.  **Testing Limits:** Free tier limits temporarily increased (100) for TestFlight testing
 
 ### Sandbox Testing Complete
 - ✅ RevenueCat sandbox purchases tested on iOS
@@ -893,45 +1001,41 @@ These errors do not block builds but should be addressed:
 
 ## 10. Planned Enhancements
 
-### Planned but Not Yet Implemented
+## 10. Planned Enhancements & Roadmap
 
-1. **Voice-Based Stat Tracking** (Future Phase 6)
-   - Transcribe spoken play descriptions: "Ace on serve", "Block on 3", etc.
-   - Use Gemini AI to parse speech and translate to stat actions
-   - Update match score/stats from voice
-   - Benefit: Hands-free stat entry during intense play
+### 10.1 Spectator Experience (Viewer 2.0)
+*Status: ✅ Complete (See Phase 9)*
 
-2. **User Onboarding & Discoverability** (Future Phase 7)
-   - Introductory tutorial showing hidden gestures and shortcuts
-   - Highlight features: Tap score to edit, long-press serve for rotation lock, etc.
-   - In-app tips system
-   - Benefit: Help new users discover power features (many don't know about tap-to-edit)
+1.  **Engagement Ideas (Future)**
+    *   **"Virtual High Five":** (✅ Complete) Prompt spectators to high-five when their players make a big play (Ace/Block/Kill).
+    *   **Spectator Cheer Meter:** (✅ Complete) Shows real-time "Energy Level" combining manual tapping and microphone volume (decibels). User opts-in to mic usage.
 
-3. **Spectator Alert System** (Future)
-   - Allow spectators to send a "score correction" alert to the coach/assistant
-   - Coach receives a haptic buzz and toast notification without interrupting their input
-   - Other spectators could also see that an alert was sent
-   - Potential for additional viewer feedback options
+### 10.2 Coach & Analyst Features
 
-4. **Quick Match Lineup Carry-Forward** (Future)
-   - When doing a Quick Match, if the user sets a lineup and rotation for Set 1, automatically use that lineup for subsequent sets
-   - Rotate forward/backward based on whether they served first in Set 1
+4.  **Voice-Based Stat Tracking** ✅ Complete (See Phase 10)
+    *   Transcribe spoken play descriptions: "Ace on serve", "Block on 3".
+    *   Uses `expo-speech-recognition` + Gemini AI to parse speech → stat actions.
+    *   Floating mic button on live match screen, confirmation modal before commit.
 
-5. **Super Fan Recap for Spectators** (Future)
-   - Spectators can select "their" player(s) (e.g., their daughter/son)
-   - AI generates a recap focused on celebrating the team with special emphasis on selected player(s)
-   - Designed for sharing to family via text or social media
-   - Gated similarly to coach AI narratives: a few free, then VolleyTrack Pro subscription
-   - Uses same Pro subscription/purchase as the coaching experience
+5.  **Quick Match Lineup Intelligence** (✅ Complete)
+    *   Currently, lineups copy forward from Set 1.
+    *   **Enhancement:** Auto-rotate the forwarded lineup (forward/backward) based on whether the team served first in the previous set.
 
-6. **Player Performance Analytics** (Future)
-   - Per-player stats across multiple matches
-   - Leaderboards (kills, digs, aces, etc.)
-   - Trend analysis (improve/decline over season)
+    *   Per-player stats across multiple matches (Season aggregations).
+    *   Trend analysis (improve/decline over season).
 
-7. **Match Replays & Video Integration** (Future)
-   - Sync match stats to video recording (if user records on separate device)
-   - Timeline scrubbing to see stats at specific moments
+### 10.3 UI Refinements
+8.  **Icon Sizing**
+    *   **Status:** ✅ Complete
+    *   Increase touch target size for Heart/Alert/Star icons in the Spectator/Live view.
+
+### 10.4 Third-Party Data Integrations (New)
+9.  **External Schedule Import**
+    *   **Status:** 📅 Planned
+    *   Allow users to import team rosters and event/match schedules from popular platforms:
+        *   **Advanced Event Systems (AES)**
+        *   **TeamSnap**
+        *   Other sources (SportsEngine, etc.)
 
 ---
 
@@ -960,7 +1064,9 @@ These errors do not block builds but should be addressed:
     "bundleIdentifier": "com.harpelleapps.volleytrack",
     "supportsTablet": true,
     "infoPlist": {
-      "ITSAppUsesNonExemptEncryption": false
+      "ITSAppUsesNonExemptEncryption": false,
+      "NSSpeechRecognitionUsageDescription": "VolleyTrack uses speech recognition for hands-free stat tracking during matches.",
+      "NSMicrophoneUsageDescription": "VolleyTrack needs microphone access to transcribe your voice commands for stat tracking."
     }
   }
 }
@@ -1040,6 +1146,14 @@ These errors do not block builds but should be addressed:
 - **Cloud Sync:** `/services/firebase/syncService.ts`
 - **Live Broadcast:** `/services/firebase/liveMatchService.ts`
 
+### Voice Input
+- **Feature Config:** `/constants/voice.ts`
+- **AI Parser:** `/services/ai/VoiceParsingService.ts`
+- **Lifecycle Hook:** `/hooks/useVoiceInput.ts`
+- **Overlay UI:** `/components/VoiceInputOverlay.tsx`
+- **Action Card:** `/components/VoiceActionCard.tsx`
+- **Tips Modal:** `/components/VoiceInputTipsModal.tsx`
+
 ### Monetization
 - **Constants:** `/constants/monetization.ts`
 - **RevenueCat:** `/services/revenuecat/RevenueCatService.ts`
@@ -1101,6 +1215,8 @@ These errors do not block builds but should be addressed:
 - **Change Subscription Price:** Update `/constants/monetization.ts` PRICING object; actual prices come from store
 - **Add New Stat Type:** Add to `StatLog['type']` union in `/types/index.ts`, then add handler in `useMatchStore.recordStat()`
 - **Add Themed Component:** Use `<ThemedView>` and `<ThemedText>` wrappers or access `useTheme()` hook
+- **Disable Voice Input:** Set `VOICE_INPUT_ENABLED = false` in `/constants/voice.ts` — all voice UI disappears
+- **Change Voice Free Tier Limit:** Update `FREE_VOICE_MATCH_LIMIT` in `/constants/voice.ts`
 
 ---
 
@@ -1108,6 +1224,7 @@ These errors do not block builds but should be addressed:
 
 VolleyTrack is a mature, feature-complete MVP volleyball app with:
 - ✅ Real-time match scoring with advanced stat logging
+- ✅ **Voice input for hands-free stat tracking** (Gemini AI-powered)
 - ✅ Cloud persistence via Firebase (Firestore + Realtime DB)
 - ✅ Monetization with free/Pro tiers (RevenueCat + AdMob)
 - ✅ Spectator mode for live match viewing
@@ -1119,5 +1236,37 @@ VolleyTrack is a mature, feature-complete MVP volleyball app with:
 
 **Tech Debt:** Minor TypeScript type annotations needed; folder naming workaround required for builds.
 
-**Next Steps:** Submit to App Store (iOS), set up Google Play + Android RevenueCat key, then begin Phase 6+ (voice stat tracking, enhanced onboarding, analytics).
+**Voice Input Note:** Feature gated behind `VOICE_INPUT_ENABLED` flag in `constants/voice.ts`. Set to `false` to fully disable without removing code.
+
+## 15. Feedback & Known Issues (Post-Phase 9 Verification)
+
+### ✅ Recently Resolved (Critical Fixes & Verbal Input)
+1.  **Spectator Screen Dimming**
+    *   **Status:** Fixed (Added `expo-keep-awake` to `app/spectate/[code].tsx`).
+2.  **UI Shift on Set/Match Point**
+    *   **Status:** Fixed (Added `minWidth` to score text containers).
+3.  **Momentum Bar Timeout Prompt**
+    *   **Status:** Fixed (Momentum tracker now respects `dismissedAtScore` to prevent spamming).
+4.  **AI Player ID Fallback**
+    *   **Status:** Fixed (`GeminiService` correctly handles missing player IDs).
+5.  **Viewer AI Limit**
+    *   **Status:** Fixed (Limit raised to 50 for testing in `constants/monetization.ts`).
+6.  **Delete Season/Team**
+    *   **Status:** Fixed (Added "Delete" option in settings).
+7.  **Missing Lineup in Set 3**
+    *   **Status:** Fixed (Corrected `startNextSet()` logic for tiebreaker).
+8.  **Event Data Gaps**
+    *   **Status:** Fixed (Resolved `useDataStore` sync/caching issues).
+9.  **Summary Stats 0**
+    *   **Status:** Fixed (Corrected `calculateStats` logic in summary screen).
+10. **Undo Haptics**
+    *   **Status:** Fixed (Added haptic feedback to undo action).
+11. **Pricing Text Wrapping**
+    *   **Status:** Fixed (Adjusted font sizing/layout in `PaywallModal`).
+12. **AI Stat Accuracy**
+    *   **Status:** Fixed (Refined prompt data formatting to reduce hallucinations).
+
+### ℹ️ Notes
+- **AI Analysis Persistence:** Verified as fixed via `useMatchStore` persistence.
+- **Haptics:** General haptics working; specific gaps (Undo) listed above.
 

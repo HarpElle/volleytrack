@@ -143,7 +143,7 @@ export function SuperFanRecapModal({ visible, onClose, match, onShowPaywall }: S
                                 <View style={styles.recapHeader}>
                                     <Sparkles size={18} color={colors.primary} />
                                     <Text style={[styles.recapTitle, { color: colors.primary }]}>
-                                        {recap.playerNames.join(' & ')}'s Recap
+                                        {`${recap.playerNames.join(' & ')}'s Recap`}
                                     </Text>
                                 </View>
                                 <Text style={[styles.recapText, { color: colors.text }]}>

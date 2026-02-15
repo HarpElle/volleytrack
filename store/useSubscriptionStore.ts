@@ -10,6 +10,7 @@ import {
     FREE_SEASON_LIMIT,
     SUBSCRIPTION_STORE_KEY,
 } from '../constants/monetization';
+import { FREE_VOICE_MATCH_LIMIT } from '../constants/voice';
 
 export type SubscriptionType = 'monthly' | 'annual' | 'lifetime' | null;
 
@@ -26,6 +27,7 @@ interface SubscriptionState {
     aiNarrativesUsed: number;
     exportsUsed: number;
     fanRecapsUsed: number;
+    voiceMatchIds: string[]; // Match IDs where voice input has been used
 
     // Actions
     initializeDevice: () => Promise<string>;
@@ -33,13 +35,16 @@ interface SubscriptionState {
     incrementAINarratives: () => void;
     incrementExports: () => void;
     incrementFanRecaps: () => void;
+    registerVoiceMatch: (matchId: string) => void;
     canUseAINarrative: () => boolean;
     canUseExport: () => boolean;
     canUseFanRecap: () => boolean;
+    canUseVoiceInput: (matchId: string) => boolean;
     canCreateSeason: (currentSeasonCount: number) => boolean;
     getRemainingAINarratives: () => number;
     getRemainingExports: () => number;
     getRemainingFanRecaps: () => number;
+    getRemainingVoiceMatches: () => number;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -52,6 +57,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             aiNarrativesUsed: 0,
             exportsUsed: 0,
             fanRecapsUsed: 0,
+            voiceMatchIds: [],
 
             /**
              * Initialize or retrieve the device UUID.
@@ -93,6 +99,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
                 set((state) => ({ fanRecapsUsed: state.fanRecapsUsed + 1 }));
             },
 
+            registerVoiceMatch: (matchId: string) => {
+                const { voiceMatchIds } = get();
+                if (!voiceMatchIds.includes(matchId)) {
+                    set({ voiceMatchIds: [...voiceMatchIds, matchId] });
+                }
+            },
+
             canUseAINarrative: () => {
                 const { isPro, aiNarrativesUsed } = get();
                 return isPro || aiNarrativesUsed < FREE_AI_NARRATIVE_LIMIT;
@@ -106,6 +119,15 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             canUseFanRecap: () => {
                 const { isPro, fanRecapsUsed } = get();
                 return isPro || fanRecapsUsed < FREE_FAN_RECAP_LIMIT;
+            },
+
+            canUseVoiceInput: (matchId: string) => {
+                const { isPro, voiceMatchIds } = get();
+                if (isPro) return true;
+                // Allow if this match is already voice-enabled
+                if (voiceMatchIds.includes(matchId)) return true;
+                // Allow if under the free match limit
+                return voiceMatchIds.length < FREE_VOICE_MATCH_LIMIT;
             },
 
             canCreateSeason: (currentSeasonCount: number) => {
@@ -130,6 +152,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
                 if (isPro) return Infinity;
                 return Math.max(0, FREE_FAN_RECAP_LIMIT - fanRecapsUsed);
             },
+
+            getRemainingVoiceMatches: () => {
+                const { isPro, voiceMatchIds } = get();
+                if (isPro) return Infinity;
+                return Math.max(0, FREE_VOICE_MATCH_LIMIT - voiceMatchIds.length);
+            },
         }),
         {
             name: SUBSCRIPTION_STORE_KEY,
@@ -143,6 +171,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
                 aiNarrativesUsed: state.aiNarrativesUsed,
                 exportsUsed: state.exportsUsed,
                 fanRecapsUsed: state.fanRecapsUsed,
+                voiceMatchIds: state.voiceMatchIds,
             }),
         }
     )

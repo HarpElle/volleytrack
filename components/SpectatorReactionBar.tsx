@@ -8,7 +8,7 @@
  * Replaces the static footer on the spectator view.
  */
 
-import { AlertTriangle, Eye, Heart, Star } from 'lucide-react-native';
+import { Activity, AlertTriangle, Eye, Heart, Star } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
@@ -22,8 +22,13 @@ interface SpectatorReactionBarProps {
     alertCooldownRemaining: number;
     matchCode: string;
     onCheer: () => void;
+    onReaction: (type: string) => void;
     onAlert: () => void;
+    onEmergency: () => void;
     onFanRecap: () => void;
+    onOpenLobby: () => void;
+    onToggleMeter: () => void;
+    isMeterVisible: boolean;
 }
 
 export function SpectatorReactionBar({
@@ -35,8 +40,13 @@ export function SpectatorReactionBar({
     alertCooldownRemaining,
     matchCode,
     onCheer,
+    onReaction,
     onAlert,
+    onEmergency,
     onFanRecap,
+    onOpenLobby,
+    onToggleMeter,
+    isMeterVisible,
 }: SpectatorReactionBarProps) {
     const { colors } = useAppTheme();
     const cheerScale = useRef(new Animated.Value(1)).current;
@@ -66,11 +76,24 @@ export function SpectatorReactionBar({
     return (
         <View style={[styles.container, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
             {/* Viewer Count */}
-            <View style={styles.viewerSection}>
+            <TouchableOpacity style={styles.viewerSection} onPress={onOpenLobby} activeOpacity={0.6}>
                 <Eye size={14} color={colors.textTertiary} />
                 <Text style={[styles.viewerText, { color: colors.textTertiary }]}>
                     {viewerCount} {viewerCount === 1 ? 'viewer' : 'viewers'}
                 </Text>
+            </TouchableOpacity>
+
+            {/* Reaction Buttons */}
+            <View style={styles.reactionGroup}>
+                <TouchableOpacity onPress={() => onReaction('clap')} style={styles.emojiBtn}>
+                    <Text style={styles.emojiText}>👏</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onReaction('fire')} style={styles.emojiBtn}>
+                    <Text style={styles.emojiText}>🔥</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onReaction('heart')} style={styles.emojiBtn}>
+                    <Text style={styles.emojiText}>❤️</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Action Buttons */}
@@ -94,6 +117,18 @@ export function SpectatorReactionBar({
                     )}
                 </TouchableOpacity>
 
+                {/* Meter Toggle Button */}
+                <TouchableOpacity
+                    style={[styles.actionBtn]}
+                    onPress={onToggleMeter}
+                    activeOpacity={0.6}
+                >
+                    <Activity
+                        size={22}
+                        color={isMeterVisible ? colors.primary : colors.textSecondary}
+                    />
+                </TouchableOpacity>
+
                 {/* Score Alert Button */}
                 <TouchableOpacity
                     style={[styles.actionBtn, { opacity: canSendAlert ? 1 : 0.5 }]}
@@ -114,6 +149,16 @@ export function SpectatorReactionBar({
                     activeOpacity={0.6}
                 >
                     <Star size={20} color={colors.primary} />
+                </TouchableOpacity>
+
+                {/* Emergency Alert Button */}
+                <TouchableOpacity
+                    style={[styles.actionBtn, { opacity: canSendAlert ? 1 : 0.5 }]}
+                    onPress={onEmergency}
+                    disabled={!canSendAlert}
+                    activeOpacity={0.6}
+                >
+                    <AlertTriangle size={20} color={colors.error} fill={colors.error} />
                 </TouchableOpacity>
             </View>
 
@@ -140,6 +185,22 @@ const styles = StyleSheet.create({
     viewerText: {
         fontSize: 11,
         fontWeight: '600',
+    },
+    reactionGroup: {
+        flexDirection: 'row',
+        gap: 8,
+        marginRight: 12,
+    },
+    emojiBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emojiText: {
+        fontSize: 20,
     },
     actions: {
         flexDirection: 'row',

@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTheme, ThemeContext } from '../contexts/ThemeContext';
+import { logger } from '../utils/logger';
 
 interface Props {
     children: ReactNode;
@@ -21,7 +22,7 @@ interface State {
  */
 export class MatchErrorBoundary extends Component<Props, State> {
     static contextType = ThemeContext;
-    context!: AppTheme | null;
+
 
     constructor(props: Props) {
         super(props);
@@ -34,16 +35,16 @@ export class MatchErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         // In production, this is where you'd send to a crash reporting service
-        console.error('MatchErrorBoundary caught:', error, errorInfo);
+        logger.error('MatchErrorBoundary caught:', error, errorInfo);
     }
 
     handleRetry = () => {
         this.setState({ hasError: false, errorMessage: '' });
     };
 
-    render() {
+    render(): ReactNode {
         if (this.state.hasError) {
-            const colors = this.context?.colors;
+            const colors = (this.context as AppTheme | null)?.colors;
 
             return (
                 <SafeAreaView style={[styles.container, colors && { backgroundColor: colors.bg }]}>
@@ -51,8 +52,7 @@ export class MatchErrorBoundary extends Component<Props, State> {
                         <Text style={styles.icon}>⚠️</Text>
                         <Text style={[styles.title, colors && { color: colors.text }]}>Something went wrong</Text>
                         <Text style={[styles.message, colors && { color: colors.textSecondary }]}>
-                            Don't worry — your match data is saved.
-                            You can resume from the dashboard.
+                            {"Don't worry \u2014 your match data is saved. You can resume from the dashboard."}
                         </Text>
                         <TouchableOpacity style={[styles.retryBtn, colors && { backgroundColor: colors.primary }]} onPress={this.handleRetry}>
                             <Text style={styles.retryText}>Try Again</Text>

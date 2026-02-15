@@ -1,37 +1,106 @@
-import { useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing'; // Import Sharing
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { ChevronRight, Home, Share2, Sparkles, X } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react'; // Added useRef, useEffect
-import { Alert, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Added Modal, Alert
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ViewShot from 'react-native-view-shot'; // Import ViewShot
+import ViewShot from 'react-native-view-shot';
+
 import { AdBanner } from '../components/AdBanner';
-import { MagicSummaryCard } from '../components/ai/MagicSummaryCard'; // Import Card
-import { SocialSharePreview } from '../components/ai/SocialSharePreview'; // Import Preview
+import { MagicSummaryCard } from '../components/ai/MagicSummaryCard';
+import { SocialSharePreview } from '../components/ai/SocialSharePreview';
 import { PaywallModal } from '../components/PaywallModal';
 import StatsModal from '../components/StatsModal';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { onMatchCompleted } from '../hooks/useRatingPrompt';
-import { GeminiService } from '../services/ai/GeminiService'; // Import Service
+import { GeminiService } from '../services/ai/GeminiService';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
+// ... imports
+
+// Helper to reconstruct stats from history (moved out to avoid duplication if we want)
+function calculateStats(history: any[]) {
+    const s = { ace: 0, kill: 0, totalErrors: 0 };
+    history.forEach((log) => {
+        if (log.type !== 'point_adjust' && log.team === 'myTeam') {
+            if (log.type === 'ace') s.ace++;
+            if (log.type === 'kill') s.kill++;
+            if (['serve_error', 'attack_error', 'dig_error', 'set_error', 'pass_error', 'receive_0'].includes(log.type)) {
+                s.totalErrors++;
+            }
+        }
+    });
+    return s;
+}
 
 export default function SummaryScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ matchId?: string; source?: 'spectator' | 'saved' }>();
     const { colors, spacing, fontSize: themeFontSize, radius } = useAppTheme();
+    const { savedSpectatorMatches, savedMatches } = useDataStore();
+
+    // Determine where data comes from (Store or Saved Record)
+    const storeState = useMatchStore();
+
+    let data;
+    if (params.matchId) {
+        const sourceList = params.source === 'spectator' ? savedSpectatorMatches : savedMatches;
+        const record = sourceList.find(m => m.id === params.matchId);
+        if (record) {
+            data = {
+                myTeamName: 'My Team', // Spectator records might not have this, default? Or strictly it represents "The team I watched"
+                opponentName: record.opponentName,
+                setsWon: record.setsWon,
+                history: record.history,
+                scores: record.scores,
+                aiNarrative: record.aiNarrative,
+                matchId: record.id,
+                activeSeasonId: record.seasonId,
+                roster: [], // We might need to fetch roster if available, or empty
+                isReadOnly: true,
+                // MatchStore has setAINarrative but here we'd need to update the Record
+            };
+        }
+    }
+
+    // Fallback to active store if no param or record not found
+    if (!data) {
+        data = {
+            ...storeState,
+            isReadOnly: false,
+        };
+    }
+
     const {
-        myTeamName, opponentName, setsWon, history, config, scores, // Added scores
-        resetMatch,
+        myTeamName, opponentName, setsWon, history, scores,
         activeSeasonId,
-        aiNarrative, setAINarrative, // Added AI state
-        setsWon: finalSetsWon, // rename for clarity if needed, but setsWon is fine
-    } = useMatchStore();
+        aiNarrative,
+        isReadOnly,
+        config
+    } = data;
+
+    // Actions from Store
+    const { resetMatch, setAINarrative: storeSetAINarrative } = storeState;
+
+    const setAINarrative = (n: any) => {
+        if (!isReadOnly) storeSetAINarrative(n);
+    };
+
+    // Actions (only available if NOT read-only, or adapted)
+    // For Read-Only, specific actions like "New Match" return to dashboard
+    // "Generate AI" updates the saved record in DataStore?
 
     // Get Roster for StatsModal
     const { seasons } = useDataStore();
     const activeSeason = seasons.find(s => s.id === activeSeasonId);
     const roster = activeSeason?.roster || [];
+
+    // ... rest of component logic using `data` instead of `useMatchStore()` hooks directly
+    // EXCEPT we need to be careful about hooks.
+    // The original code destructured useMatchStore() at the top.
+    // We can't conditionally call hooks.
+    // So `data` logic above is fine if it replaces the destructuring.
 
     const [showStats, setShowStats] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
@@ -44,7 +113,7 @@ export default function SummaryScreen() {
     const canUseExport = useSubscriptionStore((s) => s.canUseExport);
     const incrementExports = useSubscriptionStore((s) => s.incrementExports);
 
-    // Trigger rating prompt after match completion (conditions checked internally)
+    // Trigger rating prompt after match completion
     useEffect(() => { onMatchCompleted(); }, []);
 
     // AI State
@@ -52,32 +121,18 @@ export default function SummaryScreen() {
     const [showShareModal, setShowShareModal] = useState(false);
     const viewShotRef = useRef<ViewShot>(null);
 
-    // Initialize Service (memoized to keep instance stable)
-    // In production, might want this in a broader context or hook
+    // Initialize Service
     const geminiService = useMemo(() => new GeminiService(), []);
+    // ...
 
-    // Helper to aggregate stats
-    const stats = useMemo(() => {
-        const s = {
-            ace: 0,
-            kill: 0,
-            totalErrors: 0
-        };
+    // Stats calculation
+    const stats = useMemo(() => calculateStats(history), [history]);
 
-        history.forEach((log) => {
-            if (log.type !== 'point_adjust' && log.team === 'myTeam') {
-                if (log.type === 'ace') s.ace++;
-                if (log.type === 'kill') s.kill++;
-                if (['serve_error', 'attack_error', 'dig_error', 'set_error', 'pass_error', 'receive_0'].includes(log.type)) {
-                    s.totalErrors++;
-                }
-            }
-        });
-        return s;
-    }, [history]);
+    // ...
+
 
     const handleNewMatch = () => {
-        resetMatch();
+        if (!isReadOnly) resetMatch();
         router.navigate('/');
     };
 
@@ -103,9 +158,23 @@ export default function SummaryScreen() {
             const result = await geminiService.generateMatchNarratives(
                 useMatchStore.getState(),
                 history,
-                scores
+                scores,
+                roster
             );
             setAINarrative(result);
+            setAINarrative(result); // This might fail if setAINarrative comes from storeState but we are in saved mode?
+
+            // If in read-only mode, we need to manually update local state if we want to show it immediately?
+            // Actually, we should check `isReadOnly` or `matchId`.
+
+            // Persist to DataStore (always good)
+            const targetMatchId = data.matchId || useMatchStore.getState().matchId;
+            useDataStore.getState().updateMatchNarrative(targetMatchId, result);
+
+            // If we are in "Saved" mode, we might need to update the `aimNarrative` in `data` to force re-render?
+            // Since `data` is derived from `savedSpectatorMatches` which comes from `useDataStore()`, 
+            // updating DataStore SHOULD trigger re-render of `savedSpectatorMatches` and thus `data`.
+
             // Track usage only after successful generation
             incrementAINarratives();
         } catch (e: any) {

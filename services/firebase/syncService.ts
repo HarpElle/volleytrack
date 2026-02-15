@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { Season, Event, MatchRecord } from '../../types';
+import { logger } from '../../utils/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ export async function pushToCloud(
 
         return { success: true };
     } catch (err: any) {
-        console.error('[Sync] Push failed:', err);
+        logger.error('[Sync] Push failed:', err);
         return { success: false, error: err.message || 'Push to cloud failed' };
     }
 }
@@ -125,7 +126,7 @@ export async function pushItem(
         await batch.commit();
         return { success: true };
     } catch (err: any) {
-        console.error(`[Sync] Push ${type} failed:`, err);
+        logger.error(`[Sync] Push ${type} failed:`, err);
         return { success: false, error: err.message };
     }
 }
@@ -143,7 +144,7 @@ export async function deleteCloudItem(
         await deleteDoc(userDoc(uid, subcollection, id));
         return { success: true };
     } catch (err: any) {
-        console.error(`[Sync] Delete ${type} failed:`, err);
+        logger.error(`[Sync] Delete ${type} failed:`, err);
         return { success: false, error: err.message };
     }
 }
@@ -191,7 +192,7 @@ export async function pullFromCloud(uid: string): Promise<{
 
         return { success: true, seasons, events, matches };
     } catch (err: any) {
-        console.error('[Sync] Pull failed:', err);
+        logger.error('[Sync] Pull failed:', err);
         return { success: false, seasons: [], events: [], matches: [], error: err.message || 'Pull from cloud failed' };
     }
 }

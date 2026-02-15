@@ -215,6 +215,33 @@ export default function CreateSeasonScreen() {
                         )}
                     </View>
 
+                    {isEditing && (
+                        <TouchableOpacity
+                            style={[styles.deleteActionBtn, { borderColor: colors.opponent || '#ff4444' }]}
+                            onPress={() => {
+                                Alert.alert(
+                                    "Delete Season",
+                                    "Are you sure you want to delete this season? This action cannot be undone.",
+                                    [
+                                        { text: "Cancel", style: "cancel" },
+                                        {
+                                            text: "Delete",
+                                            style: "destructive",
+                                            onPress: () => {
+                                                const { deleteSeason } = useDataStore.getState();
+                                                deleteSeason(id);
+                                                router.dismissAll();
+                                                router.replace('/');
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        >
+                            <Trash2 size={20} color={colors.opponent || '#ff4444'} />
+                            <Text style={[styles.deleteActionText, { color: colors.opponent || '#ff4444' }]}>Delete Season</Text>
+                        </TouchableOpacity>
+                    )}
                 </ScrollView>
 
                 <View style={[styles.footer, { flexDirection: 'row', gap: 12, backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
@@ -356,4 +383,19 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#fff', // Override with colors.bgCard in component
     },
+    deleteActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 24,
+        gap: 8,
+        backgroundColor: 'transparent'
+    },
+    deleteActionText: {
+        fontSize: 16,
+        fontWeight: '700',
+    }
 });

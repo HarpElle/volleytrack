@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -97,12 +96,10 @@ export default function ScoreBoard({
     const ScoreGesture = ({ team, children }: { team: 'myTeam' | 'opponent', children: React.ReactNode }) => {
         if (readOnly) return <View>{children}</View>;
         const increment = () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onIncrement(team);
         };
 
         const decrement = () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onDecrement(team);
         };
 
@@ -176,7 +173,9 @@ export default function ScoreBoard({
                         );
                     })}
                 </View>
-                {statusText ? <Text style={[styles.statusText, { color: colors.warning }]}>{statusText}</Text> : null}
+                <View style={styles.statusContainer}>
+                    {statusText ? <Text style={[styles.statusText, { color: colors.warning }]}>{statusText}</Text> : null}
+                </View>
             </View>
 
             <View style={styles.board}>
@@ -245,50 +244,50 @@ export default function ScoreBoard({
 
             {/* Timeouts Row - Both Teams (hidden in spectator mode) */}
             {!readOnly && (
-            <View style={[styles.timeoutsRow, { borderTopColor: colors.border }]}>
-                {/* My Team Timeouts */}
-                <View style={styles.timeoutTeamContainer}>
-                    <TouchableOpacity
-                        onPress={() => onUseTimeout('myTeam')}
-                        disabled={timeoutsRemaining.myTeam === 0}
-                        style={[styles.useToBtn, timeoutsRemaining.myTeam === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabled : colors.primaryLight }]}
-                    >
-                        <Text style={[styles.useToText, timeoutsRemaining.myTeam === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
-                    </TouchableOpacity>
-                    <View style={styles.toDots}>
-                        {[...Array(configTimeouts)].map((_, i) => {
-                            const isAvailable = i < timeoutsRemaining.myTeam;
-                            return (
-                                <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.primary : colors.border }]} />
-                            );
-                        })}
+                <View style={[styles.timeoutsRow, { borderTopColor: colors.border }]}>
+                    {/* My Team Timeouts */}
+                    <View style={styles.timeoutTeamContainer}>
+                        <TouchableOpacity
+                            onPress={() => onUseTimeout('myTeam')}
+                            disabled={timeoutsRemaining.myTeam === 0}
+                            style={[styles.useToBtn, timeoutsRemaining.myTeam === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabled : colors.primaryLight }]}
+                        >
+                            <Text style={[styles.useToText, timeoutsRemaining.myTeam === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
+                        </TouchableOpacity>
+                        <View style={styles.toDots}>
+                            {[...Array(configTimeouts)].map((_, i) => {
+                                const isAvailable = i < timeoutsRemaining.myTeam;
+                                return (
+                                    <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.primary : colors.border }]} />
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    {/* Invisible divider text ensures spacer matches the score divider width exactly */}
+                    <View style={styles.divider}>
+                        <Text style={[styles.dividerText, { opacity: 0 }]}>-</Text>
+                    </View>
+
+                    {/* Opponent Timeouts */}
+                    <View style={styles.timeoutTeamContainer}>
+                        <TouchableOpacity
+                            onPress={() => onUseTimeout('opponent')}
+                            disabled={timeoutsRemaining.opponent === 0}
+                            style={[styles.useToBtnOpp, timeoutsRemaining.opponent === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.opponent === 0 ? colors.buttonDisabled : colors.opponentLight }]}
+                        >
+                            <Text style={[styles.useToText, timeoutsRemaining.opponent === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.opponent === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
+                        </TouchableOpacity>
+                        <View style={styles.toDots}>
+                            {[...Array(configTimeouts)].map((_, i) => {
+                                const isAvailable = i < timeoutsRemaining.opponent;
+                                return (
+                                    <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.opponent : colors.border }]} />
+                                );
+                            })}
+                        </View>
                     </View>
                 </View>
-
-                {/* Invisible divider text ensures spacer matches the score divider width exactly */}
-                <View style={styles.divider}>
-                    <Text style={[styles.dividerText, { opacity: 0 }]}>-</Text>
-                </View>
-
-                {/* Opponent Timeouts */}
-                <View style={styles.timeoutTeamContainer}>
-                    <TouchableOpacity
-                        onPress={() => onUseTimeout('opponent')}
-                        disabled={timeoutsRemaining.opponent === 0}
-                        style={[styles.useToBtnOpp, timeoutsRemaining.opponent === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.opponent === 0 ? colors.buttonDisabled : colors.opponentLight }]}
-                    >
-                        <Text style={[styles.useToText, timeoutsRemaining.opponent === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.opponent === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
-                    </TouchableOpacity>
-                    <View style={styles.toDots}>
-                        {[...Array(configTimeouts)].map((_, i) => {
-                            const isAvailable = i < timeoutsRemaining.opponent;
-                            return (
-                                <View key={i} style={[styles.toDot, { backgroundColor: isAvailable ? colors.opponent : colors.border }]} />
-                            );
-                        })}
-                    </View>
-                </View>
-            </View>
             )}
         </View>
     );
@@ -412,6 +411,11 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#e67e22',
         textTransform: 'uppercase',
+    },
+    statusContainer: {
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     board: {
         flexDirection: 'row',

@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronDown, ChevronUp, Minus, Plus, Settings2, Trash2, User } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, ChevronUp, Minus, Plus, Settings2, Trash2, User } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
@@ -106,6 +106,50 @@ export default function MatchSetupScreen() {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
 
+    // Context Selection State
+    const [selectedSeasonId, setSelectedSeasonId] = useState<string | undefined>(targetSeasonId);
+    const [selectedEventId, setSelectedEventId] = useState<string | undefined>(params.eventId);
+    const [showSeasonPicker, setShowSeasonPicker] = useState(false);
+    const [showEventPicker, setShowEventPicker] = useState(false);
+
+    // Update local state if params/store change (e.g. initial load resolution)
+    useEffect(() => {
+        if (!selectedSeasonId && targetSeasonId) setSelectedSeasonId(targetSeasonId);
+    }, [targetSeasonId]);
+
+    // Derived Context Objects
+    const resolvedSeason = selectedSeasonId ? seasons.find(s => s.id === selectedSeasonId) : null;
+    const resolvedEvent = selectedEventId ? events.find(e => e.id === selectedEventId) : null;
+
+    // Filter events by selected season
+    const validEvents = useMemo(() => {
+        if (!selectedSeasonId) return [];
+        return events.filter(e => e.seasonId === selectedSeasonId).sort((a, b) => b.startDate - a.startDate);
+    }, [selectedSeasonId, events]);
+
+    // If season changes, clear invalid event
+    useEffect(() => {
+        if (selectedEventId) {
+            const ev = events.find(e => e.id === selectedEventId);
+            if (ev && ev.seasonId !== selectedSeasonId) {
+                setSelectedEventId(undefined);
+            }
+        }
+    }, [selectedSeasonId]);
+
+    // Update myTeam based on selection
+    useEffect(() => {
+        if (resolvedSeason) {
+            // Only update active season ref in store if we are NOT editing an existing match
+            // actually we shouldn't side-effect the store just by selecting here.
+            // But we do need the roster.
+        }
+    }, [resolvedSeason]);
+
+    // Override the "activeSeason" used for Roster/TeamName with our local selection
+    const displayTeamName = resolvedSeason ? resolvedSeason.teamName : (myTeam === 'My Team' ? 'My Team' : myTeam);
+    const displayRoster = resolvedSeason ? resolvedSeason.roster : [];
+
     // Helpers
     const onDateChange = (event: any, selectedDate?: Date) => {
         const currentDate = selectedDate || new Date(matchDate);
@@ -158,7 +202,7 @@ export default function MatchSetupScreen() {
     // Player Picker Sort
     const [pickerSortBy, setPickerSortBy] = useState<'name' | 'jersey'>('name');
     const sortedPickerRoster = useMemo(() => {
-        return [...(activeSeason?.roster || [])].sort((a, b) => {
+        return [...(displayRoster || [])].sort((a, b) => {
             if (pickerSortBy === 'jersey') {
                 const numA = parseInt(a.jerseyNumber, 10);
                 const numB = parseInt(b.jerseyNumber, 10);
@@ -237,6 +281,16 @@ export default function MatchSetupScreen() {
         setEditingSlot(null);
     };
 
+    const handleSelectSeason = (seasonId: string) => {
+        setSelectedSeasonId(seasonId);
+        setShowSeasonPicker(false);
+    };
+
+    const handleSelectEvent = (eventId: string) => {
+        setSelectedEventId(eventId);
+        setShowEventPicker(false);
+    };
+
     // Apply Presets
     const applyPreset = (name: MatchConfig['presetName']) => {
         setPreset(name);
@@ -293,14 +347,14 @@ export default function MatchSetupScreen() {
 
         if (isResume && params.matchId) {
             // Update settings but don't reset score/history
-            updateMatchSettings(params.matchId, myTeam, opponent, config, lineups);
+            updateMatchSettings(params.matchId, displayTeamName, opponent, config, lineups);
             // Go to live match (replace ensures we don't back into setup)
             router.replace('/live');
         } else {
             // New Match or Overwrite
-            setSetup(myTeam, opponent, config, params.seasonId, params.eventId, params.matchId, lineups, activeSeason?.roster || []);
-            if (params.seasonId) {
-                useDataStore.getState().touchSeason(params.seasonId);
+            setSetup(displayTeamName, opponent, config, selectedSeasonId, selectedEventId, params.matchId, lineups, displayRoster || []);
+            if (selectedSeasonId) {
+                useDataStore.getState().touchSeason(selectedSeasonId);
             }
             router.replace('/live');
         }
@@ -310,8 +364,8 @@ export default function MatchSetupScreen() {
         // Create a scheduled match record
         const matchRec: MatchRecord = {
             id: params.matchId || Date.now().toString(), // Use existing ID if editing
-            seasonId: params.seasonId,
-            eventId: params.eventId,
+            seasonId: selectedSeasonId,
+            eventId: selectedEventId,
             opponentName: opponent,
             date: matchDate,
             time: matchTime,
@@ -329,8 +383,8 @@ export default function MatchSetupScreen() {
             lineups // Save the lineups
         };
         saveMatchRecord(matchRec);
-        if (params.seasonId) {
-            useDataStore.getState().touchSeason(params.seasonId);
+        if (selectedSeasonId) {
+            useDataStore.getState().touchSeason(selectedSeasonId);
         }
         router.back();
     };
@@ -374,26 +428,48 @@ export default function MatchSetupScreen() {
                         )}
                     </View>
 
-                    {/* Context Info (Header) */}
-                    {(activeSeason || activeEvent) && (
-                        <View style={styles.contextHeader}>
-                            {activeSeason && (
-                                <View>
-                                    <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>SEASON</Text>
+                    {/* Context Info (Selector) */}
+                    <View style={styles.contextHeader}>
+                        <TouchableOpacity
+                            style={[styles.contextRow, { flex: 1 }]}
+                            onPress={() => setShowSeasonPicker(true)}
+                        >
+                            <View>
+                                <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>SEASON</Text>
+                                {resolvedSeason ? (
                                     <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-                                        <Text style={[styles.contextValue, { color: colors.text }]}>{activeSeason.name}</Text>
-                                        <Text style={[styles.contextSub, { color: colors.textSecondary }]}>{activeSeason.teamName}</Text>
+                                        <Text style={[styles.contextValue, { color: colors.text }]}>{resolvedSeason.name}</Text>
                                     </View>
-                                </View>
-                            )}
-                            {activeEvent && (
-                                <View style={{ marginTop: 12 }}>
-                                    <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>EVENT</Text>
-                                    <Text style={[styles.contextValue, { color: colors.text }]}>{activeEvent.name}</Text>
-                                </View>
-                            )}
-                        </View>
-                    )}
+                                ) : (
+                                    <Text style={[styles.contextValue, { color: colors.primary }]}>Select Season</Text>
+                                )}
+                            </View>
+                            <ChevronRight size={16} color={colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
+
+                        <TouchableOpacity
+                            style={[styles.contextRow, { flex: 1 }]}
+                            onPress={() => {
+                                if (!selectedSeasonId) {
+                                    Alert.alert("Select Season First", "Please select a season before choosing an event.");
+                                    return;
+                                }
+                                setShowEventPicker(true);
+                            }}
+                        >
+                            <View>
+                                <Text style={[styles.contextLabel, { color: colors.textTertiary }]}>EVENT (OPTIONAL)</Text>
+                                {resolvedEvent ? (
+                                    <Text style={[styles.contextValue, { color: colors.text }]}>{resolvedEvent.name}</Text>
+                                ) : (
+                                    <Text style={[styles.contextValue, { color: selectedSeasonId ? colors.textSecondary : colors.textTertiary }]}>No Event</Text>
+                                )}
+                            </View>
+                            <ChevronRight size={16} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Match Details Section */}
                     <View style={styles.section}>
@@ -595,7 +671,7 @@ export default function MatchSetupScreen() {
                     </View>
 
                     {/* LINEUP & ROSTER CARD */}
-                    {activeSeason && (
+                    {resolvedSeason && (
                         <View style={styles.section}>
                             <Text style={[styles.sectionTitle, { color: colors.text }]}>Starting Lineup</Text>
 
@@ -625,7 +701,7 @@ export default function MatchSetupScreen() {
                                 <View style={[styles.gridRow, isPad && { marginBottom: 32, marginTop: 32 }]}>
                                     {[4, 3, 2].map(pos => {
                                         const slot = (lineups[activeLineupSet] || []).find(p => p.position === pos);
-                                        const player = slot?.playerId ? activeSeason.roster.find(p => p.id === slot.playerId) : null;
+                                        const player = slot?.playerId ? resolvedSeason.roster.find(p => p.id === slot.playerId) : null;
                                         return (
                                             <TouchableOpacity
                                                 key={pos}
@@ -669,7 +745,7 @@ export default function MatchSetupScreen() {
                                 <View style={styles.gridRow}>
                                     {[5, 6, 1].map(pos => {
                                         const slot = (lineups[activeLineupSet] || []).find(p => p.position === pos);
-                                        const player = slot?.playerId ? activeSeason.roster.find(p => p.id === slot.playerId) : null;
+                                        const player = slot?.playerId ? resolvedSeason.roster.find(p => p.id === slot.playerId) : null;
                                         return (
                                             <TouchableOpacity
                                                 key={pos}
@@ -734,7 +810,7 @@ export default function MatchSetupScreen() {
                             </View>
                         </View>
 
-                        {activeSeason && (
+                        {resolvedSeason && (
                             <FlatList
                                 data={[{ id: 'clear', name: 'Clear Position', jerseyNumber: '', positions: [] } as Player, ...sortedPickerRoster]}
                                 keyExtractor={(item) => item.id}
@@ -775,6 +851,75 @@ export default function MatchSetupScreen() {
                                 }}
                             />
                         )}
+                    </View>
+                </Modal>
+
+                {/* Season Picker Modal */}
+                <Modal visible={showSeasonPicker} animationType="slide" presentationStyle="pageSheet">
+                    <View style={[styles.modalContainer, { backgroundColor: colors.bg }]}>
+                        <View style={[styles.modalHeader, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Season</Text>
+                            <TouchableOpacity onPress={() => setShowSeasonPicker(false)}>
+                                <Text style={[styles.closeText, { color: colors.primary }]}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={seasons}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={[styles.pickerItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}
+                                    onPress={() => handleSelectSeason(item.id)}
+                                >
+                                    <View>
+                                        <Text style={[styles.rosterName, { color: colors.text }]}>{item.name}</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{item.teamName}</Text>
+                                    </View>
+                                    {selectedSeasonId === item.id && <ChevronRight size={20} color={colors.primary} />}
+                                </TouchableOpacity>
+                            )}
+                        />
+                    </View>
+                </Modal>
+
+                {/* Event Picker Modal */}
+                <Modal visible={showEventPicker} animationType="slide" presentationStyle="pageSheet">
+                    <View style={[styles.modalContainer, { backgroundColor: colors.bg }]}>
+                        <View style={[styles.modalHeader, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Event</Text>
+                            <TouchableOpacity onPress={() => setShowEventPicker(false)}>
+                                <Text style={[styles.closeText, { color: colors.primary }]}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={[{ id: 'clear', name: 'No Event', seasonId: '' } as any, ...validEvents]}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => {
+                                if (item.id === 'clear') {
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.pickerItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}
+                                            onPress={() => handleSelectEvent(undefined as any)}
+                                        >
+                                            <Text style={[styles.rosterName, { color: colors.textSecondary, fontStyle: 'italic' }]}>None / Practice Match</Text>
+                                            {!selectedEventId && <ChevronRight size={20} color={colors.primary} />}
+                                        </TouchableOpacity>
+                                    );
+                                }
+                                return (
+                                    <TouchableOpacity
+                                        style={[styles.pickerItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}
+                                        onPress={() => handleSelectEvent(item.id)}
+                                    >
+                                        <View>
+                                            <Text style={[styles.rosterName, { color: colors.text }]}>{item.name}</Text>
+                                            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{new Date(item.startDate).toLocaleDateString()}</Text>
+                                        </View>
+                                        {selectedEventId === item.id && <ChevronRight size={20} color={colors.primary} />}
+                                    </TouchableOpacity>
+                                );
+                            }}
+                        />
                     </View>
                 </Modal>
 
@@ -1147,6 +1292,25 @@ const styles = StyleSheet.create({
     },
     rosterName: {
         fontSize: 16,
+    },
+    contextRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+    },
+    dividerVertical: {
+        width: 1,
+        height: 40,
+        marginHorizontal: 16,
+    },
+    pickerItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
     },
 });
 

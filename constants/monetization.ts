@@ -1,11 +1,13 @@
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 
 // ── Free Tier Limits ────────────────────────────────────────────────────────
 // TODO: Revert to lower limits before full public launch
 export const FREE_AI_NARRATIVE_LIMIT = 100;
 export const FREE_EXPORT_LIMIT = 100;
 export const FREE_SEASON_LIMIT = 1;
-export const FREE_FAN_RECAP_LIMIT = 2;
+export const FREE_FAN_RECAP_LIMIT = 50;
+export { FREE_VOICE_MATCH_LIMIT } from './voice';
 
 // ── AdMob Configuration ─────────────────────────────────────────────────────
 // Test ad unit IDs — safe for development, will not trigger account suspension
@@ -40,7 +42,7 @@ export function getRevenueCatApiKey(): string {
     // For now, both platforms use the iOS key (Android will need its own before Play Store launch).
     if (Platform.OS === 'android') {
         // TODO: Replace with Android-specific key once Google Play is set up
-        console.warn('[RevenueCat] Android key not yet configured — using iOS key as fallback');
+        logger.warn('[RevenueCat] Android key not yet configured — using iOS key as fallback');
     }
     return REVENUECAT_IOS_KEY;
 }

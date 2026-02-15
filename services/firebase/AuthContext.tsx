@@ -1,15 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
     User,
-    onAuthStateChanged,
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    sendPasswordResetEmail,
     deleteUser,
+    signOut as firebaseSignOut,
+    onAuthStateChanged,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
     updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { auth, db } from './config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -20,13 +20,18 @@ interface AuthState {
     error: string | null;
 }
 
-interface AuthContextValue extends AuthState {
+interface AuthContextValue {
+    user: User | null;
+    uid: string | null;
+    loading: boolean;
+    hasPassword: boolean; // Derived helper
     signUp: (email: string, password: string, displayName?: string) => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     signOut: () => Promise<void>;
     resetPassword: (email: string) => Promise<boolean>;
     deleteAccount: () => Promise<void>;
     clearError: () => void;
+    error: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,7 +39,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [state, setState] = useState<AuthState>({
+    const [state, setState] = useState<{
+        user: User | null;
+        loading: boolean;
+        error: string | null;
+    }>({
         user: null,
         loading: true, // true until first auth check completes
         error: null,
@@ -152,6 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         <AuthContext.Provider
             value={{
                 ...state,
+                uid: state.user?.uid || null,
+                hasPassword: state.user?.isAnonymous === false,
                 signUp,
                 signIn,
                 signOut,

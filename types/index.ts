@@ -129,7 +129,7 @@ export interface SetResult {
 // Phase 5: Spectator Interactions — Alerts, Cheers, Viewer Presence
 export interface SpectatorAlert {
   id: string;
-  type: 'score_correction';
+  type: 'score_correction' | 'emergency' | 'other';
   senderDeviceId: string;
   senderName: string;
   timestamp: number;
@@ -142,6 +142,7 @@ export interface SpectatorAlert {
 export interface SpectatorViewer {
   deviceId: string;
   name: string;
+  cheeringFor?: string[]; // IDs of players they are cheering for
   joinedAt: number;
   lastSeen: number;
 }

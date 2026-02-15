@@ -16,13 +16,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     registerSpectator,
+    sendCheerPulse as sendCheerPulseService,
     sendCheer as sendCheerService,
-    sendScoreCorrectionAlert,
+    sendReaction as sendReactionService,
+    sendSpectatorAlert,
     unregisterSpectator,
-    updateSpectatorPresence,
+    updateSpectatorPresence
 } from '../services/firebase/spectatorInteractionService';
 import { LiveMatchSnapshot, Score, SpectatorViewer } from '../types';
-import { useSubscriptionStore } from '../store/useSubscriptionStore';
 
 const SPECTATOR_NAME_KEY = 'volleytrack-spectator-name';
 const SPECTATOR_DEVICE_ID_KEY = 'volleytrack-spectator-device-id';
@@ -33,8 +34,9 @@ const PRESENCE_HEARTBEAT_MS = 60_000; // 1 minute heartbeat
 export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnapshot | null) {
     // Viewer identity
     const [viewerName, setViewerNameState] = useState<string>('');
+    const [cheeringFor, setCheeringForState] = useState<string[]>([]);
     const [deviceId, setDeviceId] = useState<string>('');
-    const [isNameSet, setIsNameSet] = useState(false);
+    const [isProfileSet, setIsProfileSet] = useState(false);
     const [isRegistered, setIsRegistered] = useState(false);
 
     // Alert cooldown
@@ -46,7 +48,7 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
     const [cheerBurst, setCheerBurst] = useState(false);
     const prevCheerCountRef = useRef<number>(0);
 
-    // Initialize device ID and stored name
+    // Initialize device ID and stored profile
     useEffect(() => {
         const init = async () => {
             // Get or create device ID
@@ -57,36 +59,51 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
             }
             setDeviceId(storedDeviceId);
 
-            // Get stored name
+            // Get stored profile
             const storedName = await AsyncStorage.getItem(SPECTATOR_NAME_KEY);
+            const storedCheering = await AsyncStorage.getItem('volleytrack-spectator-cheering');
+
             if (storedName) {
                 setViewerNameState(storedName);
-                setIsNameSet(true);
+                if (storedCheering) {
+                    try {
+                        setCheeringForState(JSON.parse(storedCheering));
+                    } catch (e) {
+                        // ignore parse error
+                    }
+                }
+                setIsProfileSet(true);
             }
         };
         init();
     }, []);
 
-    // Set viewer name (persists to AsyncStorage)
-    const setViewerName = useCallback(async (name: string) => {
+    // Join match with name and cheering preferences
+    const joinMatch = useCallback(async (name: string, cheering: string[]) => {
         const trimmed = name.trim();
         if (!trimmed) return;
-        await AsyncStorage.setItem(SPECTATOR_NAME_KEY, trimmed);
-        setViewerNameState(trimmed);
-        setIsNameSet(true);
 
-        // Re-register with new name if already registered
+        await AsyncStorage.setItem(SPECTATOR_NAME_KEY, trimmed);
+        await AsyncStorage.setItem('volleytrack-spectator-cheering', JSON.stringify(cheering));
+
+        setViewerNameState(trimmed);
+        setCheeringForState(cheering);
+        setIsProfileSet(true);
+
+        // Register immediately
         if (matchCode && deviceId) {
-            registerSpectator(matchCode, deviceId, trimmed);
+            registerSpectator(matchCode, deviceId, trimmed, cheering).then(result => {
+                if (result.success) setIsRegistered(true);
+            });
         }
     }, [matchCode, deviceId]);
 
-    // Register on mount when we have both matchCode and deviceId
+    // Register on mount if profile is already set
     useEffect(() => {
-        if (!matchCode || !deviceId || !match?.isActive) return;
+        if (!matchCode || !deviceId || !match?.isActive || !isProfileSet) return;
 
         const name = viewerName || 'Fan';
-        registerSpectator(matchCode, deviceId, name).then(result => {
+        registerSpectator(matchCode, deviceId, name, cheeringFor).then(result => {
             if (result.success) setIsRegistered(true);
         });
 
@@ -100,7 +117,7 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
             clearInterval(heartbeat);
             unregisterSpectator(matchCode, deviceId);
         };
-    }, [matchCode, deviceId, match?.isActive]);
+    }, [matchCode, deviceId, match?.isActive, isProfileSet, viewerName, cheeringFor]);
 
     // Alert cooldown timer
     useEffect(() => {
@@ -128,20 +145,23 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
         prevCheerCountRef.current = currentCheerCount;
     }, [match?.cheerCount]);
 
-    // Send score correction alert
-    const sendAlert = useCallback(async (suggestedScore?: Score, message?: string) => {
+    // Send alert (Score Correction, Emergency, etc.)
+    const sendAlert = useCallback(async (
+        type: 'score_correction' | 'emergency' | 'other',
+        payload?: { suggestedScore?: Score; message?: string }
+    ) => {
         if (!matchCode || !deviceId) return false;
 
         const now = Date.now();
         if (now - lastAlertSent < ALERT_COOLDOWN_MS) return false;
 
-        const result = await sendScoreCorrectionAlert(matchCode, {
-            type: 'score_correction',
+        const result = await sendSpectatorAlert(matchCode, {
+            type,
             senderDeviceId: deviceId,
             senderName: viewerName || 'A spectator',
-            suggestedScore,
+            suggestedScore: payload?.suggestedScore,
             currentSet: match?.currentState?.currentSet,
-            message,
+            message: payload?.message,
         });
 
         if (result.success) {
@@ -170,6 +190,13 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
 
     const canSendCheer = Date.now() - lastCheerSent >= CHEER_COOLDOWN_MS;
 
+    // Send Reaction (Fire, Clap, etc.)
+    const sendReaction = useCallback(async (type: string) => {
+        if (!matchCode || !deviceId) return false;
+        // No strict cooldown for reactions, maybe a small debounce in UI
+        return sendReactionService(matchCode, type, deviceId);
+    }, [matchCode, deviceId]);
+
     // Derived viewer data
     const viewers: SpectatorViewer[] = match?.spectators
         ? Object.values(match.spectators)
@@ -177,11 +204,21 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
     const viewerCount = viewers.length;
     const cheerCount = match?.cheerCount || 0;
 
+    const sendCheerLevel = useCallback(async (intensity: number) => {
+        if (!matchCode || !deviceId) return;
+        // Simple throttle: don't send if we just sent one (component handles main throttle)
+        await sendCheerPulseService(matchCode, deviceId, intensity);
+    }, [matchCode, deviceId]);
+
     return {
         // Identity
         viewerName,
-        setViewerName,
-        isNameSet,
+        setViewerName: setViewerNameState,
+        cheeringFor, // Added
+        isProfileSet, // Added
+        isNameSet: isProfileSet && !!viewerName,
+        isRegistered,
+        joinMatch,
         deviceId,
 
         // Viewers
@@ -190,13 +227,15 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
 
         // Alerts
         sendAlert,
-        canSendAlert,
+        canSendAlert: alertCooldownRemaining === 0,
         alertCooldownRemaining,
 
         // Cheers
         sendCheer: sendCheerAction,
-        canSendCheer,
+        canSendCheer: Date.now() - lastCheerSent > CHEER_COOLDOWN_MS,
+        sendCheerLevel, // New
         cheerCount,
         cheerBurst,
+        sendReaction,
     };
 }
