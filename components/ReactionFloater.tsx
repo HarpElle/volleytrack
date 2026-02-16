@@ -16,12 +16,22 @@ interface FloatingEmoji {
 }
 
 const EMOJI_MAP: Record<string, string> = {
+    // Hype
     fire: '🔥',
     clap: '👏',
     heart: '❤️',
     ball: '🏐',
     muscle: '💪',
     hundred: '💯',
+    // Volleyball-specific
+    stuff: '🧱',
+    dig: '🦵',
+    spike: '💥',
+    ace_serve: '🎯',
+    setter: '🪄',
+    roof: '🏠',
+    pancake: '🥞',
+    sideout: '✊',
 };
 
 export function ReactionFloater({ reactions }: ReactionFloaterProps) {

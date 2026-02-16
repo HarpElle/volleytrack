@@ -1,15 +1,16 @@
 /**
- * SpectatorReactionBar — Bottom bar on spectator screen with:
- * - Cheer button (with burst animation)
- * - Score alert button (with cooldown indicator)
- * - Viewer count
- * - Super Fan Recap button
+ * SpectatorReactionBar — Redesigned bottom bar on spectator screen.
  *
- * Replaces the static footer on the spectator view.
+ * Clean layout with clear grouping:
+ * [Viewers] [React ▾] [Cheer] [Chat] [Share] [Fan Recap] [Alert ▾]
+ *
+ * The alert button opens a popover with "Score Check" and "Emergency Stop".
+ * The React button opens the ReactionDrawer with volleyball + hype reactions.
+ * The Chat button opens the FanZoneModal.
  */
 
-import { Activity, AlertTriangle, Eye, Heart, Star } from 'lucide-react-native';
-import React, { useEffect, useRef } from 'react';
+import { Activity, AlertTriangle, Heart, MessageCircle, Share2, Star, Users } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
 
@@ -21,12 +22,16 @@ interface SpectatorReactionBarProps {
     canSendAlert: boolean;
     alertCooldownRemaining: number;
     matchCode: string;
+    chatUnreadCount: number;
     onCheer: () => void;
     onReaction: (type: string) => void;
-    onAlert: () => void;
-    onEmergency: () => void;
+    onScoreAlert: () => void;
+    onEmergencyAlert: () => void;
     onFanRecap: () => void;
     onOpenLobby: () => void;
+    onOpenShare: () => void;
+    onOpenFanZone: () => void;
+    onOpenReactionDrawer: () => void;
     onToggleMeter: () => void;
     isMeterVisible: boolean;
 }
@@ -39,17 +44,22 @@ export function SpectatorReactionBar({
     canSendAlert,
     alertCooldownRemaining,
     matchCode,
+    chatUnreadCount,
     onCheer,
     onReaction,
-    onAlert,
-    onEmergency,
+    onScoreAlert,
+    onEmergencyAlert,
     onFanRecap,
     onOpenLobby,
+    onOpenShare,
+    onOpenFanZone,
+    onOpenReactionDrawer,
     onToggleMeter,
     isMeterVisible,
 }: SpectatorReactionBarProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const cheerScale = useRef(new Animated.Value(1)).current;
+    const [showAlertMenu, setShowAlertMenu] = useState(false);
 
     // Cheer burst animation
     useEffect(() => {
@@ -76,94 +86,165 @@ export function SpectatorReactionBar({
     return (
         <View style={[styles.container, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
             {/* Viewer Count */}
-            <TouchableOpacity style={styles.viewerSection} onPress={onOpenLobby} activeOpacity={0.6}>
-                <Eye size={14} color={colors.textTertiary} />
-                <Text style={[styles.viewerText, { color: colors.textTertiary }]}>
-                    {viewerCount} {viewerCount === 1 ? 'viewer' : 'viewers'}
-                </Text>
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onOpenLobby}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Users size={18} color={colors.textSecondary} />
+                <Text style={[styles.btnLabel, { color: colors.textTertiary }]}>{viewerCount}</Text>
             </TouchableOpacity>
 
-            {/* Reaction Buttons */}
-            <View style={styles.reactionGroup}>
-                <TouchableOpacity onPress={() => onReaction('clap')} style={styles.emojiBtn}>
-                    <Text style={styles.emojiText}>👏</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onReaction('fire')} style={styles.emojiBtn}>
-                    <Text style={styles.emojiText}>🔥</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onReaction('heart')} style={styles.emojiBtn}>
-                    <Text style={styles.emojiText}>❤️</Text>
-                </TouchableOpacity>
-            </View>
+            {/* React Drawer Toggle */}
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onOpenReactionDrawer}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Text style={styles.reactEmoji}>🏐</Text>
+            </TouchableOpacity>
 
-            {/* Action Buttons */}
-            <View style={styles.actions}>
-                {/* Cheer Button */}
-                <TouchableOpacity
-                    style={[styles.actionBtn, { opacity: canSendCheer ? 1 : 0.5 }]}
-                    onPress={onCheer}
-                    disabled={!canSendCheer}
-                    activeOpacity={0.6}
-                >
-                    <Animated.View style={{ transform: [{ scale: cheerScale }] }}>
-                        <Heart
-                            size={22}
-                            color={cheerBurst ? colors.opponent : colors.textSecondary}
-                            fill={cheerBurst ? colors.opponent : 'transparent'}
-                        />
-                    </Animated.View>
-                    {cheerCount > 0 && (
-                        <Text style={[styles.cheerCount, { color: colors.textTertiary }]}>{cheerCount}</Text>
-                    )}
-                </TouchableOpacity>
-
-                {/* Meter Toggle Button */}
-                <TouchableOpacity
-                    style={[styles.actionBtn]}
-                    onPress={onToggleMeter}
-                    activeOpacity={0.6}
-                >
-                    <Activity
-                        size={22}
-                        color={isMeterVisible ? colors.primary : colors.textSecondary}
+            {/* Cheer Button */}
+            <TouchableOpacity
+                style={[styles.iconBtn, { opacity: canSendCheer ? 1 : 0.5 }]}
+                onPress={onCheer}
+                disabled={!canSendCheer}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Animated.View style={{ transform: [{ scale: cheerScale }] }}>
+                    <Heart
+                        size={20}
+                        color={cheerBurst ? colors.error : colors.textSecondary}
+                        fill={cheerBurst ? colors.error : 'transparent'}
                     />
-                </TouchableOpacity>
+                </Animated.View>
+                {cheerCount > 0 && (
+                    <Text style={[styles.btnLabel, { color: colors.textTertiary }]}>{cheerCount}</Text>
+                )}
+            </TouchableOpacity>
 
-                {/* Score Alert Button */}
-                <TouchableOpacity
-                    style={[styles.actionBtn, { opacity: canSendAlert ? 1 : 0.5 }]}
-                    onPress={onAlert}
-                    disabled={!canSendAlert}
-                    activeOpacity={0.6}
-                >
-                    <AlertTriangle size={20} color={canSendAlert ? colors.warning : colors.textTertiary} />
-                    {!canSendAlert && cooldownSeconds > 0 && (
-                        <Text style={[styles.cooldownText, { color: colors.textTertiary }]}>{cooldownSeconds}s</Text>
+            {/* Fan Zone Chat */}
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onOpenFanZone}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <View>
+                    <MessageCircle size={18} color={colors.textSecondary} />
+                    {chatUnreadCount > 0 && (
+                        <View style={[styles.unreadBadge, { backgroundColor: colors.error }]}>
+                            <Text style={styles.unreadText}>
+                                {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                            </Text>
+                        </View>
                     )}
-                </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
 
-                {/* Super Fan Recap Button */}
-                <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={onFanRecap}
-                    activeOpacity={0.6}
-                >
-                    <Star size={20} color={colors.primary} />
-                </TouchableOpacity>
+            {/* Meter Toggle */}
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onToggleMeter}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Activity
+                    size={18}
+                    color={isMeterVisible ? colors.primary : colors.textSecondary}
+                />
+            </TouchableOpacity>
 
-                {/* Emergency Alert Button */}
-                <TouchableOpacity
-                    style={[styles.actionBtn, { opacity: canSendAlert ? 1 : 0.5 }]}
-                    onPress={onEmergency}
-                    disabled={!canSendAlert}
-                    activeOpacity={0.6}
-                >
-                    <AlertTriangle size={20} color={colors.error} fill={colors.error} />
-                </TouchableOpacity>
-            </View>
+            {/* Share Button */}
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onOpenShare}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Share2 size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
 
-            {/* Match Code */}
-            <Text style={[styles.codeText, { color: colors.textTertiary }]}>{matchCode}</Text>
+            {/* Fan Recap Button */}
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={onFanRecap}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <Star size={18} color={colors.primary} />
+            </TouchableOpacity>
+
+            {/* Alert Button (opens popover) */}
+            <TouchableOpacity
+                style={[styles.iconBtn, { opacity: canSendAlert ? 1 : 0.6 }]}
+                onPress={() => {
+                    if (showAlertMenu) {
+                        setShowAlertMenu(false);
+                    } else if (canSendAlert) {
+                        setShowAlertMenu(true);
+                    }
+                }}
+                activeOpacity={0.6}
+                hitSlop={4}
+            >
+                <AlertTriangle
+                    size={18}
+                    color={canSendAlert ? colors.warning : colors.textTertiary}
+                />
+                {!canSendAlert && cooldownSeconds > 0 && (
+                    <Text style={[styles.cooldownLabel, { color: colors.textTertiary }]}>
+                        {cooldownSeconds}s
+                    </Text>
+                )}
+            </TouchableOpacity>
+
+            {/* Alert Popover */}
+            {showAlertMenu && (
+                <>
+                    <TouchableOpacity
+                        style={styles.popoverBackdrop}
+                        activeOpacity={1}
+                        onPress={() => setShowAlertMenu(false)}
+                    />
+                    <View
+                        style={[
+                            styles.popover,
+                            {
+                                backgroundColor: colors.bgCard,
+                                borderColor: colors.border,
+                                borderRadius: radius.md,
+                            },
+                        ]}
+                    >
+                        <TouchableOpacity
+                            style={[styles.popoverOption, { borderBottomColor: colors.border }]}
+                            onPress={() => {
+                                setShowAlertMenu(false);
+                                onScoreAlert();
+                            }}
+                            activeOpacity={0.6}
+                        >
+                            <Text style={styles.popoverEmoji}>📊</Text>
+                            <Text style={[styles.popoverText, { color: colors.text }]}>Score Check</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.popoverOption, { borderBottomWidth: 0 }]}
+                            onPress={() => {
+                                setShowAlertMenu(false);
+                                onEmergencyAlert();
+                            }}
+                            activeOpacity={0.6}
+                        >
+                            <Text style={styles.popoverEmoji}>🚨</Text>
+                            <Text style={[styles.popoverText, { color: colors.error }]}>Emergency Stop</Text>
+                        </TouchableOpacity>
+                    </View>
+                </>
+            )}
         </View>
     );
 }
@@ -173,60 +254,84 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
-        paddingHorizontal: 16,
+        paddingHorizontal: 8,
         borderTopWidth: 1,
+        gap: 2,
     },
-    viewerSection: {
+    iconBtn: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        flex: 1,
-    },
-    viewerText: {
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    reactionGroup: {
-        flexDirection: 'row',
-        gap: 8,
-        marginRight: 12,
-    },
-    emojiBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.1)',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 3,
+        paddingVertical: 8,
+        paddingHorizontal: 7,
+        minWidth: 36,
+        minHeight: 36,
     },
-    emojiText: {
-        fontSize: 20,
-    },
-    actions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    actionBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        padding: 6,
-    },
-    cheerCount: {
+    btnLabel: {
         fontSize: 11,
         fontWeight: '600',
         fontVariant: ['tabular-nums'],
     },
-    cooldownText: {
-        fontSize: 10,
+    reactEmoji: {
+        fontSize: 20,
+    },
+    cooldownLabel: {
+        fontSize: 9,
         fontWeight: '600',
         fontVariant: ['tabular-nums'],
     },
-    codeText: {
-        fontSize: 10,
+    unreadBadge: {
+        position: 'absolute',
+        top: -6,
+        right: -8,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+    },
+    unreadText: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '700',
+    },
+    // Popover styles
+    popoverBackdrop: {
+        position: 'absolute',
+        top: -500,
+        left: -50,
+        right: -50,
+        bottom: 0,
+        zIndex: 998,
+    },
+    popover: {
+        position: 'absolute',
+        bottom: 52,
+        right: 4,
+        zIndex: 999,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 6,
+        minWidth: 170,
+    },
+    popoverOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    popoverEmoji: {
+        fontSize: 18,
+    },
+    popoverText: {
+        fontSize: 15,
         fontWeight: '600',
-        marginLeft: 12,
-        fontVariant: ['tabular-nums'],
     },
 });

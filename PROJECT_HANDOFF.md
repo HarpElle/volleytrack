@@ -509,6 +509,20 @@ VolleyTrack/
 │   │   ├── DetailedStatsTable.tsx
 │   │   ├── Leaderboard.tsx
 │   │   └── ComparisonChart.tsx
+│   ├── spectator/              # Spectator experience components (Phase 12)
+│   │   ├── AlertPopover.tsx        # Alert type popover menu
+│   │   ├── ScoreCorrectionModal.tsx # Score discrepancy flagging
+│   │   ├── EmergencyAlertModal.tsx  # Emergency alert with categories
+│   │   ├── SpectatorShareModal.tsx  # QR code + share sheet
+│   │   ├── ReactionDrawer.tsx       # Volleyball + hype reaction picker
+│   │   ├── FanZoneModal.tsx         # Spectator chat modal
+│   │   ├── ProudMomentCard.tsx      # Player highlight toast
+│   │   ├── PlayerSetSummary.tsx     # End-of-set player stats
+│   │   ├── MomentumBanner.tsx       # Contextual game moment banners
+│   │   ├── EmojiRain.tsx            # Celebratory emoji particle animation
+│   │   ├── LivePulse.tsx            # Animated pulsing connection indicator
+│   │   ├── BetweenSetsView.tsx      # Between-sets transitional view
+│   │   └── MatchCompleteView.tsx    # Match end celebration/summary
 │   ├── themed-text.tsx         # Dark/light theme text wrapper
 │   ├── themed-view.tsx         # Dark/light theme view wrapper
 │   ├── ui/
@@ -524,7 +538,8 @@ VolleyTrack/
 │   │   ├── AuthContext.tsx     # Auth provider
 │   │   ├── index.ts            # Firebase helpers
 │   │   ├── syncService.ts      # Firestore bidirectional sync
-│   │   └── liveMatchService.ts # Realtime DB spectator broadcast
+│   │   ├── liveMatchService.ts # Realtime DB spectator broadcast
+│   │   └── spectatorChatService.ts # Fan Zone chat CRUD + subscription
 │   └── revenuecat/
 │       └── RevenueCatService.ts # RevenueCat subscriptions wrapper
 │
@@ -542,6 +557,9 @@ VolleyTrack/
 │
 ├── hooks/                      # Custom React hooks
 │   ├── useVoiceInput.ts        # Voice input lifecycle (record → parse → confirm → commit)
+│   ├── useFanZoneChat.ts       # Fan Zone chat lifecycle (messages, cooldowns, unread count)
+│   ├── useMomentumDetection.ts # Momentum detection (streaks, set/match point, comebacks)
+│   ├── useMatchSounds.ts       # Haptic feedback for game events
 │   └── ... (theme, auth, etc.)
 │
 ├── contexts/                   # React contexts (implied)
@@ -726,6 +744,124 @@ Addressed key technical debt and stability improvements:
 2. **Error Handling** — Hardened `MatchErrorBoundary` against potential context crashes.
 3. **Infrastructure** — Resolved Firebase `getReactNativePersistence` export issues (with suppression for wrapper type definitions).
 4. **Documentation** — Added critical build warnings (folder naming) to README.
+
+### Phase 12: Spectator Experience 3.0 — Enhanced Engagement & Social
+**Status:** ✅ Complete
+
+Comprehensive spectator experience overhaul across three implementation waves, delivering all 9 enhancements defined in `SPECTATOR_EXPERIENCE_PLAN.md`.
+
+#### Wave 1 (Core Improvements — Enhancements 1, 2, 4, 8):
+
+1. **Score Correction Modal (Enhancement 1)** — Side-by-side score comparison with editable fields. Spectators can flag score discrepancies to the coach with suggested corrections and an optional note. Changes are highlighted in the primary color for clarity.
+   - New file: `components/spectator/ScoreCorrectionModal.tsx`
+
+2. **Emergency Alert Modal (Enhancement 2)** — Four-category alert system (Injury, Safety, Wrong Player, Other) with optional context details. Uses red styling and haptic feedback for urgency. Sends structured messages to coach.
+   - New file: `components/spectator/EmergencyAlertModal.tsx`
+
+3. **Spectator Share Modal (Enhancement 4)** — QR code display with deep link (`volleytrack://spectate/{code}`), native share sheet integration, and clipboard copy. Bottom-sheet style modal.
+   - New file: `components/spectator/SpectatorShareModal.tsx`
+
+4. **Alert Popover (Enhancement 8)** — Animated popover menu replacing dual alert buttons with "Score Check" and "Emergency Stop" options. Fade-in/slide-up animation with cooldown indicator.
+   - New file: `components/spectator/AlertPopover.tsx`
+
+5. **Reaction Bar Redesign (Enhancement 8)** — Clean bottom bar layout: `[Viewers] [🏐 React] [Cheer] [Chat] [Meter] [Share] [Fan Recap] [Alert ▾]`. Unread badge on chat, inline alert popover, cheer burst animation.
+   - Rewritten: `components/SpectatorReactionBar.tsx`
+
+6. **Coach Alert Toast Enhancement** — `CoachAlertToast` now differentiates score corrections from emergencies. Emergency alerts use red styling, `AlertOctagon` icon, haptic feedback, and no auto-dismiss.
+   - Modified: `components/CoachAlertToast.tsx`
+
+#### Wave 2 (Engagement Layer — Enhancements 3, 5, 7):
+
+7. **Fan Zone Chat (Enhancement 3)** — Real-time spectator-to-spectator messaging via Firestore subcollection (`liveMatches/{code}/chat`). Features include quick-send emoji chips, 5-second send cooldown, 200-character limit, celebration messages styled in gold/amber, and unread count tracking.
+   - New file: `services/firebase/spectatorChatService.ts` — Chat CRUD + subscription
+   - New file: `hooks/useFanZoneChat.ts` — Chat lifecycle hook with cooldowns
+   - New file: `components/spectator/FanZoneModal.tsx` — Bottom-sheet chat modal
+   - New type: `SpectatorChatMessage` in `types/index.ts`
+
+8. **Volleyball-Specific Reactions (Enhancement 5)** — Two reaction categories: VOLLEYBALL (stuff, spike, dig, ace_serve, setter, pancake, roof, sideout) and HYPE (clap, fire, heart, muscle, hundred, ball). Auto-closes after 4s of no interaction with "sent" feedback.
+   - New file: `components/spectator/ReactionDrawer.tsx`
+   - Modified: `components/ReactionFloater.tsx` — Added 8 volleyball emoji to `EMOJI_MAP`
+
+9. **Parent-First Features (Enhancement 7):**
+   - **"My Player" Highlights** — Play-by-play feed highlights events for cheered-for players with star icon, colored background, and player name display.
+   - **Proud Moment Cards** — Toast-style overlay when a cheered-for player makes a big play (ace, kill, block). Includes share button and auto-dismiss after 5s. 30-second cooldown to prevent spam.
+   - **Player Set Summary** — End-of-set stats modal for cheered-for players. Shows grouped stats with emoji indicators and share capability.
+   - **Auto-Celebration Messages** — Fan Zone Chat automatically generates celebration messages when the home team gets aces, kills, or blocks.
+   - **Enhanced Onboarding** — Added name suggestion chips (Mom, Dad, Grandma, Grandpa, Coach Mom, Fan) and updated subtitle copy.
+   - New file: `components/spectator/ProudMomentCard.tsx`
+   - New file: `components/spectator/PlayerSetSummary.tsx`
+   - Modified: `components/SpectatorOnboardingModal.tsx`
+
+10. **Full Integration** — All Phase 12 components wired into `app/spectate/[code].tsx` with proper state management, lifecycle hooks, cooldowns, and Firestore listeners.
+
+**Firestore Schema Additions:**
+```
+liveMatches/{matchCode}/chat/{messageId}
+  senderDeviceId: string
+  senderName: string
+  text: string
+  timestamp: number
+  type: 'message' | 'celebration' | 'reaction_context'
+  triggerEvent?: string
+  triggerPlayerName?: string
+  linkedStatId?: string
+```
+
+**Key Files (New):**
+- `components/spectator/ScoreCorrectionModal.tsx`
+- `components/spectator/EmergencyAlertModal.tsx`
+- `components/spectator/SpectatorShareModal.tsx`
+- `components/spectator/AlertPopover.tsx`
+- `components/spectator/ReactionDrawer.tsx`
+- `components/spectator/FanZoneModal.tsx`
+- `components/spectator/ProudMomentCard.tsx`
+- `components/spectator/PlayerSetSummary.tsx`
+- `services/firebase/spectatorChatService.ts`
+- `hooks/useFanZoneChat.ts`
+
+**Key Files (Modified):**
+- `app/spectate/[code].tsx` — Full rewrite with all new components
+- `components/SpectatorReactionBar.tsx` — Redesigned layout
+- `components/CoachAlertToast.tsx` — Emergency/score differentiation
+- `components/ReactionFloater.tsx` — Volleyball emoji support
+- `components/SpectatorOnboardingModal.tsx` — Name chips + copy
+- `types/index.ts` — `SpectatorChatMessage` type
+
+#### Wave 3 (Polish & Delight — Enhancements 6, 9):
+
+11. **Momentum Indicators (Enhancement 6)** — Contextual awareness layered onto the spectator experience:
+    - **Momentum Banners** — Animated banners slide in from the top for notable game moments: point runs (3+), set point, match point, set won, comebacks (erasing 3+ point deficit), timeouts, and substitutions involving cheered-for players. Color-coded by mood: green (positive), coral (opponent), amber (neutral), red (urgent). Auto-dismiss after 4s with queued display.
+    - **Emoji Rain** — 25-particle celebratory emoji burst for major moments (set won, 5+ point runs, comebacks). Uses randomized horizontal positions and fall speeds for a natural confetti effect.
+    - **Point Streak Counter** — Inline badge below the scoreboard showing "🔥 X straight!" during 3+ point runs, color-coded by team.
+    - New file: `hooks/useMomentumDetection.ts` — Streak, set point, match point, comeback, side out, timeout, and substitution detection
+    - New file: `components/spectator/MomentumBanner.tsx` — Animated contextual banner
+    - New file: `components/spectator/EmojiRain.tsx` — Celebratory emoji particle animation
+
+12. **Match Ambiance & Polish (Enhancement 9):**
+    - **Live Pulse Indicator** — Animated pulsing dot replaces the static green "Live" dot. Pulses faster during active play (in-rally), slower between points, and switches to amber with no pulse when disconnected.
+    - **Haptic Feedback** — Automatic haptic feedback for game events: light impact for points, heavy impact for big plays (ace/kill/block), medium impact for timeouts, success/error notifications for set wins. Enabled by default, fires per-event.
+    - **Between-Sets View** — Transitional card shown when `status === 'between-sets'`. Displays completed set score, overall sets, per-set score chips, "View Set Stats" and "Fan Recap" action buttons, and a pulsing "Next set starting soon" waiting indicator.
+    - **Match Complete Celebration** — Win/loss celebration card replacing the simple "Match Ended" banner. Win: confetti-style header with "EAGLES WIN!" and primary color. Loss: warm, encouraging "Great effort!" tone. Shows final sets score, per-set scores, community stats (total cheers, peak viewers), and action buttons (Fan Recap, Share, Save).
+    - New file: `components/spectator/LivePulse.tsx` — Animated pulsing connection indicator
+    - New file: `hooks/useMatchSounds.ts` — Haptic feedback engine
+    - New file: `components/spectator/BetweenSetsView.tsx` — Between-sets transitional view
+    - New file: `components/spectator/MatchCompleteView.tsx` — Match end celebration/summary
+
+13. **Full Integration** — All Phase 3 components wired into `app/spectate/[code].tsx`. Scoreboard conditionally replaced by `BetweenSetsView` or `MatchCompleteView` based on match status. Momentum banners, emoji rain, and streak badges overlay during live play.
+
+**All 9 enhancements from SPECTATOR_EXPERIENCE_PLAN.md are now complete.**
+
+**Key Files (New — Wave 3):**
+- `hooks/useMomentumDetection.ts`
+- `hooks/useMatchSounds.ts`
+- `components/spectator/MomentumBanner.tsx`
+- `components/spectator/EmojiRain.tsx`
+- `components/spectator/LivePulse.tsx`
+- `components/spectator/BetweenSetsView.tsx`
+- `components/spectator/MatchCompleteView.tsx`
+
+**Key Files (Modified — Wave 3):**
+- `app/spectate/[code].tsx` — Integrated all Phase 3 components with conditional rendering
 
 ---
 
@@ -928,28 +1064,19 @@ interface LineupPosition {
 
 ## 8. Known Issues & Technical Debt
 
-### Pre-Existing TypeScript Errors
-Detailed maintenance plan available in [TECHNICAL_MAINTENANCE.md](TECHNICAL_MAINTENANCE.md).
+### Resolved Items (February 15, 2026)
+**Status:** ✅ All Critical Items Complete
 
-These errors do not block builds but should be addressed:
+The following items from [TECHNICAL_MAINTENANCE.md](TECHNICAL_MAINTENANCE.md) have been addressed:
 
 1. **FirebaseAuthContext Implicit Any**
-   - Location: `/services/firebase/AuthContext.tsx`
-   - Issue: Some auth context values typed as `any` instead of specific types
-   - Impact: Type safety reduced in auth-dependent components
-   - Fix: Add explicit types to context provider
+   - ✅ **FIXED:** `AuthContext.tsx` is now strictly typed with `AuthContextValue` interface.
 
 2. **getReactNativePersistence Export**
-   - Location: Firebase auth initialization
-   - Issue: `getReactNativePersistence` from `firebase/auth/react-native` not properly exported
-   - Impact: AsyncStorage persistence may not work correctly across app restarts
-   - Fix: Check Firebase version compatibility; may need to use alternative persistence strategy
+   - ✅ **FIXED:** Firebase persistence is correctly configured for React Native.
 
 3. **MatchErrorBoundary Context Issue**
-   - Location: `/components/MatchErrorBoundary.tsx`
-   - Issue: Context provider used without proper type narrowing
-   - Impact: Error boundary may not catch certain component errors
-   - Fix: Add type guards before consuming context
+   - ✅ **FIXED:** Error boundary improved with stricter types and better logging.
 
 ---
 
@@ -1029,13 +1156,33 @@ Critical infrastructure hardening for production:
     *   **Status:** ✅ Complete
     *   Increase touch target size for Heart/Alert/Star icons in the Spectator/Live view.
 
+### 10.3 UI Refinements
+8.  **Icon Sizing**
+    *   **Status:** ✅ Complete
+    *   Increase touch target size for Heart/Alert/Star icons in the Spectator/Live view.
+
 ### 10.4 Third-Party Data Integrations (New)
 9.  **External Schedule Import**
-    *   **Status:** 📅 Planned
+    *   **Status:** 📅 Planned (See [TEAM_SCHEDULE_INTEGRATION.md.txt](TEAM_SCHEDULE_INTEGRATION.md.txt))
     *   Allow users to import team rosters and event/match schedules from popular platforms:
         *   **Advanced Event Systems (AES)**
         *   **TeamSnap**
-        *   Other sources (SportsEngine, etc.)
+        *   **SportsEngine**
+    *   *Implementation Guide available in `TEAM_SCHEDULE_INTEGRATION.md.txt`*
+
+### 10.5 Spectator Experience 2.0 (Phase 2)
+10. **Enhanced Engagement**
+    *   **Status:** ✅ Complete
+    *   **Cheer Meter:** ✅ Complete (`CheerMeter.tsx`)
+    *   **Score Correction:** ✅ Complete (`ScoreCorrectionModal.tsx`)
+    *   **Emergency Alerts:** ✅ Complete (`EmergencyAlertModal.tsx` + `AlertPopover.tsx`)
+    *   **Fan Zone Chat:** ✅ Complete (`FanZoneModal.tsx` + `spectatorChatService.ts`)
+    *   **Spectator Share:** ✅ Complete (`SpectatorShareModal.tsx` with QR code)
+    *   **Advanced Reactions:** ✅ Complete (`ReactionDrawer.tsx` with volleyball + hype emojis)
+    *   **Reaction Bar Redesign:** ✅ Complete (Redesigned `SpectatorReactionBar.tsx`)
+    *   **Parent Highlights:** ✅ Complete (`ProudMomentCard.tsx` + `PlayerSetSummary.tsx` + My Player feed highlights)
+    *   **Momentum Banners:** ✅ Complete (`MomentumBanner.tsx` + `useMomentumDetection.ts` + `EmojiRain.tsx`)
+    *   **Match Ambiance:** ✅ Complete (`LivePulse.tsx` + `useMatchSounds.ts` + `BetweenSetsView.tsx` + `MatchCompleteView.tsx`)
 
 ---
 
@@ -1160,8 +1307,32 @@ Critical infrastructure hardening for production:
 - **Paywall UI:** `/components/PaywallModal.tsx`
 - **Ads:** `/components/AdBanner.tsx`
 
+### Spectator Experience (Phase 12)
+- **Spectator Screen:** `/app/spectate/[code].tsx`
+- **Reaction Bar:** `/components/SpectatorReactionBar.tsx`
+- **Alert Popover:** `/components/spectator/AlertPopover.tsx`
+- **Score Correction:** `/components/spectator/ScoreCorrectionModal.tsx`
+- **Emergency Alert:** `/components/spectator/EmergencyAlertModal.tsx`
+- **Share Modal:** `/components/spectator/SpectatorShareModal.tsx`
+- **Reaction Drawer:** `/components/spectator/ReactionDrawer.tsx`
+- **Fan Zone Chat:** `/components/spectator/FanZoneModal.tsx`
+- **Chat Service:** `/services/firebase/spectatorChatService.ts`
+- **Chat Hook:** `/hooks/useFanZoneChat.ts`
+- **Proud Moment:** `/components/spectator/ProudMomentCard.tsx`
+- **Set Summary:** `/components/spectator/PlayerSetSummary.tsx`
+- **Onboarding:** `/components/SpectatorOnboardingModal.tsx`
+- **Coach Alert Toast:** `/components/CoachAlertToast.tsx`
+- **Reaction Floater:** `/components/ReactionFloater.tsx`
+- **Momentum Banner:** `/components/spectator/MomentumBanner.tsx`
+- **Emoji Rain:** `/components/spectator/EmojiRain.tsx`
+- **Live Pulse:** `/components/spectator/LivePulse.tsx`
+- **Between Sets:** `/components/spectator/BetweenSetsView.tsx`
+- **Match Complete:** `/components/spectator/MatchCompleteView.tsx`
+- **Momentum Hook:** `/hooks/useMomentumDetection.ts`
+- **Match Sounds:** `/hooks/useMatchSounds.ts`
+
 ### Type Definitions
-- **All Types:** `/types/index.ts` (Season, Event, MatchRecord, StatLog, Player, etc.)
+- **All Types:** `/types/index.ts` (Season, Event, MatchRecord, StatLog, Player, SpectatorChatMessage, etc.)
 
 ### Key Routes
 - **Home:** `/app/index.tsx`
@@ -1228,11 +1399,12 @@ VolleyTrack is a mature, feature-complete MVP volleyball app with:
 - ✅ Cloud persistence via Firebase (Firestore + Realtime DB)
 - ✅ Monetization with free/Pro tiers (RevenueCat + AdMob)
 - ✅ Spectator mode for live match viewing
+- ✅ **Enhanced spectator experience** (Fan Zone Chat, volleyball reactions, parent highlights, score corrections, emergency alerts, share via QR)
 - ✅ AI-powered post-match narratives (Gemini)
 - ✅ Dark/light themes
 - ✅ Account management and settings
 
-**Current Status:** Production-ready. iOS RevenueCat production key configured. Ready for App Store submission.
+**Current Status:** Production-ready. iOS RevenueCat production key configured. Ready for App Store submission. Spectator Experience 3.0 (Phase 12) fully complete — all 9 enhancements from SPECTATOR_EXPERIENCE_PLAN.md delivered across 3 implementation waves.
 
 **Tech Debt:** Minor TypeScript type annotations needed; folder naming workaround required for builds.
 

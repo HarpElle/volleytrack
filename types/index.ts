@@ -258,3 +258,19 @@ export interface MatchState {
   updateLogEntry: (logId: string, updates: Partial<StatLog>) => void;
   setAINarrative: (narrative: AINarrative) => void;
 }
+
+// ─── Spectator Chat ──────────────────────────────────────────────────────
+
+export interface SpectatorChatMessage {
+  id: string;
+  senderDeviceId: string;
+  senderName: string;
+  text: string;
+  timestamp: number;
+  type: 'message' | 'celebration' | 'reaction_context';
+  /** For celebration type: auto-generated when big plays happen */
+  triggerEvent?: string;
+  triggerPlayerName?: string;
+  /** For reaction_context: links a reaction to a stat */
+  linkedStatId?: string;
+}

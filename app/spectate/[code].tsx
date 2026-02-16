@@ -1,6 +1,6 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Check, Radio, Save, WifiOff } from 'lucide-react-native';
+import { ArrowLeft, Check, Save, Star, WifiOff } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,16 +11,33 @@ import { PaywallModal } from '../../components/PaywallModal';
 import { ReactionFloater } from '../../components/ReactionFloater';
 import ScoreBoard from '../../components/ScoreBoard';
 import CheerMeter from '../../components/spectator/CheerMeter';
+import { EmergencyAlertModal } from '../../components/spectator/EmergencyAlertModal';
+import { FanZoneModal } from '../../components/spectator/FanZoneModal';
+import { PlayerSetSummary } from '../../components/spectator/PlayerSetSummary';
+import { ProudMomentCard } from '../../components/spectator/ProudMomentCard';
+import { ReactionDrawer } from '../../components/spectator/ReactionDrawer';
+import { ScoreCorrectionModal } from '../../components/spectator/ScoreCorrectionModal';
+import { SpectatorShareModal } from '../../components/spectator/SpectatorShareModal';
+// Phase 3 components (Enhancements 6 & 9)
+import { BetweenSetsView } from '../../components/spectator/BetweenSetsView';
+import { EmojiRain } from '../../components/spectator/EmojiRain';
+import { LivePulse } from '../../components/spectator/LivePulse';
+import { MatchCompleteView } from '../../components/spectator/MatchCompleteView';
+import { MomentumBanner } from '../../components/spectator/MomentumBanner';
 import { SpectatorLobbyModal } from '../../components/SpectatorLobbyModal';
 import { SpectatorOnboardingModal } from '../../components/SpectatorOnboardingModal';
 import { SpectatorReactionBar } from '../../components/SpectatorReactionBar';
 import { SuperFanRecapModal } from '../../components/SuperFanRecapModal';
 import { useAppTheme } from '../../contexts/ThemeContext';
+import { useFanZoneChat } from '../../hooks/useFanZoneChat';
 import { useIncomingReactions } from '../../hooks/useIncomingReactions';
+import { useMatchSounds } from '../../hooks/useMatchSounds';
+import { useMomentumDetection } from '../../hooks/useMomentumDetection';
 import { useSpectatorInteractions } from '../../hooks/useSpectatorInteractions';
 import { useSpectatorMatch } from '../../hooks/useSpectatorMatch';
+import { sendCelebrationMessage } from '../../services/firebase/spectatorChatService';
 import { useDataStore } from '../../store/useDataStore';
-import { MatchRecord, StatLog } from '../../types';
+import { MatchRecord, Player, Score, StatLog } from '../../types';
 
 // Stat types that end a rally and award a point
 const POINT_SCORERS = ['ace', 'kill', 'block'];
@@ -32,14 +49,12 @@ function isRallyEnding(type: string): boolean {
 
 /**
  * Compute the score AFTER a rally-ending event.
- * Scorers give a point to the acting team; errors give a point to the other team.
  */
 function getResultScore(event: StatLog): { myTeam: number; opponent: number } | null {
     if (!isRallyEnding(event.type)) return null;
 
     const before = event.scoreSnapshot;
     const isError = POINT_ERRORS.includes(event.type);
-    // Errors award a point to the opposing team; scorers award to the acting team
     const winner = isError
         ? (event.team === 'myTeam' ? 'opponent' : 'myTeam')
         : event.team;
@@ -50,8 +65,6 @@ function getResultScore(event: StatLog): { myTeam: number; opponent: number } | 
     };
 }
 
-// Format a StatLog entry for display
-// myTeam actions show label only; opponent actions append "- Opponent"
 function formatEvent(event: StatLog): string {
     const typeLabels: Record<string, string> = {
         ace: 'Ace',
@@ -90,16 +103,21 @@ export default function SpectateScreen() {
     const { colors } = useAppTheme();
     const { match, loading, error, isConnected } = useSpectatorMatch(code || '');
 
-    // Keep screen awake
     useKeepAwake();
 
     // Spectator interactions (alerts, cheers, viewer presence)
     const interactions = useSpectatorInteractions(code || '', match);
     const incomingReactions = useIncomingReactions(code || '');
 
+    // Fan Zone Chat (Enhancement 3)
+    const fanChat = useFanZoneChat(
+        code || '',
+        interactions.deviceId,
+        interactions.viewerName || 'Fan'
+    );
 
-
-    // ... (existing code)
+    // Match haptics (Enhancement 9)
+    const matchSounds = useMatchSounds({ hapticsEnabled: true });
 
     // Modal states
     const [showFanRecap, setShowFanRecap] = useState(false);
@@ -107,41 +125,100 @@ export default function SpectateScreen() {
     const [showPaywall, setShowPaywall] = useState(false);
     const [showLobby, setShowLobby] = useState(false);
     const [showMeter, setShowMeter] = useState(false);
-    const [namePromptDismissed, setNamePromptDismissed] = useState(false);
+
+    // Phase 1 modal states
+    const [showScoreCorrection, setShowScoreCorrection] = useState(false);
+    const [showEmergencyAlert, setShowEmergencyAlert] = useState(false);
+    const [showShare, setShowShare] = useState(false);
+
+    // Phase 2 states
+    const [showReactionDrawer, setShowReactionDrawer] = useState(false);
+    const [showFanZone, setShowFanZone] = useState(false);
+
+    // Proud Moment Card state (Enhancement 7)
+    const [proudMoment, setProudMoment] = useState<{
+        playerName: string;
+        jerseyNumber?: string;
+        eventType: string;
+    } | null>(null);
+    const lastProudMomentTimeRef = useRef(0);
+
+    // Player Set Summary state (Enhancement 7)
+    const [setForSummary, setSetForSummary] = useState<number | null>(null);
+    const [summaryPlayer, setSummaryPlayer] = useState<Player | null>(null);
+    const prevSetNumberRef = useRef<number | null>(null);
+
+    // Emoji Rain trigger state (Enhancement 6)
+    const [showEmojiRain, setShowEmojiRain] = useState(false);
+
+    // Track peak viewers (Enhancement 9 — MatchCompleteView)
+    const peakViewersRef = useRef(0);
 
     const state = match?.currentState;
     const isMatchEnded = state?.status === 'completed' || match?.isActive === false;
-
-    // Recent events for play-by-play (last 15, reversed for newest-first)
-    // Filter out rotations and initial lineup assignments (not real game actions)
-
+    const isBetweenSets = state?.status === 'between-sets';
 
     const noOp = () => { };
 
     // Track previous rotation for check-in alerts
     const prevRotationRef = useRef<string[]>([]);
 
-    // Check-in Alert Logic
+    // Track history length for celebration + proud moment detection
+    const prevHistoryLenRef = useRef(0);
+
+    const currentScore = state ? (state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 }) : { myTeam: 0, opponent: 0 };
+    const setConfig = state ? (state.config.sets[state.currentSet - 1] || { targetScore: 25, winBy: 2, cap: 100 }) : { targetScore: 25, winBy: 2, cap: 100 };
+
+    // Momentum detection (Enhancement 6)
+    const momentum = useMomentumDetection({
+        history: state?.history || [],
+        currentSet: state?.currentSet || 1,
+        currentScore,
+        setsWon: state?.setsWon || { myTeam: 0, opponent: 0 },
+        config: state?.config || { presetName: '3-Set', totalSets: 3, sets: [{ targetScore: 25, winBy: 2, cap: 30 }] },
+        myTeamName: state?.myTeamName || '',
+        opponentName: state?.opponentName || '',
+        cheeringFor: interactions.cheeringFor,
+        myTeamRoster: state?.myTeamRoster || [],
+        servingTeam: state?.servingTeam || 'myTeam',
+        status: state?.status || 'live',
+    });
+
+    // Trigger emoji rain when momentum says so
+    useEffect(() => {
+        if (momentum.activeBanner?.triggerRain) {
+            setShowEmojiRain(true);
+        }
+    }, [momentum.activeBanner]);
+
+    // Track peak viewers
+    useEffect(() => {
+        if (interactions.viewerCount > peakViewersRef.current) {
+            peakViewersRef.current = interactions.viewerCount;
+        }
+    }, [interactions.viewerCount]);
+
+    // Haptic feedback for game events (Enhancement 9)
+    useEffect(() => {
+        if (state?.history) {
+            matchSounds.processNewEvents(state.history);
+        }
+    }, [state?.history?.length]);
+
     // Check-in Alert Logic
     useEffect(() => {
         if (!state?.currentRotation || !interactions.cheeringFor || interactions.cheeringFor.length === 0) return;
 
-        // Extract player IDs from current rotation (LineupPosition[])
         const currentIds = state.currentRotation
             .map(pos => pos.playerId)
             .filter((id): id is string => !!id);
 
         const prevIds = prevRotationRef.current;
-
-        // Find players who just checked in (in current, not in prev)
         const newPlayers = currentIds.filter(id => !prevIds.includes(id));
-
-        // Check if any of them are players we are cheering for
         const cheeringForIds = interactions.cheeringFor;
         const relevantCheckIns = newPlayers.filter(id => cheeringForIds.includes(id));
 
         if (relevantCheckIns.length > 0) {
-            // Find player names
             const playerNames = relevantCheckIns.map(id => {
                 const p = state.myTeamRoster.find(r => r.id === id);
                 return p ? p.name : 'Your player';
@@ -153,56 +230,94 @@ export default function SpectateScreen() {
         prevRotationRef.current = currentIds;
     }, [state?.currentRotation, interactions.cheeringFor]);
 
-    // Handle score correction alert
-    const handleScoreAlert = () => {
+    // Auto-generate celebration messages + Proud Moment cards for new plays
+    useEffect(() => {
+        if (!state?.history || !code) return;
+
+        const historyLen = state.history.length;
+        if (historyLen <= prevHistoryLenRef.current) {
+            prevHistoryLenRef.current = historyLen;
+            return;
+        }
+
+        const newEvents = state.history.slice(prevHistoryLenRef.current);
+        prevHistoryLenRef.current = historyLen;
+
+        for (const event of newEvents) {
+            // Celebration messages for home team big plays
+            if (event.team === 'myTeam' && POINT_SCORERS.includes(event.type) && event.playerId) {
+                const player = state.myTeamRoster.find(p => p.id === event.playerId);
+                if (player) {
+                    sendCelebrationMessage(
+                        code,
+                        event.type,
+                        player.name,
+                        player.jerseyNumber
+                    );
+                }
+
+                // Proud Moment Card if player is cheered-for (30s cooldown)
+                if (
+                    interactions.cheeringFor?.includes(event.playerId) &&
+                    Date.now() - lastProudMomentTimeRef.current > 30_000
+                ) {
+                    lastProudMomentTimeRef.current = Date.now();
+                    setProudMoment({
+                        playerName: player?.name || 'Your player',
+                        jerseyNumber: player?.jerseyNumber,
+                        eventType: event.type,
+                    });
+                }
+            }
+        }
+    }, [state?.history?.length, code, interactions.cheeringFor, state?.myTeamRoster]);
+
+    // End-of-set detection for Player Set Summary
+    useEffect(() => {
         if (!state) return;
 
-        const currentScore = state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 };
+        const currentSet = state.currentSet;
+        if (prevSetNumberRef.current !== null && currentSet > prevSetNumberRef.current) {
+            const completedSet = prevSetNumberRef.current;
+            if (interactions.cheeringFor && interactions.cheeringFor.length > 0) {
+                const playerId = interactions.cheeringFor[0];
+                const player = state.myTeamRoster.find(p => p.id === playerId);
+                if (player) {
+                    setSummaryPlayer(player);
+                    setSetForSummary(completedSet);
+                }
+            }
+        }
+        prevSetNumberRef.current = currentSet;
+    }, [state?.currentSet, interactions.cheeringFor, state?.myTeamRoster]);
 
-        Alert.alert(
-            'Score Check',
-            `Current score is ${currentScore.myTeam}-${currentScore.opponent} in Set ${state.currentSet}.\n\nSend a notification to the coach that the score may need checking?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Send Alert',
-                    onPress: async () => {
-                        const success = await interactions.sendAlert('score_correction', {
-                            message: 'A spectator thinks the score may need checking'
-                        });
-                        if (success) {
-                            Alert.alert('Sent', 'The coach has been notified.');
-                        }
-                    },
-                },
-            ]
-        );
+    // Handlers
+    const handleScoreAlert = () => {
+        if (!state) return;
+        setShowScoreCorrection(true);
     };
 
-    // Handle Emergency Alert
+    const handleScoreCorrectionSubmit = async (suggestedScore: Score, message?: string) => {
+        const success = await interactions.sendAlert('score_correction', {
+            suggestedScore,
+            message,
+        });
+        if (success) {
+            Alert.alert('Sent', 'The coach has been notified with the score details.');
+        }
+    };
+
     const handleEmergencyAlert = () => {
-        Alert.alert(
-            'Emergency Stop',
-            'This will loudly buzz the coach to STOP the match immediately (e.g. injury, wrong score, safety issue).\n\nAre you sure?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'STOP MATCH',
-                    style: 'destructive',
-                    onPress: async () => {
-                        const success = await interactions.sendAlert('emergency', {
-                            message: 'URGENT: Spectator requested match stop!'
-                        });
-                        if (success) {
-                            Alert.alert('Alert Sent', 'The coach has been notified urgently.');
-                        }
-                    },
-                },
-            ]
-        );
+        setShowEmergencyAlert(true);
     };
 
-    // Handle cheer
+    const handleEmergencySubmit = async (message: string) => {
+        const success = await interactions.sendAlert('emergency', { message });
+        if (success) {
+            Alert.alert('Alert Sent', 'The coach has been notified urgently.');
+        }
+    };
+
     const handleCheer = async () => {
         await interactions.sendCheer();
     };
@@ -217,7 +332,7 @@ export default function SpectateScreen() {
         const result: MatchRecord['result'] =
             match.isActive ? 'In Progress' :
                 (state.setsWon.myTeam > state.setsWon.opponent ? 'Win' :
-                    (state.setsWon.myTeam < state.setsWon.opponent ? 'Loss' : 'In Progress')); // Draw?
+                    (state.setsWon.myTeam < state.setsWon.opponent ? 'Loss' : 'In Progress'));
 
         const record: MatchRecord = {
             id: match.matchId,
@@ -228,16 +343,13 @@ export default function SpectateScreen() {
             scores: state.scores,
             history: state.history,
             config: state.config,
-            lineups: {}, // We might not have full lineups in snapshot, strictly
-            // Could add team name to a custom field if MatchRecord supported it, but opponentName is there.
-            // We assume "My Team" is the perspective.
+            lineups: {},
         };
 
         saveSpectatorMatch(record);
         Alert.alert('Saved', 'This match has been saved to your history.');
     };
 
-    // Show name prompt?
     const showNamePrompt = !interactions.isProfileSet && !loading && match;
 
     // Loading state
@@ -276,19 +388,32 @@ export default function SpectateScreen() {
 
     if (!state) return null;
 
-    const currentScore = state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 };
-    const setConfig = state.config.sets[state.currentSet - 1] || { targetScore: 25, winBy: 2, cap: 100 };
-
-    // Recent events for play-by-play (last 15, reversed for newest-first)
-    // Filter out rotations and initial lineup assignments (not real game actions)
     const recentEvents = (state.history || [])
         .filter(e => e.setNumber === state.currentSet)
         .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
         .slice(-15)
         .reverse();
 
+    const cheeringForSet = new Set(interactions.cheeringFor || []);
+
+    // Point streak indicator for score area
+    const streak = momentum.currentStreak;
+    const showStreak = streak.count >= 3;
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
+            {/* Momentum Banner (Enhancement 6) */}
+            <MomentumBanner
+                event={momentum.activeBanner}
+                onDismiss={momentum.dismissBanner}
+            />
+
+            {/* Emoji Rain (Enhancement 6) */}
+            <EmojiRain
+                trigger={showEmojiRain}
+                onComplete={() => setShowEmojiRain(false)}
+            />
+
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.headerBack}>
@@ -301,15 +426,16 @@ export default function SpectateScreen() {
                     <View style={styles.statusRow}>
                         {isMatchEnded ? (
                             <Text style={[styles.statusText, { color: colors.textSecondary }]}>Match Ended</Text>
-                        ) : isConnected ? (
-                            <>
-                                <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
-                                <Text style={[styles.statusText, { color: colors.textSecondary }]}>Live</Text>
-                            </>
                         ) : (
                             <>
-                                <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
-                                <Text style={[styles.statusText, { color: colors.warning }]}>Reconnecting...</Text>
+                                <LivePulse
+                                    isLive={isConnected}
+                                    isActivePlay={state.rallyState === 'in-rally'}
+                                    size={8}
+                                />
+                                <Text style={[styles.statusText, { color: isConnected ? colors.textSecondary : colors.warning }]}>
+                                    {isConnected ? 'Live' : 'Reconnecting...'}
+                                </Text>
                             </>
                         )}
                     </View>
@@ -329,7 +455,6 @@ export default function SpectateScreen() {
                 contentContainerStyle={styles.scrollContent}
                 ListHeaderComponent={
                     <>
-                        {/* Onboarding for first-time spectators */}
                         {showNamePrompt && (
                             <SpectatorOnboardingModal
                                 visible={!!showNamePrompt}
@@ -342,38 +467,69 @@ export default function SpectateScreen() {
                             />
                         )}
 
-                        {/* Match ended banner */}
+                        {/* Match Complete View (Enhancement 9) */}
                         {isMatchEnded && (
-                            <View style={[styles.endBanner, { backgroundColor: colors.primaryLight }]}>
-                                <Radio size={18} color={colors.primary} />
-                                <Text style={[styles.endBannerText, { color: colors.primary }]}>
-                                    {match?.isActive === false ? 'Sharing has ended' : 'Match Complete'}
+                            <MatchCompleteView
+                                myTeamName={state.myTeamName}
+                                opponentName={state.opponentName}
+                                setsWon={state.setsWon}
+                                setHistory={state.setHistory || []}
+                                config={state.config}
+                                cheerCount={interactions.cheerCount}
+                                peakViewers={peakViewersRef.current}
+                                matchCode={code || ''}
+                                isSaved={isSaved}
+                                onSaveMatch={handleSaveMatch}
+                                onGenerateRecap={() => setShowFanRecap(true)}
+                            />
+                        )}
+
+                        {/* Between Sets View (Enhancement 9) */}
+                        {!isMatchEnded && isBetweenSets && (
+                            <BetweenSetsView
+                                currentSet={state.currentSet}
+                                setsWon={state.setsWon}
+                                setHistory={state.setHistory || []}
+                                config={state.config}
+                                myTeamName={state.myTeamName}
+                                opponentName={state.opponentName}
+                                onViewSetStats={() => setShowFullLog(true)}
+                                onGenerateRecap={() => setShowFanRecap(true)}
+                            />
+                        )}
+
+                        {/* Normal scoreboard when not showing special views */}
+                        {!isMatchEnded && !isBetweenSets && (
+                            <ScoreBoard
+                                myTeamName={state.myTeamName}
+                                opponentName={state.opponentName}
+                                currentSet={state.currentSet}
+                                score={currentScore}
+                                setsWon={state.setsWon}
+                                setConfig={setConfig}
+                                config={state.config}
+                                setHistory={state.setHistory}
+                                onScoreLongPress={noOp}
+                                servingTeam={state.servingTeam}
+                                onToggleServe={noOp}
+                                timeoutsRemaining={state.timeoutsRemaining}
+                                onUseTimeout={noOp}
+                                configTimeouts={state.config.timeoutsPerSet || 2}
+                                onIncrement={noOp}
+                                onDecrement={noOp}
+                                readOnly
+                            />
+                        )}
+
+                        {/* Point streak indicator (Enhancement 6) */}
+                        {showStreak && !isMatchEnded && !isBetweenSets && (
+                            <View style={[styles.streakBadge, { backgroundColor: `${streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent}15` }]}>
+                                <Text style={[styles.streakText, { color: streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent }]}>
+                                    {streak.team === 'myTeam' ? '🔥' : '⚡'} {streak.count} straight!
                                 </Text>
                             </View>
                         )}
 
-                        {/* ScoreBoard (read-only) */}
-                        <ScoreBoard
-                            myTeamName={state.myTeamName}
-                            opponentName={state.opponentName}
-                            currentSet={state.currentSet}
-                            score={currentScore}
-                            setsWon={state.setsWon}
-                            setConfig={setConfig}
-                            config={state.config}
-                            setHistory={state.setHistory}
-                            onScoreLongPress={noOp}
-                            servingTeam={state.servingTeam}
-                            onToggleServe={noOp}
-                            timeoutsRemaining={state.timeoutsRemaining}
-                            onUseTimeout={noOp}
-                            configTimeouts={state.config.timeoutsPerSet || 2}
-                            onIncrement={noOp}
-                            onDecrement={noOp}
-                            readOnly
-                        />
-
-                        {/* Set context */}
                         <View style={styles.setContext}>
                             <Text style={[styles.setContextText, { color: colors.textTertiary }]}>
                                 Set {state.currentSet} of {state.config.totalSets}
@@ -381,8 +537,7 @@ export default function SpectateScreen() {
                             </Text>
                         </View>
 
-                        {/* LineupTracker (read-only) */}
-                        {state.currentRotation && state.currentRotation.length > 0 && (
+                        {state.currentRotation && state.currentRotation.length > 0 && !isMatchEnded && (
                             <View style={[styles.lineupCard, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
                                 <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Lineup</Text>
                                 <LineupTracker
@@ -395,7 +550,6 @@ export default function SpectateScreen() {
                             </View>
                         )}
 
-                        {/* Play-by-play header */}
                         {recentEvents.length > 0 && (
                             <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 16, marginBottom: 8 }]}>
                                 Recent Activity
@@ -405,10 +559,28 @@ export default function SpectateScreen() {
                 }
                 renderItem={({ item }) => {
                     const resultScore = getResultScore(item);
+                    const isMyPlayer = item.playerId ? cheeringForSet.has(item.playerId) : false;
+                    const playerInfo = isMyPlayer && item.playerId
+                        ? state.myTeamRoster.find(p => p.id === item.playerId)
+                        : null;
+
                     return (
-                        <View style={[styles.eventRow, { borderBottomColor: colors.border }]}>
-                            <View style={[styles.eventDot, { backgroundColor: item.team === 'myTeam' ? colors.primary : colors.opponent }]} />
-                            <Text style={[styles.eventText, { color: colors.text }]}>{formatEvent(item)}</Text>
+                        <View
+                            style={[
+                                styles.eventRow,
+                                { borderBottomColor: colors.border },
+                                isMyPlayer && { backgroundColor: `${colors.primary}10` },
+                            ]}
+                        >
+                            {isMyPlayer ? (
+                                <Star size={14} color={colors.primary} fill={colors.primary} />
+                            ) : (
+                                <View style={[styles.eventDot, { backgroundColor: item.team === 'myTeam' ? colors.primary : colors.opponent }]} />
+                            )}
+                            <Text style={[styles.eventText, { color: colors.text, fontWeight: isMyPlayer ? '700' : '500' }]}>
+                                {formatEvent(item)}
+                                {playerInfo && ` — #${playerInfo.jerseyNumber} ${playerInfo.name}`}
+                            </Text>
                             {resultScore ? (
                                 <Text style={[styles.eventScore, { color: colors.text, fontWeight: '700' }]}>
                                     {resultScore.myTeam}-{resultScore.opponent}
@@ -442,20 +614,40 @@ export default function SpectateScreen() {
                 }
             />
 
-            {/* Ad Banner */}
             <AdBanner />
-
-            {/* Reaction Floater Overlay */}
             <ReactionFloater reactions={incomingReactions} />
 
-            {/* Cheer Meter Overlay */}
             {showMeter && (
                 <View style={styles.meterOverlay}>
                     <CheerMeter onCheerPulse={interactions.sendCheerLevel} />
                 </View>
             )}
 
-            {/* Spectator Reaction Bar (replaces old static footer) */}
+            {/* Proud Moment Card (Enhancement 7) */}
+            {proudMoment && state && (
+                <ProudMomentCard
+                    visible={!!proudMoment}
+                    playerName={proudMoment.playerName}
+                    jerseyNumber={proudMoment.jerseyNumber}
+                    eventType={proudMoment.eventType}
+                    teamName={state.myTeamName}
+                    score={currentScore}
+                    currentSet={state.currentSet}
+                    matchCode={code || ''}
+                    onDismiss={() => setProudMoment(null)}
+                />
+            )}
+
+            {/* Reaction Drawer (Enhancement 5) */}
+            <ReactionDrawer
+                visible={showReactionDrawer}
+                onClose={() => setShowReactionDrawer(false)}
+                onReaction={(type) => {
+                    interactions.sendReaction(type);
+                }}
+            />
+
+            {/* Spectator Reaction Bar */}
             <SpectatorReactionBar
                 viewerCount={interactions.viewerCount}
                 cheerCount={interactions.cheerCount}
@@ -464,17 +656,80 @@ export default function SpectateScreen() {
                 canSendAlert={interactions.canSendAlert}
                 alertCooldownRemaining={interactions.alertCooldownRemaining}
                 matchCode={code || ''}
+                chatUnreadCount={fanChat.unreadCount}
                 onCheer={handleCheer}
                 onReaction={interactions.sendReaction}
-                onAlert={handleScoreAlert}
-                onEmergency={handleEmergencyAlert}
+                onScoreAlert={handleScoreAlert}
+                onEmergencyAlert={handleEmergencyAlert}
                 onFanRecap={() => setShowFanRecap(true)}
                 onOpenLobby={() => setShowLobby(true)}
+                onOpenShare={() => setShowShare(true)}
+                onOpenFanZone={() => {
+                    fanChat.setIsOpen(true);
+                    setShowFanZone(true);
+                }}
+                onOpenReactionDrawer={() => setShowReactionDrawer(!showReactionDrawer)}
                 onToggleMeter={() => setShowMeter(!showMeter)}
                 isMeterVisible={showMeter}
             />
 
-            {/* Spectator Lobby Modal */}
+            {/* Modals */}
+            <ScoreCorrectionModal
+                visible={showScoreCorrection}
+                onClose={() => setShowScoreCorrection(false)}
+                onSubmit={handleScoreCorrectionSubmit}
+                currentScore={currentScore}
+                myTeamName={state.myTeamName}
+                opponentName={state.opponentName}
+                currentSet={state.currentSet}
+                canSendAlert={interactions.canSendAlert}
+                cooldownRemaining={interactions.alertCooldownRemaining}
+            />
+
+            <EmergencyAlertModal
+                visible={showEmergencyAlert}
+                onClose={() => setShowEmergencyAlert(false)}
+                onSubmit={handleEmergencySubmit}
+                canSendAlert={interactions.canSendAlert}
+                cooldownRemaining={interactions.alertCooldownRemaining}
+            />
+
+            <SpectatorShareModal
+                visible={showShare}
+                onClose={() => setShowShare(false)}
+                matchCode={code || ''}
+                teamName={state.myTeamName}
+            />
+
+            <FanZoneModal
+                visible={showFanZone}
+                onClose={() => {
+                    setShowFanZone(false);
+                    fanChat.setIsOpen(false);
+                }}
+                messages={fanChat.messages}
+                viewerCount={interactions.viewerCount}
+                canSend={fanChat.canSend}
+                currentDeviceId={interactions.deviceId}
+                onSendMessage={fanChat.sendMessage}
+                onSendQuickReaction={fanChat.sendQuickReaction}
+            />
+
+            {summaryPlayer && setForSummary && (
+                <PlayerSetSummary
+                    visible={!!summaryPlayer}
+                    onClose={() => {
+                        setSummaryPlayer(null);
+                        setSetForSummary(null);
+                    }}
+                    player={summaryPlayer}
+                    setNumber={setForSummary}
+                    history={state.history}
+                    teamName={state.myTeamName}
+                    matchCode={code || ''}
+                />
+            )}
+
             <SpectatorLobbyModal
                 visible={showLobby}
                 onClose={() => setShowLobby(false)}
@@ -483,7 +738,6 @@ export default function SpectateScreen() {
                 currentViewerId={interactions.deviceId}
             />
 
-            {/* Super Fan Recap Modal */}
             <SuperFanRecapModal
                 visible={showFanRecap}
                 onClose={() => setShowFanRecap(false)}
@@ -494,21 +748,17 @@ export default function SpectateScreen() {
                 }}
             />
 
-            {/* Paywall Modal */}
             <PaywallModal
                 visible={showPaywall}
                 onClose={() => setShowPaywall(false)}
                 trigger="ai_narrative"
             />
 
-            {/* Full Log Modal (Read-Only for Spectators) */}
             <FullLogModal
                 visible={showFullLog}
                 onClose={() => setShowFullLog(false)}
                 history={state.history}
                 roster={state.myTeamRoster}
-
-            // No onUpdateLog prop means read-only
             />
         </SafeAreaView>
     );
@@ -550,7 +800,6 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
     },
-    // Header
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -575,11 +824,6 @@ const styles = StyleSheet.create({
         gap: 6,
         marginTop: 2,
     },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
     statusText: {
         fontSize: 12,
         fontWeight: '600',
@@ -588,18 +832,16 @@ const styles = StyleSheet.create({
         padding: 16,
         paddingBottom: 80,
     },
-    endBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 10,
-        borderRadius: 10,
-        marginBottom: 12,
+    streakBadge: {
+        alignSelf: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginTop: 6,
     },
-    endBannerText: {
-        fontSize: 14,
-        fontWeight: '700',
+    streakText: {
+        fontSize: 13,
+        fontWeight: '800',
     },
     setContext: {
         alignItems: 'center',
@@ -629,8 +871,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 10,
+        paddingHorizontal: 6,
         borderBottomWidth: StyleSheet.hairlineWidth,
         gap: 10,
+        borderRadius: 6,
+        marginBottom: 1,
     },
     eventDot: {
         width: 8,
@@ -640,7 +885,6 @@ const styles = StyleSheet.create({
     eventText: {
         flex: 1,
         fontSize: 14,
-        fontWeight: '500',
     },
     eventScore: {
         fontSize: 12,
@@ -670,7 +914,7 @@ const styles = StyleSheet.create({
     },
     meterOverlay: {
         position: 'absolute',
-        bottom: 80, // Above reaction bar
+        bottom: 80,
         left: 16,
         right: 16,
         zIndex: 100,

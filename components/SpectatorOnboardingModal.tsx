@@ -71,13 +71,39 @@ export function SpectatorOnboardingModal({
                 What should we call you?
             </Text>
 
+            {/* Quick name suggestion chips */}
+            <View style={styles.nameChips}>
+                {['Mom', 'Dad', 'Grandma', 'Grandpa', 'Coach Mom', 'Fan'].map((suggestion) => (
+                    <TouchableOpacity
+                        key={suggestion}
+                        style={[
+                            styles.nameChip,
+                            {
+                                backgroundColor: name === suggestion ? colors.primaryLight : colors.bgCard,
+                                borderColor: name === suggestion ? colors.primary : colors.border,
+                            },
+                        ]}
+                        onPress={() => setName(suggestion)}
+                    >
+                        <Text
+                            style={[
+                                styles.nameChipText,
+                                { color: name === suggestion ? colors.primary : colors.textSecondary },
+                            ]}
+                        >
+                            {suggestion}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
             <TextInput
                 style={[styles.input, {
                     backgroundColor: colors.bgCard,
                     borderColor: colors.border,
                     color: colors.text
                 }]}
-                placeholder="Your Name (e.g. Coach Mom)"
+                placeholder="Or type your name"
                 placeholderTextColor={colors.textTertiary}
                 value={name}
                 onChangeText={setName}
@@ -109,7 +135,7 @@ export function SpectatorOnboardingModal({
                 <View>
                     <Text style={[styles.stepTitle, { color: colors.text }]}>Who are you cheering for?</Text>
                     <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>
-                        {"We'll customize your experience!"}
+                        {"We'll highlight their plays and alert you when they're on the court"}
                     </Text>
                 </View>
             </View>
@@ -335,5 +361,22 @@ const styles = StyleSheet.create({
     secondaryBtnText: {
         fontSize: 16,
         fontWeight: '600',
-    }
+    },
+    nameChips: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 16,
+        justifyContent: 'center',
+    },
+    nameChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    nameChipText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
 });
