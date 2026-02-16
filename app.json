@@ -23,7 +23,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSSpeechRecognitionUsageDescription": "VolleyTrack uses speech recognition for hands-free stat tracking during matches.",
-        "NSMicrophoneUsageDescription": "VolleyTrack needs microphone access to transcribe your voice commands for stat tracking."
+        "NSMicrophoneUsageDescription": "VolleyTrack needs microphone access to transcribe your voice commands for stat tracking.",
+        "NSPhotoLibraryUsageDescription": "VolleyTrack allows you to save match reports and charts to your photo library."
       }
     },
     "android": {
