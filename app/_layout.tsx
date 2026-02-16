@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { OnboardingFlow, hasSeenOnboarding } from '../components/OnboardingFlow';
 import { AuthProvider, useAuth } from '../services/firebase';
 import { AppThemeProvider, useAppTheme } from '../contexts/ThemeContext';
@@ -137,33 +138,35 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppThemeProvider>
-        <AuthProvider>
-          <SkipAuthContext.Provider value={{ skipAuth, setSkipAuth }}>
-            <NavigationThemeBridge>
-              <AuthGate>
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="live" />
-                  <Stack.Screen name="summary" />
-                  <Stack.Screen name="match/setup" />
-                  <Stack.Screen name="season/[id]" />
-                  <Stack.Screen name="season/create" />
-                  <Stack.Screen name="event/manage" options={{ presentation: 'modal' }} />
-                  <Stack.Screen name="event/[id]" />
-                  <Stack.Screen name="auth/sign-in" />
-                  <Stack.Screen name="auth/sign-up" />
-                  <Stack.Screen name="auth/forgot-password" />
-                  <Stack.Screen name="settings" />
-                  <Stack.Screen name="spectate/join" />
-                  <Stack.Screen name="spectate/[code]" />
-                  <Stack.Screen name="+not-found" />
-                </Stack>
-              </AuthGate>
-            </NavigationThemeBridge>
-          </SkipAuthContext.Provider>
-        </AuthProvider>
-      </AppThemeProvider>
+      <ErrorBoundary>
+        <AppThemeProvider>
+          <AuthProvider>
+            <SkipAuthContext.Provider value={{ skipAuth, setSkipAuth }}>
+              <NavigationThemeBridge>
+                <AuthGate>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="live" />
+                    <Stack.Screen name="summary" />
+                    <Stack.Screen name="match/setup" />
+                    <Stack.Screen name="season/[id]" />
+                    <Stack.Screen name="season/create" />
+                    <Stack.Screen name="event/manage" options={{ presentation: 'modal' }} />
+                    <Stack.Screen name="event/[id]" />
+                    <Stack.Screen name="auth/sign-in" />
+                    <Stack.Screen name="auth/sign-up" />
+                    <Stack.Screen name="auth/forgot-password" />
+                    <Stack.Screen name="settings" />
+                    <Stack.Screen name="spectate/join" />
+                    <Stack.Screen name="spectate/[code]" />
+                    <Stack.Screen name="+not-found" />
+                  </Stack>
+                </AuthGate>
+              </NavigationThemeBridge>
+            </SkipAuthContext.Provider>
+          </AuthProvider>
+        </AppThemeProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

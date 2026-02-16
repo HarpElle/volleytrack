@@ -51,6 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth state changes (login, logout, token refresh)
     useEffect(() => {
+        if (!auth) {
+            // Firebase not initialized (missing env vars) — skip auth, allow app to continue
+            setState({ user: null, loading: false, error: null });
+            return;
+        }
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setState({ user, loading: false, error: null });
         });
@@ -64,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Sign Up ──────────────────────────────────────────────────────────────
 
     const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
+        if (!auth || !db) {
+            setState((prev) => ({ ...prev, loading: false, error: 'Cloud services are unavailable. Please try again later.' }));
+            return;
+        }
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
             const { user } = await createUserWithEmailAndPassword(auth, email, password);
@@ -93,6 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Sign In ──────────────────────────────────────────────────────────────
 
     const signIn = useCallback(async (email: string, password: string) => {
+        if (!auth) {
+            setState((prev) => ({ ...prev, loading: false, error: 'Cloud services are unavailable. Please try again later.' }));
+            return;
+        }
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
             const { user } = await signInWithEmailAndPassword(auth, email, password);
@@ -109,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Sign Out ─────────────────────────────────────────────────────────────
 
     const signOut = useCallback(async () => {
+        if (!auth) return;
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
             await firebaseSignOut(auth);
@@ -125,6 +139,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Reset Password ───────────────────────────────────────────────────────
 
     const resetPassword = useCallback(async (email: string): Promise<boolean> => {
+        if (!auth) {
+            setState((prev) => ({ ...prev, loading: false, error: 'Cloud services are unavailable. Please try again later.' }));
+            return false;
+        }
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
             await sendPasswordResetEmail(auth, email);
@@ -143,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Delete Account ───────────────────────────────────────────────────────
 
     const deleteAccount = useCallback(async () => {
-        if (!auth.currentUser) return;
+        if (!auth?.currentUser) return;
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
             await deleteUser(auth.currentUser);
