@@ -32,7 +32,7 @@ export function getBannerAdUnitId(): string {
 
 // ── RevenueCat Configuration ────────────────────────────────────────────────
 // Platform-specific API keys from RevenueCat dashboard
-const REVENUECAT_IOS_KEY = 'appl_ePZNxNFIVWTwPIlNAaFKXHNPUxN';
+const REVENUECAT_IOS_KEY = 'appl_MVewjXppnqXRvGZuBOfTTMWARFJ';
 
 // Future: add Android key when Google Play is set up
 // const REVENUECAT_ANDROID_KEY = 'goog_YOUR_ANDROID_KEY';
