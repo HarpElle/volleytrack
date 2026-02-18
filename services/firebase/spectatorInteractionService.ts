@@ -2,13 +2,16 @@
  * Spectator Interaction Service
  *
  * Handles spectator-to-coach alerts, viewer presence tracking, and cheer reactions.
- * All data is embedded in the existing liveMatches/{matchCode} Firestore document
- * to leverage the existing onSnapshot listeners on both sides.
+ * All spectator-written data lives in liveMatches/{matchCode}/meta/interactions
+ * to avoid write contention with the coach's state updates on the main document.
  *
  * Write strategies (conflict-free):
- *   - Viewers: setDoc with merge on nested map key (spectators.{deviceId})
+ *   - Viewers: updateDoc with nested map key (spectators.{deviceId})
  *   - Alerts: arrayUnion on spectatorAlerts field
  *   - Cheers: increment() on cheerCount field
+ *
+ * Reactions and chat still use their own subcollections (reactions/, chat/)
+ * for independent high-throughput writes.
  */
 
 import {
@@ -26,7 +29,14 @@ import { db } from './config';
 const MAX_ALERTS = 20;
 
 /**
- * Register a spectator viewer in the live match document.
+ * Get a reference to the interactions subdocument for a match.
+ */
+function getInteractionsRef(matchCode: string) {
+    return doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
+}
+
+/**
+ * Register a spectator viewer in the interactions subdocument.
  * Each viewer writes to their own key in the `spectators` map — no conflicts.
  */
 export async function registerSpectator(
@@ -36,7 +46,7 @@ export async function registerSpectator(
     cheeringFor: string[] = []
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
+        const interactionsRef = getInteractionsRef(matchCode);
         const viewer: SpectatorViewer = {
             deviceId,
             name: name || 'Fan',
@@ -45,7 +55,7 @@ export async function registerSpectator(
             lastSeen: Date.now(),
         };
 
-        await updateDoc(docRef, {
+        await updateDoc(interactionsRef, {
             [`spectators.${deviceId}`]: viewer,
             spectatorCount: increment(1),
         });
@@ -64,8 +74,8 @@ export async function updateSpectatorPresence(
     deviceId: string
 ): Promise<void> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
-        await updateDoc(docRef, {
+        const interactionsRef = getInteractionsRef(matchCode);
+        await updateDoc(interactionsRef, {
             [`spectators.${deviceId}.lastSeen`]: Date.now(),
         });
     } catch (_) {
@@ -81,8 +91,8 @@ export async function unregisterSpectator(
     deviceId: string
 ): Promise<void> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
-        await updateDoc(docRef, {
+        const interactionsRef = getInteractionsRef(matchCode);
+        await updateDoc(interactionsRef, {
             [`spectators.${deviceId}`]: deleteField(),
             spectatorCount: increment(-1),
         });
@@ -100,7 +110,7 @@ export async function sendSpectatorAlert(
     alert: Omit<SpectatorAlert, 'id' | 'timestamp' | 'acknowledged'>
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
+        const interactionsRef = getInteractionsRef(matchCode);
         const fullAlert: SpectatorAlert = {
             ...alert,
             id: `alert_${Date.now()}_${alert.senderDeviceId.slice(0, 6)}`,
@@ -108,8 +118,12 @@ export async function sendSpectatorAlert(
             acknowledged: false,
         };
 
-        await updateDoc(docRef, {
+        await updateDoc(interactionsRef, {
             spectatorAlerts: arrayUnion(fullAlert),
+            // Metadata for other spectators to see recent alert info
+            lastAlertType: alert.type,
+            lastAlertAt: fullAlert.timestamp,
+            lastAlertSenderName: alert.senderName || 'A spectator',
         });
 
         return { success: true };
@@ -125,8 +139,8 @@ export async function sendCheer(
     matchCode: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
-        await updateDoc(docRef, {
+        const interactionsRef = getInteractionsRef(matchCode);
+        await updateDoc(interactionsRef, {
             cheerCount: increment(1),
             lastCheerAt: Date.now(),
         });
@@ -145,9 +159,9 @@ export async function acknowledgeAlerts(
     alerts: SpectatorAlert[]
 ): Promise<void> {
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
+        const interactionsRef = getInteractionsRef(matchCode);
         const acknowledged = alerts.map(a => ({ ...a, acknowledged: true }));
-        await updateDoc(docRef, {
+        await updateDoc(interactionsRef, {
             spectatorAlerts: acknowledged,
         });
     } catch (_) {
@@ -166,9 +180,9 @@ export async function trimAlerts(
     if (currentAlerts.length <= MAX_ALERTS) return;
 
     try {
-        const docRef = doc(db, 'liveMatches', matchCode);
+        const interactionsRef = getInteractionsRef(matchCode);
         const trimmed = currentAlerts.slice(-MAX_ALERTS);
-        await updateDoc(docRef, {
+        await updateDoc(interactionsRef, {
             spectatorAlerts: trimmed,
         });
     } catch (_) {

@@ -26,6 +26,20 @@ service cloud.firestore {
       // Update / Delete — only the owning coach
       allow update, delete: if request.auth != null
                             && resource.data.coachUid == request.auth.uid;
+
+      // ── Meta subcollection (spectator interactions) ──
+      //  The interactions subdoc lives at liveMatches/{code}/meta/interactions
+      //  • Public read so spectators can see viewer counts, cheers, alerts
+      //  • Public write so unauthenticated spectators can register presence,
+      //    send cheers, and submit alerts
+      //  • Scoped to the "interactions" document only for safety
+      match /meta/interactions {
+        allow read: if true;
+        allow create, update: if true;
+        // Delete only by owning coach (cleanup)
+        allow delete: if request.auth != null
+                      && get(/databases/$(database)/documents/liveMatches/$(matchCode)).data.coachUid == request.auth.uid;
+      }
     }
   }
 }

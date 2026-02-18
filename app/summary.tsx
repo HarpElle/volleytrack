@@ -57,6 +57,7 @@ export default function SummaryScreen() {
                 aiNarrative: record.aiNarrative,
                 matchId: record.id,
                 activeSeasonId: record.seasonId,
+                activeEventId: record.eventId,
                 roster: [], // We might need to fetch roster if available, or empty
                 isReadOnly: true,
                 // MatchStore has setAINarrative but here we'd need to update the Record
@@ -75,10 +76,11 @@ export default function SummaryScreen() {
     const {
         myTeamName, opponentName, setsWon, history, scores,
         activeSeasonId,
+        activeEventId,
         aiNarrative,
         isReadOnly,
         config
-    } = data;
+    } = data as any;
 
     // Actions from Store
     const { resetMatch, setAINarrative: storeSetAINarrative } = storeState;
@@ -91,10 +93,11 @@ export default function SummaryScreen() {
     // For Read-Only, specific actions like "New Match" return to dashboard
     // "Generate AI" updates the saved record in DataStore?
 
-    // Get Roster for StatsModal
-    const { seasons } = useDataStore();
+    // Get Roster and Event context for StatsModal and AI generation
+    const { seasons, events } = useDataStore();
     const activeSeason = seasons.find(s => s.id === activeSeasonId);
     const roster = activeSeason?.roster || [];
+    const activeEvent = events.find(e => e.id === activeEventId);
 
     // ... rest of component logic using `data` instead of `useMatchStore()` hooks directly
     // EXCEPT we need to be careful about hooks.
@@ -155,11 +158,24 @@ export default function SummaryScreen() {
 
         setIsGenerating(true);
         try {
+            // Build match context from event data (if available)
+            const matchContext: { eventName?: string; date?: string; location?: string } = {};
+            if (activeEvent) {
+                matchContext.eventName = activeEvent.name;
+                matchContext.location = activeEvent.location;
+                if (activeEvent.startDate) {
+                    matchContext.date = new Date(activeEvent.startDate).toLocaleDateString('en-US', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                    });
+                }
+            }
+
             const result = await geminiService.generateMatchNarratives(
                 useMatchStore.getState(),
                 history,
                 scores,
-                roster
+                roster,
+                matchContext,
             );
             setAINarrative(result);
             setAINarrative(result); // This might fail if setAINarrative comes from storeState but we are in saved mode?

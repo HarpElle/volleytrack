@@ -1,7 +1,7 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check, Save, Star, WifiOff } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../../components/AdBanner';
@@ -166,11 +166,17 @@ export default function SpectateScreen() {
     // Track history length for celebration + proud moment detection
     const prevHistoryLenRef = useRef(0);
 
-    const currentScore = state ? (state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 }) : { myTeam: 0, opponent: 0 };
-    const setConfig = state ? (state.config.sets[state.currentSet - 1] || { targetScore: 25, winBy: 2, cap: 100 }) : { targetScore: 25, winBy: 2, cap: 100 };
+    const currentScore = useMemo(
+        () => state ? (state.scores[state.currentSet - 1] || { myTeam: 0, opponent: 0 }) : { myTeam: 0, opponent: 0 },
+        [state?.scores, state?.currentSet]
+    );
+    const setConfig = useMemo(
+        () => state ? (state.config.sets[state.currentSet - 1] || { targetScore: 25, winBy: 2, cap: 100 }) : { targetScore: 25, winBy: 2, cap: 100 },
+        [state?.config?.sets, state?.currentSet]
+    );
 
-    // Momentum detection (Enhancement 6)
-    const momentum = useMomentumDetection({
+    // Momentum detection (Enhancement 6) — memoize props to avoid recalc
+    const momentumProps = useMemo(() => ({
         history: state?.history || [],
         currentSet: state?.currentSet || 1,
         currentScore,
@@ -182,7 +188,12 @@ export default function SpectateScreen() {
         myTeamRoster: state?.myTeamRoster || [],
         servingTeam: state?.servingTeam || 'myTeam',
         status: state?.status || 'live',
-    });
+    }), [
+        state?.history?.length, state?.currentSet, currentScore,
+        state?.setsWon, state?.config, state?.myTeamName, state?.opponentName,
+        interactions.cheeringFor, state?.myTeamRoster, state?.servingTeam, state?.status,
+    ]);
+    const momentum = useMomentumDetection(momentumProps);
 
     // Trigger emoji rain when momentum says so
     useEffect(() => {
@@ -388,13 +399,19 @@ export default function SpectateScreen() {
 
     if (!state) return null;
 
-    const recentEvents = (state.history || [])
-        .filter(e => e.setNumber === state.currentSet)
-        .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
-        .slice(-15)
-        .reverse();
+    const recentEvents = useMemo(
+        () => (state.history || [])
+            .filter(e => e.setNumber === state.currentSet)
+            .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
+            .slice(-15)
+            .reverse(),
+        [state.history?.length, state.currentSet]
+    );
 
-    const cheeringForSet = new Set(interactions.cheeringFor || []);
+    const cheeringForSet = useMemo(
+        () => new Set(interactions.cheeringFor || []),
+        [interactions.cheeringFor]
+    );
 
     // Point streak indicator for score area
     const streak = momentum.currentStreak;
@@ -521,20 +538,19 @@ export default function SpectateScreen() {
                             />
                         )}
 
-                        {/* Point streak indicator (Enhancement 6) */}
-                        {showStreak && !isMatchEnded && !isBetweenSets && (
-                            <View style={[styles.streakBadge, { backgroundColor: `${streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent}15` }]}>
-                                <Text style={[styles.streakText, { color: streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent }]}>
-                                    {streak.team === 'myTeam' ? '🔥' : '⚡'} {streak.count} straight!
-                                </Text>
-                            </View>
-                        )}
-
                         <View style={styles.setContext}>
                             <Text style={[styles.setContextText, { color: colors.textTertiary }]}>
                                 Set {state.currentSet} of {state.config.totalSets}
                                 {state.servingTeam === 'myTeam' ? ` · ${state.myTeamName} serving` : ` · ${state.opponentName} serving`}
                             </Text>
+                            {/* Point streak indicator (Enhancement 6) — inline to avoid pushing layout */}
+                            {showStreak && !isMatchEnded && !isBetweenSets && (
+                                <View style={[styles.streakBadge, { backgroundColor: `${streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent}15` }]}>
+                                    <Text style={[styles.streakText, { color: streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent }]}>
+                                        {streak.team === 'myTeam' ? '🔥' : '⚡'} {streak.count} straight!
+                                    </Text>
+                                </View>
+                            )}
                         </View>
 
                         {state.currentRotation && state.currentRotation.length > 0 && !isMatchEnded && (
@@ -618,9 +634,22 @@ export default function SpectateScreen() {
             <ReactionFloater reactions={incomingReactions} />
 
             {showMeter && (
-                <View style={styles.meterOverlay}>
-                    <CheerMeter onCheerPulse={interactions.sendCheerLevel} />
-                </View>
+                <TouchableOpacity
+                    style={styles.meterBackdrop}
+                    activeOpacity={1}
+                    onPress={() => setShowMeter(false)}
+                >
+                    <View style={styles.meterOverlay}>
+                        <TouchableOpacity
+                            style={[styles.meterCloseBtn, { backgroundColor: colors.bgCard }]}
+                            onPress={() => setShowMeter(false)}
+                            hitSlop={12}
+                        >
+                            <Text style={[styles.meterCloseText, { color: colors.textSecondary }]}>✕</Text>
+                        </TouchableOpacity>
+                        <CheerMeter onCheerPulse={interactions.sendCheerLevel} />
+                    </View>
+                </TouchableOpacity>
             )}
 
             {/* Proud Moment Card (Enhancement 7) */}
@@ -671,6 +700,8 @@ export default function SpectateScreen() {
                 onOpenReactionDrawer={() => setShowReactionDrawer(!showReactionDrawer)}
                 onToggleMeter={() => setShowMeter(!showMeter)}
                 isMeterVisible={showMeter}
+                alertsAllowed={interactions.alertsAllowed}
+                recentAlertInfo={interactions.recentAlertInfo}
             />
 
             {/* Modals */}
@@ -834,10 +865,10 @@ const styles = StyleSheet.create({
     },
     streakBadge: {
         alignSelf: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginTop: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 10,
+        marginTop: 4,
     },
     streakText: {
         fontSize: 13,
@@ -912,12 +943,38 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    meterOverlay: {
+    meterBackdrop: {
         position: 'absolute',
-        bottom: 80,
-        left: 16,
-        right: 16,
-        zIndex: 100,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        zIndex: 99,
+        justifyContent: 'flex-end',
+        paddingBottom: 80,
+    },
+    meterOverlay: {
+        marginHorizontal: 16,
         alignItems: 'center',
+        zIndex: 100,
+    },
+    meterCloseBtn: {
+        alignSelf: 'flex-end',
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    meterCloseText: {
+        fontSize: 16,
+        fontWeight: '700',
     }
 });

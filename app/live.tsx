@@ -235,6 +235,7 @@ function LiveScreen() {
         isBroadcasting, matchCode: liveMatchCode, isStarting, error: broadcastError,
         startBroadcast, stopBroadcast, finalizeBroadcast,
         pendingAlerts, dismissAlert, dismissAllAlerts, viewerCount,
+        broadcastSettings, toggleAlerts,
     } = useLiveMatch();
     const [showShare, setShowShare] = useState(false);
 
@@ -663,6 +664,8 @@ function LiveScreen() {
                     error={broadcastError}
                     onStartShare={startBroadcast}
                     onStopShare={stopBroadcast}
+                    broadcastSettings={broadcastSettings}
+                    onToggleAlerts={toggleAlerts}
                 />
 
                 <StatsModal

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import type { MomentumEvent } from '../../hooks/useMomentumDetection';
 
@@ -14,7 +15,8 @@ interface MomentumBannerProps {
  */
 export function MomentumBanner({ event, onDismiss }: MomentumBannerProps) {
     const { colors } = useAppTheme();
-    const slideAnim = useRef(new Animated.Value(-100)).current;
+    const insets = useSafeAreaInsets();
+    const slideAnim = useRef(new Animated.Value(-120)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -37,7 +39,7 @@ export function MomentumBanner({ event, onDismiss }: MomentumBannerProps) {
             // Slide out
             Animated.parallel([
                 Animated.timing(slideAnim, {
-                    toValue: -100,
+                    toValue: -120,
                     duration: 250,
                     useNativeDriver: true,
                 }),
@@ -82,6 +84,7 @@ export function MomentumBanner({ event, onDismiss }: MomentumBannerProps) {
             style={[
                 styles.container,
                 {
+                    top: insets.top + 48, // Below safe area + header
                     backgroundColor: style.bg,
                     borderColor: style.border,
                     transform: [{ translateY: slideAnim }],
@@ -106,7 +109,7 @@ export function MomentumBanner({ event, onDismiss }: MomentumBannerProps) {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        top: 0,
+        // `top` is set dynamically via insets.top + header height
         left: 12,
         right: 12,
         zIndex: 200,

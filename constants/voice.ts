@@ -15,8 +15,10 @@ export const VOICE_RECORDING_MAX_MS = 30000;
 export const VOICE_SILENCE_TIMEOUT_MS = 2000;
 
 // ── Gemini Parsing Configuration ─────────────────────────────────────────────
-// Timeout for the Gemini API call to parse voice transcript
-export const GEMINI_PARSE_TIMEOUT_MS = 15000;
+// Timeout for the Gemini API call to parse voice transcript (reduced for real-time responsiveness)
+export const GEMINI_PARSE_TIMEOUT_MS = 8000;
+// Delay between model fallback retries (ms)
+export const GEMINI_PARSE_RETRY_DELAY_MS = 200;
 
 // ── UI Constants ─────────────────────────────────────────────────────────────
 export const VOICE_COLORS = {

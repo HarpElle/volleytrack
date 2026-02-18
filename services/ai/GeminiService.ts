@@ -142,12 +142,17 @@ export class GeminiService {
         const topScorerId = [...playerScores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
         const topScorerLabel = topScorerId ? getPlayerLabel(topScorerId) : 'None';
 
-        return `
-MATCH CONTEXT:
-Date: ${context.date || 'Unknown Date'}
-Event: ${context.eventName || 'Unknown Event'}
-Location: ${context.location || 'Unknown Location'}
+        // Build context lines only for fields that have real data
+        const contextLines: string[] = [];
+        if (context.date) contextLines.push(`Date: ${context.date}`);
+        if (context.eventName) contextLines.push(`Event: ${context.eventName}`);
+        if (context.location) contextLines.push(`Location: ${context.location}`);
+        const contextBlock = contextLines.length > 0
+            ? `MATCH CONTEXT:\n${contextLines.join('\n')}\n`
+            : '';
 
+        return `
+${contextBlock}
 MATCH SUMMARY:
 My Team: ${state.myTeamName}
 Opponent: ${state.opponentName}
@@ -187,6 +192,7 @@ Structure:
 
 TONE: Professional, analytical, objective, concise.
 FORMAT: PLAIN TEXT ONLY. Do NOT use markdown (no **bold**, no ## headers). Do NOT use bullet points that rely on formatting. Use simple dashes or numbers.
+IMPORTANT: Do NOT use placeholder text like "Unknown Event", "Unknown Location", "Unknown Date", or "[Event Name]". If event, location, or date information is not provided in the data, simply omit any references to it.
 DATA:
 ${promptData}
         `;
@@ -202,6 +208,7 @@ Guidelines:
 4. **Tone**: Enthusiastic, community-focused, proud. 
 5. **Format**: Catchy headline, emoji-friendly.
 6. **Constraint**: PLAIN TEXT ONLY. Do NOT use markdown (no *bold*, no _italics_). Do NOT use code blocks or fixed-width ASCII tables. The output must look perfect in a standard text message or Instagram caption.
+7. **No Placeholders**: Do NOT use placeholder text like "Unknown Event", "Unknown Location", or "[Event Name]". If event or location info is not provided, simply omit references to it.
 
 DATA:
 ${promptData}
@@ -473,6 +480,21 @@ Write the fan recap now:
         throw new AIError("AI Generation failed. Please try again.", prompt);
     }
 
+    /**
+     * Strip any placeholder text the LLM may have included despite instructions.
+     * Removes phrases like "Unknown Event", "Unknown Location", etc.
+     */
+    private stripPlaceholders(text: string): string {
+        return text
+            .replace(/\b(at|the|in|from)\s+Unknown\s+(Event|Location|Date|Venue)\b/gi, '')
+            .replace(/\bUnknown\s+(Event|Location|Date|Venue)\b/gi, '')
+            .replace(/\[Event\s*Name\]/gi, '')
+            .replace(/\[Location\]/gi, '')
+            .replace(/\[Date\]/gi, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }
+
     async executeGeneration(analystPrompt: string, reporterPrompt: string): Promise<AINarrative> {
         // Shared execution logic to reuse safety settings and model fallback
         const safetySettings = [
@@ -509,8 +531,8 @@ Write the fan recap now:
                 );
 
                 return {
-                    coachSummary: coachResult.response.text(),
-                    socialSummary: socialResult.response.text(),
+                    coachSummary: this.stripPlaceholders(coachResult.response.text()),
+                    socialSummary: this.stripPlaceholders(socialResult.response.text()),
                     generatedAt: Date.now(),
                     debugPrompt: analystPrompt
                 };

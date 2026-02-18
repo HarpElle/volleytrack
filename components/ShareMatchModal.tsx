@@ -7,6 +7,7 @@ import {
     Platform,
     Share,
     StyleSheet,
+    Switch,
     Text,
     TouchableOpacity,
     View,
@@ -23,6 +24,8 @@ interface ShareMatchModalProps {
     error: string | null;
     onStartShare: () => Promise<string | null>;
     onStopShare: () => Promise<void>;
+    broadcastSettings?: { allowSpectatorAlerts: boolean };
+    onToggleAlerts?: () => void;
 }
 
 export default function ShareMatchModal({
@@ -34,6 +37,8 @@ export default function ShareMatchModal({
     error,
     onStartShare,
     onStopShare,
+    broadcastSettings,
+    onToggleAlerts,
 }: ShareMatchModalProps) {
     const { colors } = useAppTheme();
     const [copied, setCopied] = useState<'code' | 'link' | null>(null);
@@ -94,6 +99,26 @@ export default function ShareMatchModal({
                                 <View style={styles.liveDot} />
                                 <Text style={[styles.liveText, { color: colors.success }]}>Broadcasting</Text>
                             </View>
+
+                            {/* Spectator Alerts Toggle */}
+                            {broadcastSettings && onToggleAlerts && (
+                                <View style={[styles.settingRow, { borderColor: colors.border }]}>
+                                    <View style={styles.settingInfo}>
+                                        <Text style={[styles.settingLabel, { color: colors.text }]}>Spectator Alerts</Text>
+                                        <Text style={[styles.settingHint, { color: colors.textTertiary }]}>
+                                            {broadcastSettings.allowSpectatorAlerts
+                                                ? 'Spectators can send you alerts'
+                                                : 'Alerts from spectators are muted'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        value={broadcastSettings.allowSpectatorAlerts}
+                                        onValueChange={onToggleAlerts}
+                                        trackColor={{ false: colors.border, true: colors.primary + '60' }}
+                                        thumbColor={broadcastSettings.allowSpectatorAlerts ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
+                            )}
 
                             {/* Match Code */}
                             <View style={styles.section}>
@@ -178,6 +203,24 @@ export default function ShareMatchModal({
                             <Text style={[styles.description, { color: colors.textSecondary }]}>
                                 Share a code so parents, fans, and teammates can follow this match in real-time.
                             </Text>
+
+                            {/* Spectator Alerts Toggle (pre-broadcast) */}
+                            {broadcastSettings && onToggleAlerts && (
+                                <View style={[styles.settingRow, { borderColor: colors.border, marginBottom: 20 }]}>
+                                    <View style={styles.settingInfo}>
+                                        <Text style={[styles.settingLabel, { color: colors.text }]}>Spectator Alerts</Text>
+                                        <Text style={[styles.settingHint, { color: colors.textTertiary }]}>
+                                            Allow spectators to send score corrections and alerts
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        value={broadcastSettings.allowSpectatorAlerts}
+                                        onValueChange={onToggleAlerts}
+                                        trackColor={{ false: colors.border, true: colors.primary + '60' }}
+                                        thumbColor={broadcastSettings.allowSpectatorAlerts ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
+                            )}
 
                             <TouchableOpacity
                                 style={[styles.startBtn, { backgroundColor: colors.primary }]}
@@ -380,5 +423,30 @@ const styles = StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
         lineHeight: 18,
+    },
+    // Settings toggle
+    settingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        marginBottom: 16,
+    },
+    settingInfo: {
+        flex: 1,
+        marginRight: 12,
+    },
+    settingLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 2,
+    },
+    settingHint: {
+        fontSize: 12,
+        lineHeight: 16,
     },
 });

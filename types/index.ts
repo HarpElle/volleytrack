@@ -181,7 +181,12 @@ export interface LiveMatchSnapshot {
     status: 'live' | 'between-sets' | 'completed';
   };
 
-  // Phase 5: Spectator Interactions
+  // Broadcast settings (coach-configurable)
+  broadcastSettings?: {
+    allowSpectatorAlerts: boolean;
+  };
+
+  // Phase 5: Spectator Interactions (now in meta/interactions subdoc)
   spectators?: Record<string, SpectatorViewer>;
   spectatorCount?: number;
   spectatorAlerts?: SpectatorAlert[];

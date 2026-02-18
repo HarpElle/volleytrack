@@ -2,6 +2,9 @@
  * Spectator-side hook for managing viewer identity, alerts, cheers,
  * and viewer count. Works alongside useSpectatorMatch.
  *
+ * Subscribes to the interactions subdoc (meta/interactions) for viewer/cheer data,
+ * which is separate from the main match state document to avoid write contention.
+ *
  * Usage:
  *   const {
  *     viewerName, setViewerName, isNameSet,
@@ -14,6 +17,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeInteractions } from '../services/firebase/liveMatchService';
 import {
     registerSpectator,
     sendCheerPulse as sendCheerPulseService,
@@ -47,6 +51,50 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
     const [lastCheerSent, setLastCheerSent] = useState<number>(0);
     const [cheerBurst, setCheerBurst] = useState(false);
     const prevCheerCountRef = useRef<number>(0);
+
+    // Interactions data (from subcollection, NOT from main match doc)
+    const [interactionsData, setInteractionsData] = useState<{
+        spectators: Record<string, SpectatorViewer>;
+        spectatorCount: number;
+        cheerCount: number;
+        lastCheerAt: number | null;
+        lastAlertType: string | null;
+        lastAlertAt: number | null;
+        lastAlertSenderName: string | null;
+    }>({
+        spectators: {},
+        spectatorCount: 0,
+        cheerCount: 0,
+        lastCheerAt: null,
+        lastAlertType: null,
+        lastAlertAt: null,
+        lastAlertSenderName: null,
+    });
+
+    // Subscribe to interactions subdoc for viewer/cheer data
+    useEffect(() => {
+        if (!matchCode) return;
+
+        const unsubscribe = subscribeInteractions(
+            matchCode,
+            (data) => {
+                setInteractionsData({
+                    spectators: data.spectators || {},
+                    spectatorCount: data.spectatorCount || 0,
+                    cheerCount: data.cheerCount || 0,
+                    lastCheerAt: data.lastCheerAt || null,
+                    lastAlertType: data.lastAlertType || null,
+                    lastAlertAt: data.lastAlertAt || null,
+                    lastAlertSenderName: data.lastAlertSenderName || null,
+                });
+            },
+            (_err) => {
+                // Silently handle — interactions doc may not exist yet
+            }
+        );
+
+        return () => unsubscribe();
+    }, [matchCode]);
 
     // Initialize device ID and stored profile
     useEffect(() => {
@@ -134,16 +182,16 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
         return () => clearTimeout(timer);
     }, [lastAlertSent]);
 
-    // Detect cheer bursts from other spectators
+    // Detect cheer bursts from other spectators (now from interactions subdoc)
     useEffect(() => {
-        const currentCheerCount = match?.cheerCount || 0;
+        const currentCheerCount = interactionsData.cheerCount;
         if (currentCheerCount > prevCheerCountRef.current && prevCheerCountRef.current > 0) {
             // Someone cheered! Show burst animation
             setCheerBurst(true);
             setTimeout(() => setCheerBurst(false), 1500);
         }
         prevCheerCountRef.current = currentCheerCount;
-    }, [match?.cheerCount]);
+    }, [interactionsData.cheerCount]);
 
     // Send alert (Score Correction, Emergency, etc.)
     const sendAlert = useCallback(async (
@@ -197,12 +245,29 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
         return sendReactionService(matchCode, type, deviceId);
     }, [matchCode, deviceId]);
 
-    // Derived viewer data
-    const viewers: SpectatorViewer[] = match?.spectators
-        ? Object.values(match.spectators)
-        : [];
+    // Derived viewer data (from interactions subdoc, not main match doc)
+    const viewers: SpectatorViewer[] = Object.values(interactionsData.spectators);
     const viewerCount = viewers.length;
-    const cheerCount = match?.cheerCount || 0;
+    const cheerCount = interactionsData.cheerCount;
+
+    // Coach broadcast settings — check if alerts are allowed
+    const alertsAllowed = match?.broadcastSettings?.allowSpectatorAlerts !== false;
+
+    // Recent alert info for "already sent" indicator
+    const RECENT_ALERT_WINDOW_MS = 60_000; // 60 seconds
+    const recentAlertInfo = (() => {
+        const { lastAlertAt, lastAlertType, lastAlertSenderName } = interactionsData;
+        if (!lastAlertAt || !lastAlertType) return null;
+        const age = Date.now() - lastAlertAt;
+        if (age > RECENT_ALERT_WINDOW_MS) return null;
+        // Don't show if this user sent it (they already know)
+        if (lastAlertSenderName === (viewerName || 'A spectator')) return null;
+        return {
+            type: lastAlertType,
+            senderName: lastAlertSenderName || 'A spectator',
+            secondsAgo: Math.round(age / 1000),
+        };
+    })();
 
     const sendCheerLevel = useCallback(async (intensity: number) => {
         if (!matchCode || !deviceId) return;
@@ -233,9 +298,13 @@ export function useSpectatorInteractions(matchCode: string, match: LiveMatchSnap
         // Cheers
         sendCheer: sendCheerAction,
         canSendCheer: Date.now() - lastCheerSent > CHEER_COOLDOWN_MS,
-        sendCheerLevel, // New
+        sendCheerLevel,
         cheerCount,
         cheerBurst,
         sendReaction,
+
+        // Broadcast settings awareness
+        alertsAllowed,
+        recentAlertInfo,
     };
 }

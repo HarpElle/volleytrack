@@ -1,10 +1,11 @@
 /**
- * ScoreCorrectionModal — Lets a spectator report a score discrepancy
- * by showing the app's current score alongside editable fields for
- * what the score table actually shows.
+ * ScoreCorrectionModal — Lets a spectator report the score shown on the
+ * scorer's table so the coach can compare it with the app.
  *
- * Sends a structured alert with suggestedScore so the coach sees
- * both numbers side-by-side.
+ * Simplified flow: spectator enters what the scorer's table shows,
+ * optionally adds a note, and sends it to the coach. The button is always
+ * enabled (cooldown permitting) so the user doesn't have to figure out
+ * "what's different" — the coach sees both scores side-by-side.
  */
 
 import { X } from 'lucide-react-native';
@@ -51,34 +52,36 @@ export function ScoreCorrectionModal({
     const [oppScore, setOppScore] = useState('');
     const [note, setNote] = useState('');
 
-    // Pre-fill with current score when modal opens
+    // Start with empty fields so the user enters what the table shows
     useEffect(() => {
         if (visible) {
-            setMyTeamScore(String(currentScore.myTeam));
-            setOppScore(String(currentScore.opponent));
+            setMyTeamScore('');
+            setOppScore('');
             setNote('');
         }
-    }, [visible, currentScore.myTeam, currentScore.opponent]);
+    }, [visible]);
 
-    const parsedMyTeam = parseInt(myTeamScore, 10) || 0;
-    const parsedOpp = parseInt(oppScore, 10) || 0;
+    const parsedMyTeam = myTeamScore.length > 0 ? parseInt(myTeamScore, 10) : null;
+    const parsedOpp = oppScore.length > 0 ? parseInt(oppScore, 10) : null;
 
-    const hasDifference =
-        parsedMyTeam !== currentScore.myTeam || parsedOpp !== currentScore.opponent;
-
-    const myTeamChanged = parsedMyTeam !== currentScore.myTeam;
-    const oppChanged = parsedOpp !== currentScore.opponent;
+    // At least one score field must be filled in
+    const hasInput = parsedMyTeam !== null || parsedOpp !== null;
 
     const cooldownSeconds = Math.ceil(cooldownRemaining / 1000);
 
     const handleSubmit = () => {
-        if (!hasDifference || !canSendAlert) return;
+        if (!hasInput || !canSendAlert) return;
 
+        // Fill in current app score for any fields the user left empty
         const suggestedScore: Score = {
-            myTeam: parsedMyTeam,
-            opponent: parsedOpp,
+            myTeam: parsedMyTeam ?? currentScore.myTeam,
+            opponent: parsedOpp ?? currentScore.opponent,
         };
-        onSubmit(suggestedScore, note.trim() || undefined);
+
+        const messageParts: string[] = [];
+        if (note.trim()) messageParts.push(note.trim());
+
+        onSubmit(suggestedScore, messageParts.join(' ') || undefined);
         onClose();
     };
 
@@ -97,29 +100,18 @@ export function ScoreCorrectionModal({
                             </TouchableOpacity>
                         </View>
 
-                        {/* What the app shows */}
-                        <Text style={[styles.label, { color: colors.textSecondary }]}>
-                            What the app shows:
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                            Enter the score shown on the scorer's table and we'll notify the coach.
                         </Text>
-                        <View style={[styles.scoreRow, { backgroundColor: colors.bg, borderRadius: radius.md }]}>
-                            <Text style={[styles.teamLabel, { color: colors.textSecondary }]} numberOfLines={1}>
-                                {myTeamName}
-                            </Text>
-                            <Text style={[styles.appScore, { color: colors.text }]}>
-                                {currentScore.myTeam}
-                            </Text>
-                            <Text style={[styles.dash, { color: colors.textTertiary }]}>—</Text>
-                            <Text style={[styles.appScore, { color: colors.text }]}>
-                                {currentScore.opponent}
-                            </Text>
-                            <Text style={[styles.teamLabel, { color: colors.textSecondary }]} numberOfLines={1}>
-                                {opponentName}
-                            </Text>
-                        </View>
 
-                        {/* What the score table shows */}
+                        {/* What the app shows (read-only reference) */}
+                        <Text style={[styles.label, { color: colors.textTertiary, marginTop: spacing.sm }]}>
+                            App shows: {myTeamName} {currentScore.myTeam} – {currentScore.opponent} {opponentName} (Set {currentSet})
+                        </Text>
+
+                        {/* What the scorer's table shows */}
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
-                            What the score table shows:
+                            Scorer's table shows:
                         </Text>
                         <View style={styles.editRow}>
                             <View style={styles.editGroup}>
@@ -131,8 +123,8 @@ export function ScoreCorrectionModal({
                                         styles.scoreInput,
                                         {
                                             color: colors.text,
-                                            borderColor: myTeamChanged ? colors.primary : colors.border,
-                                            backgroundColor: myTeamChanged ? `${colors.primary}15` : colors.bg,
+                                            borderColor: myTeamScore.length > 0 ? colors.primary : colors.border,
+                                            backgroundColor: myTeamScore.length > 0 ? `${colors.primary}15` : colors.bg,
                                             borderRadius: radius.md,
                                         },
                                     ]}
@@ -140,6 +132,8 @@ export function ScoreCorrectionModal({
                                     onChangeText={setMyTeamScore}
                                     keyboardType="number-pad"
                                     maxLength={3}
+                                    placeholder={String(currentScore.myTeam)}
+                                    placeholderTextColor={colors.textTertiary}
                                     selectTextOnFocus
                                 />
                             </View>
@@ -155,8 +149,8 @@ export function ScoreCorrectionModal({
                                         styles.scoreInput,
                                         {
                                             color: colors.text,
-                                            borderColor: oppChanged ? colors.primary : colors.border,
-                                            backgroundColor: oppChanged ? `${colors.primary}15` : colors.bg,
+                                            borderColor: oppScore.length > 0 ? colors.primary : colors.border,
+                                            backgroundColor: oppScore.length > 0 ? `${colors.primary}15` : colors.bg,
                                             borderRadius: radius.md,
                                         },
                                     ]}
@@ -164,19 +158,14 @@ export function ScoreCorrectionModal({
                                     onChangeText={setOppScore}
                                     keyboardType="number-pad"
                                     maxLength={3}
+                                    placeholder={String(currentScore.opponent)}
+                                    placeholderTextColor={colors.textTertiary}
                                     selectTextOnFocus
                                 />
                             </View>
                         </View>
 
-                        <Text style={[styles.hint, { color: colors.textTertiary }]}>
-                            Tap the number that's different
-                        </Text>
-
                         {/* Optional note */}
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
-                            Optional note:
-                        </Text>
                         <TextInput
                             style={[
                                 styles.noteInput,
@@ -185,11 +174,12 @@ export function ScoreCorrectionModal({
                                     borderColor: colors.border,
                                     backgroundColor: colors.bg,
                                     borderRadius: radius.md,
+                                    marginTop: spacing.md,
                                 },
                             ]}
                             value={note}
                             onChangeText={setNote}
-                            placeholder="e.g. Ref missed the last point"
+                            placeholder="Optional note (e.g. ref missed the last point)"
                             placeholderTextColor={colors.textTertiary}
                             maxLength={100}
                             multiline={false}
@@ -215,14 +205,14 @@ export function ScoreCorrectionModal({
                                 style={[
                                     styles.submitBtn,
                                     {
-                                        backgroundColor: hasDifference && canSendAlert ? colors.primary : colors.border,
+                                        backgroundColor: hasInput && canSendAlert ? colors.primary : colors.border,
                                         borderRadius: radius.md,
                                     },
                                 ]}
                                 onPress={handleSubmit}
-                                disabled={!hasDifference || !canSendAlert}
+                                disabled={!hasInput || !canSendAlert}
                             >
-                                <Text style={[styles.submitText, { color: hasDifference && canSendAlert ? '#fff' : colors.textTertiary }]}>
+                                <Text style={[styles.submitText, { color: hasInput && canSendAlert ? '#fff' : colors.textTertiary }]}>
                                     Send to Coach
                                 </Text>
                             </TouchableOpacity>
@@ -253,36 +243,21 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 8,
     },
     title: {
         fontSize: 18,
         fontWeight: '800',
     },
-    label: {
+    subtitle: {
         fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 8,
+    },
+    label: {
+        fontSize: 12,
         fontWeight: '600',
         marginBottom: 6,
-    },
-    scoreRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 12,
-        gap: 10,
-    },
-    teamLabel: {
-        fontSize: 13,
-        fontWeight: '600',
-        flex: 1,
-        textAlign: 'center',
-    },
-    appScore: {
-        fontSize: 24,
-        fontWeight: '800',
-        fontVariant: ['tabular-nums'],
-        minWidth: 32,
-        textAlign: 'center',
     },
     dash: {
         fontSize: 20,
@@ -312,11 +287,6 @@ const styles = StyleSheet.create({
         width: 80,
         height: 56,
         padding: 0,
-    },
-    hint: {
-        fontSize: 11,
-        textAlign: 'center',
-        marginTop: 8,
     },
     noteInput: {
         fontSize: 14,

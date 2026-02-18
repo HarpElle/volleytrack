@@ -23,6 +23,8 @@ interface SpectatorReactionBarProps {
     alertCooldownRemaining: number;
     matchCode: string;
     chatUnreadCount: number;
+    alertsAllowed: boolean;
+    recentAlertInfo: { type: string; senderName: string; secondsAgo: number } | null;
     onCheer: () => void;
     onReaction: (type: string) => void;
     onScoreAlert: () => void;
@@ -56,6 +58,8 @@ export function SpectatorReactionBar({
     onOpenReactionDrawer,
     onToggleMeter,
     isMeterVisible,
+    alertsAllowed,
+    recentAlertInfo,
 }: SpectatorReactionBarProps) {
     const { colors, radius } = useAppTheme();
     const cheerScale = useRef(new Animated.Value(1)).current;
@@ -180,10 +184,12 @@ export function SpectatorReactionBar({
 
             {/* Alert Button (opens popover) */}
             <TouchableOpacity
-                style={[styles.iconBtn, { opacity: canSendAlert ? 1 : 0.6 }]}
+                style={[styles.iconBtn, { opacity: (canSendAlert && alertsAllowed) ? 1 : 0.6 }]}
                 onPress={() => {
                     if (showAlertMenu) {
                         setShowAlertMenu(false);
+                    } else if (!alertsAllowed) {
+                        // Don't open menu — alerts are muted by coach
                     } else if (canSendAlert) {
                         setShowAlertMenu(true);
                     }
@@ -193,13 +199,15 @@ export function SpectatorReactionBar({
             >
                 <AlertTriangle
                     size={18}
-                    color={canSendAlert ? colors.warning : colors.textTertiary}
+                    color={!alertsAllowed ? colors.textTertiary : canSendAlert ? colors.warning : colors.textTertiary}
                 />
-                {!canSendAlert && cooldownSeconds > 0 && (
+                {!alertsAllowed ? (
+                    <Text style={[styles.cooldownLabel, { color: colors.textTertiary }]}>Off</Text>
+                ) : !canSendAlert && cooldownSeconds > 0 ? (
                     <Text style={[styles.cooldownLabel, { color: colors.textTertiary }]}>
                         {cooldownSeconds}s
                     </Text>
-                )}
+                ) : null}
             </TouchableOpacity>
 
             {/* Alert Popover */}
@@ -220,6 +228,14 @@ export function SpectatorReactionBar({
                             },
                         ]}
                     >
+                        {/* Recent alert info banner (non-blocking) */}
+                        {recentAlertInfo && (
+                            <View style={[styles.recentAlertBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
+                                <Text style={[styles.recentAlertText, { color: colors.textSecondary }]}>
+                                    {recentAlertInfo.senderName} sent a {recentAlertInfo.type === 'score_correction' ? 'score check' : 'alert'} {recentAlertInfo.secondsAgo}s ago
+                                </Text>
+                            </View>
+                        )}
                         <TouchableOpacity
                             style={[styles.popoverOption, { borderBottomColor: colors.border }]}
                             onPress={() => {
@@ -333,5 +349,15 @@ const styles = StyleSheet.create({
     popoverText: {
         fontSize: 15,
         fontWeight: '600',
+    },
+    recentAlertBanner: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    recentAlertText: {
+        fontSize: 12,
+        fontStyle: 'italic',
+        lineHeight: 16,
     },
 });

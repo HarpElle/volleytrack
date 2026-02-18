@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
-import { MatchState, Player, StatLog } from "../../types";
-import { GEMINI_PARSE_TIMEOUT_MS, VOICE_STAT_VOCABULARY } from "../../constants/voice";
+import { LineupPosition, Player, StatLog } from "../../types";
+import { GEMINI_PARSE_TIMEOUT_MS, GEMINI_PARSE_RETRY_DELAY_MS, VOICE_STAT_VOCABULARY } from "../../constants/voice";
 
 const DEFAULT_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
 
@@ -42,6 +42,8 @@ export class VoiceParsingService {
      * @param servingTeam - Who is currently serving
      * @param rallyState - Current rally phase (pre-serve or in-rally)
      * @param currentScore - Current score for context
+     * @param myTeamName - Display name for the user's team
+     * @param currentRotation - Current court positions (P1-P6) to distinguish on-court vs bench players
      * @returns ParsedVoiceAction[] ready for confirmation modal
      */
     async parseVoiceInput(
@@ -51,12 +53,13 @@ export class VoiceParsingService {
         rallyState: 'pre-serve' | 'in-rally',
         currentScore: { myTeam: number; opponent: number },
         myTeamName: string = 'My Team',
+        currentRotation: LineupPosition[] = [],
     ): Promise<VoiceParseResult> {
         if (!transcript || transcript.trim().length === 0) {
             return { actions: [], error: 'No speech detected. Please try again.' };
         }
 
-        const prompt = this.buildPrompt(transcript, roster, servingTeam, rallyState, currentScore, myTeamName);
+        const prompt = this.buildPrompt(transcript, roster, servingTeam, rallyState, currentScore, myTeamName, currentRotation);
 
         const safetySettings = [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -65,20 +68,26 @@ export class VoiceParsingService {
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ];
 
-        // Model fallback chain (same pattern as GeminiService)
+        // Model fallback chain — prioritize speed over reasoning depth for voice parsing
+        // gemini-2.0-flash is fastest for structured JSON output tasks
         const candidateModels = [
-            "gemini-2.5-flash",
+            "gemini-2.0-flash",
             "gemini-2.0-flash-lite-001",
             "gemini-flash-latest",
-            "gemini-2.0-flash",
         ];
 
         let lastError: any = null;
 
         for (const modelId of candidateModels) {
             try {
-                const model = this.genAI.getGenerativeModel({ model: modelId, safetySettings });
-                if (lastError) await new Promise(resolve => setTimeout(resolve, 500));
+                const model = this.genAI.getGenerativeModel({
+                    model: modelId,
+                    safetySettings,
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                });
+                if (lastError) await new Promise(resolve => setTimeout(resolve, GEMINI_PARSE_RETRY_DELAY_MS));
 
                 // Race against timeout
                 const result = await Promise.race([
@@ -110,6 +119,7 @@ export class VoiceParsingService {
 
     /**
      * Build the Gemini prompt with all necessary context.
+     * Optimized for speed: only includes rally-state-relevant vocabulary and court lineup.
      */
     private buildPrompt(
         transcript: string,
@@ -118,53 +128,70 @@ export class VoiceParsingService {
         rallyState: 'pre-serve' | 'in-rally',
         currentScore: { myTeam: number; opponent: number },
         myTeamName: string,
+        currentRotation: LineupPosition[],
     ): string {
-        // Build roster reference
-        const rosterLines = roster.map(p =>
-            `  - ID: "${p.id}", Name: "${p.name}", Jersey: #${p.jerseyNumber}, Positions: ${p.positions?.join('/') || 'unknown'}`
-        ).join('\n');
+        // Determine which players are on court vs bench
+        const onCourtIds = new Set(
+            currentRotation
+                .filter(pos => pos.playerId)
+                .map(pos => pos.playerId as string)
+        );
 
-        // Build vocabulary reference
-        const vocabLines = Object.entries({
-            ...VOICE_STAT_VOCABULARY.preServe,
-            ...VOICE_STAT_VOCABULARY.inRally,
-        }).map(([type, phrases]) =>
-            `  "${type}": [${(phrases as string[]).map(p => `"${p}"`).join(', ')}]`
-        ).join('\n');
+        // Build roster reference with court/bench status
+        const rosterLines = roster.map(p => {
+            const courtStatus = onCourtIds.size > 0
+                ? (onCourtIds.has(p.id) ? '[ON COURT]' : '[BENCH]')
+                : '';
+            const courtPos = currentRotation.find(pos => pos.playerId === p.id);
+            const posLabel = courtPos ? ` P${courtPos.position}` : '';
+            return `  - ID: "${p.id}", Name: "${p.name}", Jersey: #${p.jerseyNumber}${posLabel} ${courtStatus}`;
+        }).join('\n');
 
-        return `You are a volleyball stat parser. Your ONLY job is to convert a spoken rally description into a JSON array of stat actions.
+        // Only include vocabulary relevant to current rally state (reduces prompt size)
+        const relevantVocab = rallyState === 'pre-serve'
+            ? VOICE_STAT_VOCABULARY.preServe
+            : VOICE_STAT_VOCABULARY.inRally;
 
-MATCH CONTEXT:
-- Serving Team: ${servingTeam === 'myTeam' ? myTeamName + ' (myTeam)' : 'Opponent'}
-- Rally State: ${rallyState}
-- Current Score: ${myTeamName} ${currentScore.myTeam} - ${currentScore.opponent} Opponent
+        // Always include a few cross-phase types that can appear in either state
+        const crossPhaseTypes: Record<string, string[]> = {};
+        if (rallyState === 'pre-serve') {
+            // During pre-serve, also include kill/attack in case coach describes a full rally
+            if (VOICE_STAT_VOCABULARY.inRally.kill) crossPhaseTypes.kill = VOICE_STAT_VOCABULARY.inRally.kill;
+            if (VOICE_STAT_VOCABULARY.inRally.attack_error) crossPhaseTypes.attack_error = VOICE_STAT_VOCABULARY.inRally.attack_error;
+            if (VOICE_STAT_VOCABULARY.inRally.block) crossPhaseTypes.block = VOICE_STAT_VOCABULARY.inRally.block;
+        } else {
+            // During in-rally, also include serve types in case coach starts from serve
+            if (VOICE_STAT_VOCABULARY.preServe.ace) crossPhaseTypes.ace = VOICE_STAT_VOCABULARY.preServe.ace;
+            if (VOICE_STAT_VOCABULARY.preServe.serve_error) crossPhaseTypes.serve_error = VOICE_STAT_VOCABULARY.preServe.serve_error;
+        }
 
-ROSTER (My Team):
+        const vocabLines = Object.entries({ ...relevantVocab, ...crossPhaseTypes })
+            .map(([type, phrases]) =>
+                `  "${type}": [${(phrases as string[]).map(p => `"${p}"`).join(', ')}]`
+            ).join('\n');
+
+        return `You are a volleyball stat parser. Convert a spoken rally description into a JSON array of stat actions.
+
+CONTEXT:
+- Serving: ${servingTeam === 'myTeam' ? myTeamName + ' (myTeam)' : 'Opponent'}
+- Rally: ${rallyState}
+- Score: ${myTeamName} ${currentScore.myTeam}-${currentScore.opponent}
+
+ROSTER (${myTeamName}):
 ${rosterLines}
 
-VALID STAT TYPES AND SYNONYMS:
+STAT TYPES:
 ${vocabLines}
 
 RULES:
-1. Parse the transcript into an ORDERED array of stat actions (first action first).
-2. For each action, determine:
-   - "type": One of the valid stat types above. Match the CLOSEST synonym.
-   - "team": "myTeam" for our team's actions, "opponent" for the other team.
-   - "playerId": The roster player ID if mentioned by name or jersey number. null if unclear.
-   - "assistPlayerId": For kills/attacks, the setter's ID if mentioned. null otherwise.
-   - "confidence": "high" if player and action are clear, "medium" if action is clear but player is ambiguous, "low" if guessing.
-   - "rawFragment": The portion of the transcript this action came from.
-3. Jersey numbers are MORE RELIABLE than names in noisy environments. Prefer number matches.
-4. If the transcript mentions "opponent" or "they/them" actions, set team to "opponent" with playerId null.
-5. If rally state is "pre-serve" and the serving team is myTeam, the first action should typically be a serve-related stat.
-6. If rally state is "pre-serve" and the serving team is opponent, the first action from myTeam should typically be a receive.
-7. Do NOT invent actions that weren't mentioned. Only parse what was actually said.
-8. If you cannot parse ANY valid action, return an empty array [].
-9. The response must be ONLY a valid JSON array — no markdown, no explanation, no code fences.
+1. Return an ORDERED JSON array of stat actions.
+2. Each action: { "type", "team" ("myTeam"/"opponent"), "playerId" (or null), "assistPlayerId" (or null), "confidence" ("high"/"medium"/"low"), "rawFragment" }
+3. Jersey numbers are MORE RELIABLE than names. Prefer number matches.
+4. Players marked [ON COURT] are more likely to be referenced than [BENCH] players.
+5. "opponent"/"they"/"them" actions → team: "opponent", playerId: null.
+6. Do NOT invent actions not mentioned. Return [] if nothing valid.
 
-TRANSCRIPT: "${transcript}"
-
-JSON RESPONSE:`;
+TRANSCRIPT: "${transcript}"`;
     }
 
     /**
@@ -172,7 +199,7 @@ JSON RESPONSE:`;
      */
     private parseResponse(responseText: string, roster: Player[]): VoiceParseResult {
         try {
-            // Strip any accidental markdown code fences
+            // Strip any accidental markdown code fences (shouldn't happen with JSON mode, but safe)
             let cleaned = responseText;
             if (cleaned.startsWith('```')) {
                 cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');

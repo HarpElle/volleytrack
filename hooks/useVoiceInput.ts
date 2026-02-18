@@ -132,7 +132,7 @@ export function useVoiceInput() {
         setIsListening(false);
 
         // Wait a brief moment for final results to arrive
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Get the transcript to parse
         // We need to use the latest state, so read from a ref or use the setter callback
@@ -143,11 +143,12 @@ export function useVoiceInput() {
     const parseCurrentTranscript = useCallback(async () => {
         // Access latest state values from the stores
         const matchState = useMatchStore.getState();
-        const { servingTeam, rallyState, scores, currentSet, myTeamName, myTeamRoster } = matchState;
+        const { servingTeam, rallyState, scores, currentSet, myTeamName, myTeamRoster, currentRotation } = matchState;
         const currentScore = scores[currentSet - 1] || { myTeam: 0, opponent: 0 };
 
-        // Get roster
+        // Get roster and current court lineup
         const roster = myTeamRoster || [];
+        const rotation = currentRotation || [];
 
         // Get the transcript — combine final + any remaining live
         // We need to access the latest state value
@@ -161,7 +162,7 @@ export function useVoiceInput() {
             }
 
             // Kick off parsing (async, but we can't await inside setState)
-            doParse(transcript, roster, servingTeam, rallyState, currentScore, myTeamName);
+            doParse(transcript, roster, servingTeam, rallyState, currentScore, myTeamName, rotation);
             return prev;
         });
     }, []);
@@ -173,6 +174,7 @@ export function useVoiceInput() {
         rallyState: 'pre-serve' | 'in-rally',
         currentScore: { myTeam: number; opponent: number },
         myTeamName: string,
+        currentRotation: any[] = [],
     ) => {
         setPhase('parsing');
         setIsParsing(true);
@@ -186,6 +188,7 @@ export function useVoiceInput() {
                 rallyState,
                 currentScore,
                 myTeamName,
+                currentRotation,
             );
 
             if (result.error) {

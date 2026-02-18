@@ -5,11 +5,19 @@
  * to Firestore; spectators subscribe via onSnapshot listeners.
  *
  * Schema:
- *   liveMatches/{matchCode} → LiveMatchSnapshot document
+ *   liveMatches/{matchCode}                → Match state document (coach writes, spectators read)
+ *   liveMatches/{matchCode}/meta/interactions → Spectator data (spectators write, coach reads)
+ *
+ * Optimizations:
+ *   - Spectator interactions separated into subcollection to eliminate write contention
+ *   - Delta updates: only changed fields are pushed (not the full state every time)
+ *   - History entries stripped of bulky snapshots (rotationSnapshot, metadata)
+ *   - Reduced history limit (30 entries, double the 15 displayed to spectators)
  *
  * Security:
  *   - Public read (spectators don't need auth)
- *   - Write restricted to coach who created the broadcast (coachUid field)
+ *   - Main doc write restricted to coach (coachUid field)
+ *   - Interactions subdoc writable by anyone (spectators)
  */
 
 import {
@@ -41,7 +49,23 @@ import {
 // Characters for match code (excludes ambiguous 0/O, 1/I/L)
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
-const MAX_HISTORY_ENTRIES = 50;
+const MAX_HISTORY_ENTRIES = 30; // Reduced from 50; spectators display 15, this is 2x buffer
+
+// ── Snapshot Cache for Delta Updates ─────────────────────────────────────────
+// Module-level cache of the last pushed state per match code.
+// Used to compute delta updates instead of full state replacement.
+const lastPushedStateCache = new Map<string, {
+    scores: string;
+    currentSet: number;
+    setsWon: string;
+    servingTeam: string;
+    rallyState: string;
+    historyLength: number;
+    rotationKey: string;
+    timeouts: string;
+    subs: string;
+    setHistoryLength: number;
+}>();
 
 /**
  * Strip undefined values from an object (deep).
@@ -50,6 +74,26 @@ const MAX_HISTORY_ENTRIES = 50;
  */
 function stripUndefined<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Strip bulky snapshot data from history entries for broadcast.
+ * Spectators don't need rotationSnapshot or metadata per event.
+ */
+function trimHistoryEntry(entry: StatLog): Partial<StatLog> {
+    return {
+        id: entry.id,
+        timestamp: entry.timestamp,
+        type: entry.type,
+        team: entry.team,
+        scoreSnapshot: entry.scoreSnapshot,
+        setNumber: entry.setNumber,
+        playerId: entry.playerId,
+        assistPlayerId: entry.assistPlayerId,
+        rallyStateSnapshot: entry.rallyStateSnapshot,
+        servingTeamSnapshot: entry.servingTeamSnapshot,
+        // Intentionally omitted: rotationSnapshot, metadata (large, not used by spectators)
+    };
 }
 
 /**
@@ -72,13 +116,15 @@ export function isValidMatchCode(code: string): boolean {
 
 /**
  * Build a broadcast-safe snapshot from the current match state.
- * Trims history to last N entries to stay under Firestore's 1MB doc limit.
+ * Trims history to last N entries and strips bulky per-entry data.
  */
 export function buildSnapshot(
     state: MatchState,
     status: 'live' | 'between-sets' | 'completed' = 'live'
 ): LiveMatchSnapshot['currentState'] {
-    const trimmedHistory = (state.history || []).slice(-MAX_HISTORY_ENTRIES);
+    const trimmedHistory = (state.history || [])
+        .slice(-MAX_HISTORY_ENTRIES)
+        .map(trimHistoryEntry) as StatLog[];
 
     return {
         myTeamName: state.myTeamName,
@@ -100,7 +146,109 @@ export function buildSnapshot(
 }
 
 /**
+ * Build a fingerprint of the current state for delta comparison.
+ */
+function buildStateFingerprint(state: MatchState) {
+    const rotation = state.currentRotation || [];
+    return {
+        scores: JSON.stringify(state.scores),
+        currentSet: state.currentSet,
+        setsWon: JSON.stringify(state.setsWon),
+        servingTeam: state.servingTeam,
+        rallyState: state.rallyState,
+        historyLength: (state.history || []).length,
+        rotationKey: rotation.map(p => `${p.position}:${p.playerId || '-'}`).join(','),
+        timeouts: JSON.stringify(state.timeoutsRemaining),
+        subs: JSON.stringify(state.subsRemaining),
+        setHistoryLength: (state.setHistory || []).length,
+    };
+}
+
+/**
+ * Build a selective update object containing only the fields that changed.
+ * Returns null if nothing changed, or a flat object with dot-notation keys
+ * suitable for Firestore updateDoc.
+ */
+function buildDeltaUpdate(
+    matchCode: string,
+    state: MatchState,
+    status: 'live' | 'between-sets' | 'completed'
+): Record<string, any> | null {
+    const current = buildStateFingerprint(state);
+    const prev = lastPushedStateCache.get(matchCode);
+
+    // No previous state — do a full push
+    if (!prev) {
+        lastPushedStateCache.set(matchCode, current);
+        return null; // Caller should do full update
+    }
+
+    const delta: Record<string, any> = {
+        lastUpdated: Date.now(),
+        isActive: status !== 'completed',
+    };
+    let hasChanges = false;
+
+    // Check each field and only include changed ones
+    if (current.scores !== prev.scores) {
+        delta['currentState.scores'] = state.scores;
+        hasChanges = true;
+    }
+    if (current.currentSet !== prev.currentSet) {
+        delta['currentState.currentSet'] = state.currentSet;
+        hasChanges = true;
+    }
+    if (current.setsWon !== prev.setsWon) {
+        delta['currentState.setsWon'] = state.setsWon;
+        hasChanges = true;
+    }
+    if (current.servingTeam !== prev.servingTeam) {
+        delta['currentState.servingTeam'] = state.servingTeam;
+        hasChanges = true;
+    }
+    if (current.rallyState !== prev.rallyState) {
+        delta['currentState.rallyState'] = state.rallyState;
+        hasChanges = true;
+    }
+    if (current.historyLength !== prev.historyLength) {
+        // History changed — push trimmed version
+        const trimmedHistory = (state.history || [])
+            .slice(-MAX_HISTORY_ENTRIES)
+            .map(trimHistoryEntry);
+        delta['currentState.history'] = trimmedHistory;
+        hasChanges = true;
+    }
+    if (current.rotationKey !== prev.rotationKey) {
+        delta['currentState.currentRotation'] = state.currentRotation || [];
+        // Re-push roster alongside rotation so spectators can always resolve names
+        delta['currentState.myTeamRoster'] = state.myTeamRoster || [];
+        hasChanges = true;
+    }
+    if (current.timeouts !== prev.timeouts) {
+        delta['currentState.timeoutsRemaining'] = state.timeoutsRemaining;
+        hasChanges = true;
+    }
+    if (current.subs !== prev.subs) {
+        delta['currentState.subsRemaining'] = state.subsRemaining;
+        hasChanges = true;
+    }
+    if (current.setHistoryLength !== prev.setHistoryLength) {
+        delta['currentState.setHistory'] = state.setHistory || [];
+        hasChanges = true;
+    }
+
+    // Always update status
+    delta['currentState.status'] = status;
+
+    // Cache current state for next comparison
+    lastPushedStateCache.set(matchCode, current);
+
+    return hasChanges ? delta : null;
+}
+
+/**
  * Start broadcasting a live match. Creates a Firestore document with a unique code.
+ * Also creates the interactions subdoc for spectator writes.
  * Retries up to 5 times if code collision occurs.
  */
 export async function startLiveMatch(
@@ -127,9 +275,25 @@ export async function startLiveMatch(
                 createdAt: Date.now(),
                 lastUpdated: Date.now(),
                 currentState: buildSnapshot(state),
+                broadcastSettings: { allowSpectatorAlerts: true },
+                // Note: spectators, spectatorAlerts, cheerCount now live in meta/interactions
             });
 
             await setDoc(docRef, snapshot);
+
+            // Create the interactions subdoc for spectator writes
+            const interactionsRef = doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
+            await setDoc(interactionsRef, {
+                spectators: {},
+                spectatorCount: 0,
+                spectatorAlerts: [],
+                cheerCount: 0,
+                lastCheerAt: null,
+            });
+
+            // Clear any stale cache and seed with initial state
+            lastPushedStateCache.set(matchCode, buildStateFingerprint(state));
+
             return { success: true, matchCode };
         } catch (error: any) {
             if (attempt === maxRetries - 1) {
@@ -143,6 +307,8 @@ export async function startLiveMatch(
 
 /**
  * Push a state update to an existing live match broadcast.
+ * Uses delta updates to minimize payload size and Firestore write cost.
+ * Falls back to full snapshot on first push or when delta computation fails.
  */
 export async function updateLiveMatch(
     matchCode: string,
@@ -152,14 +318,43 @@ export async function updateLiveMatch(
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const docRef = doc(db, 'liveMatches', matchCode);
-        await updateDoc(docRef, stripUndefined({
-            lastUpdated: Date.now(),
-            isActive: status !== 'completed',
-            currentState: buildSnapshot(state, status),
-        }));
+
+        // Try delta update first
+        const delta = buildDeltaUpdate(matchCode, state, status);
+
+        if (delta) {
+            // Delta update — only changed fields
+            await updateDoc(docRef, stripUndefined(delta));
+        } else {
+            // Full update (first push after start, or no cached state)
+            await updateDoc(docRef, stripUndefined({
+                lastUpdated: Date.now(),
+                isActive: status !== 'completed',
+                currentState: buildSnapshot(state, status),
+            }));
+        }
+
         return { success: true };
     } catch (error: any) {
+        // If delta update fails, clear cache so next push does full update
+        lastPushedStateCache.delete(matchCode);
         return { success: false, error: error.message || 'Failed to update broadcast' };
+    }
+}
+
+/**
+ * Update broadcast settings (e.g. toggle spectator alerts on/off).
+ */
+export async function updateBroadcastSettings(
+    matchCode: string,
+    settings: { allowSpectatorAlerts: boolean }
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const docRef = doc(db, 'liveMatches', matchCode);
+        await updateDoc(docRef, { broadcastSettings: settings });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update settings' };
     }
 }
 
@@ -176,6 +371,8 @@ export async function stopLiveMatch(
             isActive: false,
             lastUpdated: Date.now(),
         });
+        // Clean up cache
+        lastPushedStateCache.delete(matchCode);
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message || 'Failed to stop broadcast' };
@@ -192,6 +389,7 @@ export async function deleteLiveMatch(
     try {
         const docRef = doc(db, 'liveMatches', matchCode);
         await deleteDoc(docRef);
+        lastPushedStateCache.delete(matchCode);
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message || 'Failed to delete broadcast' };
@@ -220,7 +418,8 @@ export async function getLiveMatch(
 }
 
 /**
- * Subscribe to real-time updates for a live match.
+ * Subscribe to real-time match STATE updates only.
+ * Spectator interactions are in a separate subcollection (meta/interactions).
  * Returns an unsubscribe function to clean up the listener.
  */
 export function subscribeLiveMatch(
@@ -239,6 +438,42 @@ export function subscribeLiveMatch(
             }
             const data = snapshot.data() as LiveMatchSnapshot;
             onUpdate(data);
+        },
+        (error) => {
+            onError(error.message || 'Connection error');
+        }
+    );
+
+    return unsubscribe;
+}
+
+/**
+ * Subscribe to the spectator interactions subdoc (meta/interactions).
+ * Used by the coach to see viewer count and alerts,
+ * and by spectators to see cheer count and other viewer data.
+ */
+export function subscribeInteractions(
+    matchCode: string,
+    onUpdate: (data: any) => void,
+    onError: (error: string) => void
+): () => void {
+    const interactionsRef = doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
+
+    const unsubscribe = onSnapshot(
+        interactionsRef,
+        (snapshot) => {
+            if (!snapshot.exists()) {
+                // Interactions doc not created yet — treat as empty
+                onUpdate({
+                    spectators: {},
+                    spectatorCount: 0,
+                    spectatorAlerts: [],
+                    cheerCount: 0,
+                    lastCheerAt: null,
+                });
+                return;
+            }
+            onUpdate(snapshot.data());
         },
         (error) => {
             onError(error.message || 'Connection error');

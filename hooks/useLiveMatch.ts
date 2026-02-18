@@ -14,8 +14,9 @@ import {
     startLiveMatch,
     updateLiveMatch,
     stopLiveMatch as stopLiveMatchService,
-    subscribeLiveMatch,
+    subscribeInteractions,
     buildSnapshot,
+    updateBroadcastSettings,
 } from '../services/firebase/liveMatchService';
 import { acknowledgeAlerts } from '../services/firebase/spectatorInteractionService';
 import { useMatchStore } from '../store/useMatchStore';
@@ -30,6 +31,11 @@ export function useLiveMatch() {
     const [isBroadcasting, setIsBroadcasting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isStarting, setIsStarting] = useState(false);
+
+    // Broadcast settings
+    const [broadcastSettings, setBroadcastSettings] = useState<{ allowSpectatorAlerts: boolean }>({ allowSpectatorAlerts: true });
+    const broadcastSettingsRef = useRef(broadcastSettings);
+    useEffect(() => { broadcastSettingsRef.current = broadcastSettings; }, [broadcastSettings]);
 
     // Spectator alert tracking (coach-side)
     const [pendingAlerts, setPendingAlerts] = useState<SpectatorAlert[]>([]);
@@ -113,28 +119,58 @@ export function useLiveMatch() {
     }, [isBroadcasting, pushUpdate]);
 
     /**
-     * Subscribe to live match doc for spectator alerts & viewer count.
-     * The coach is both writer and reader of this document.
+     * Subscribe to the interactions subdoc for spectator alerts & viewer count.
+     * This is a SEPARATE document from the match state, so spectator writes
+     * (presence, cheers, alerts) don't contend with the coach's state pushes.
      */
     useEffect(() => {
         if (!isBroadcasting || !matchCode) return;
 
-        const unsubscribe = subscribeLiveMatch(
+        // Throttle processing of interactions updates (coach doesn't need real-time)
+        let lastProcessed = 0;
+        const INTERACTIONS_THROTTLE_MS = 5000; // Process at most once every 5 seconds
+        let pendingData: any = null;
+        let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const processInteractions = (data: any) => {
+            // Always update viewer count
+            const spectators = data.spectators || {};
+            setViewerCount(Object.keys(spectators).length);
+
+            // Only process alerts if coach has them enabled
+            if (!broadcastSettingsRef.current.allowSpectatorAlerts) return;
+
+            const alerts = data.spectatorAlerts || [];
+            const newAlerts = alerts.filter(
+                (a: SpectatorAlert) => !a.acknowledged && !seenAlertIdsRef.current.has(a.id)
+            );
+
+            if (newAlerts.length > 0) {
+                setPendingAlerts(prev => [...prev, ...newAlerts]);
+                newAlerts.forEach((a: SpectatorAlert) => seenAlertIdsRef.current.add(a.id));
+            }
+        };
+
+        const unsubscribe = subscribeInteractions(
             matchCode,
-            (snapshot) => {
-                // Update viewer count
-                const spectators = snapshot.spectators || {};
-                setViewerCount(Object.keys(spectators).length);
-
-                // Check for new alerts
-                const alerts = snapshot.spectatorAlerts || [];
-                const newAlerts = alerts.filter(
-                    a => !a.acknowledged && !seenAlertIdsRef.current.has(a.id)
-                );
-
-                if (newAlerts.length > 0) {
-                    setPendingAlerts(prev => [...prev, ...newAlerts]);
-                    newAlerts.forEach(a => seenAlertIdsRef.current.add(a.id));
+            (data) => {
+                const now = Date.now();
+                if (now - lastProcessed >= INTERACTIONS_THROTTLE_MS) {
+                    lastProcessed = now;
+                    processInteractions(data);
+                } else {
+                    // Defer processing
+                    pendingData = data;
+                    if (!throttleTimer) {
+                        throttleTimer = setTimeout(() => {
+                            throttleTimer = null;
+                            if (pendingData) {
+                                lastProcessed = Date.now();
+                                processInteractions(pendingData);
+                                pendingData = null;
+                            }
+                        }, INTERACTIONS_THROTTLE_MS - (now - lastProcessed));
+                    }
                 }
             },
             (_err) => {
@@ -142,7 +178,10 @@ export function useLiveMatch() {
             }
         );
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            if (throttleTimer) clearTimeout(throttleTimer);
+        };
     }, [isBroadcasting, matchCode]);
 
     /**
@@ -221,6 +260,18 @@ export function useLiveMatch() {
         setMatchCode(null);
     }, [user?.uid]);
 
+    /**
+     * Toggle spectator alerts on/off
+     */
+    const toggleAlerts = useCallback(async () => {
+        const newValue = !broadcastSettings.allowSpectatorAlerts;
+        setBroadcastSettings({ allowSpectatorAlerts: newValue });
+        if (matchCode) {
+            await updateBroadcastSettings(matchCode, { allowSpectatorAlerts: newValue })
+                .catch((err) => logger.warn('[LiveMatch] updateBroadcastSettings:', err));
+        }
+    }, [broadcastSettings.allowSpectatorAlerts, matchCode]);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -237,6 +288,9 @@ export function useLiveMatch() {
         stopBroadcast,
         finalizeBroadcast,
         pushUpdate,
+        // Broadcast settings
+        broadcastSettings,
+        toggleAlerts,
         // Spectator interactions (coach-side)
         pendingAlerts,
         dismissAlert,
