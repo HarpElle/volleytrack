@@ -1,0 +1,1621 @@
+# VolleyTrack Integration Guide: TeamSnap and SportsEngine Roster & Schedule Import
+
+**Document Version:** 2.0
+**Date:** February 15, 2026
+**Stack:** React Native 0.81 + Expo SDK 54 + TypeScript + Zustand + Firebase
+**Purpose:** Complete blueprint for importing team rosters and tournament/match schedules from TeamSnap (Phase 1) and SportsEngine (Phase 2) into VolleyTrack's existing data model. Written for the actual VolleyTrack codebase — all code samples are TypeScript/React Native, all data models map to existing types, and all storage flows use the existing Zustand + AsyncStorage + Firestore sync pipeline.
+
+---
+
+## Table of Contents
+
+1. [Goals & Scope](#1-goals--scope)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Data Model Mapping](#3-data-model-mapping)
+4. [Prerequisites](#4-prerequisites)
+5. [OAuth Authentication (Shared)](#5-oauth-authentication-shared)
+6. [TeamSnap Integration (Phase 1)](#6-teamsnap-integration-phase-1)
+7. [SportsEngine Integration (Phase 2)](#7-sportsengine-integration-phase-2)
+8. [Import Service Layer](#8-import-service-layer)
+9. [UI Integration](#9-ui-integration)
+10. [Monetization & Gating](#10-monetization--gating)
+11. [Sync, Conflicts & Re-Import](#11-sync-conflicts--re-import)
+12. [Testing](#12-testing)
+13. [Pitfalls & Mitigations](#13-pitfalls--mitigations)
+14. [File Manifest](#14-file-manifest)
+
+---
+
+## 1. Goals & Scope
+
+### What This Feature Does
+
+Allows coaches to import their existing team roster and tournament/match schedule from TeamSnap or SportsEngine into VolleyTrack, rather than manually entering players and creating events/matches.
+
+### In Scope
+
+- **Roster Import:** Pull player names, jersey numbers, and (where available) positions from an external platform into a VolleyTrack `Season.roster` as `Player[]`.
+- **Schedule Import:** Pull upcoming events/tournaments and individual match entries into VolleyTrack `Event[]` and `MatchRecord[]` (with `result: 'Scheduled'`).
+- **Re-Import / Refresh:** Allow coaches to re-sync roster or schedule changes from the external platform at any time.
+- **Selective Import:** Let the coach pick which team to import from (they may manage multiple teams).
+
+### Out of Scope
+
+- Writing data back to TeamSnap or SportsEngine (read-only integration).
+- Live score sync to/from external platforms.
+- Importing historical match results or stats.
+
+---
+
+## 2. Architecture Overview
+
+### How It Fits Into the Existing Codebase
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  UI Layer                                                       │
+│  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │ season/        │  │ season/[id].tsx  │  │ settings.tsx     │  │
+│  │ create.tsx     │  │ "Refresh Roster" │  │ "Integrations"   │  │
+│  │ "Import from…" │  │ "Refresh Sched." │  │ Connect/Disconn. │  │
+│  └───────┬───────┘  └────────┬─────────┘  └────────┬─────────┘  │
+│          │                   │                      │            │
+│  ┌───────▼───────────────────▼──────────────────────▼──────────┐ │
+│  │  hooks/useIntegrationImport.ts                              │ │
+│  │  Orchestrates: auth check → fetch → map → store → sync     │ │
+│  └───────┬──────────────────────────────────────────┬──────────┘ │
+│          │                                          │            │
+│  ┌───────▼──────────┐  ┌────────────────────────────▼──────────┐ │
+│  │ services/         │  │ store/                                │ │
+│  │ integrations/     │  │  useDataStore.ts  (addSeason, etc.)  │ │
+│  │  TeamSnapService  │  │  useSubscriptionStore.ts (gating)    │ │
+│  │  SportsEngineServ │  │  useIntegrationStore.ts (tokens)     │ │
+│  └───────┬──────────┘  └────────────────────────────┬──────────┘ │
+│          │                                          │            │
+│  ┌───────▼──────────┐  ┌────────────────────────────▼──────────┐ │
+│  │ External APIs     │  │ Firebase Firestore (via syncService)  │ │
+│  │  TeamSnap REST v3 │  │  users/{uid}/seasons/...              │ │
+│  │  SportsEngine GQL │  │  users/{uid}/events/...               │ │
+│  └──────────────────┘  │  users/{uid}/matches/...              │ │
+│                         └──────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+1. **Direct REST/GraphQL via `fetch`** — No native SDKs. TeamSnap's JS SDK is browser-only (not React Native compatible). SportsEngine uses GraphQL which is easily called via `fetch`. This avoids native module dependencies and keeps the integration Expo-compatible.
+
+2. **Separate integration store** — OAuth tokens and connection state live in a new `useIntegrationStore` (Zustand + AsyncStorage), separate from the subscription and data stores. Tokens are stored via `expo-secure-store` for security.
+
+3. **Map to existing types** — Imported data maps directly into `Season`, `Player`, `Event`, and `MatchRecord` from `/types/index.ts`. No new data types needed for the core import.
+
+4. **Feature flag** — Gated behind `INTEGRATIONS_ENABLED` constant for easy disable/removal (same pattern as voice input).
+
+---
+
+## 3. Data Model Mapping
+
+This is the core of the integration — translating external platform data into VolleyTrack's existing TypeScript types.
+
+### 3.1 Roster → Player[]
+
+VolleyTrack's `Player` interface (from `/types/index.ts`):
+```typescript
+interface Player {
+  id: string;           // Internal UUID
+  name: string;         // Full name ("Sarah Johnson")
+  jerseyNumber: string; // e.g., "12"
+  positions: string[];  // e.g., ['OH', 'DS'] — may be empty on import
+}
+```
+
+**TeamSnap Member → Player:**
+| TeamSnap Field (camelCase) | VolleyTrack Player Field | Notes |
+|----------------------------|--------------------------|-------|
+| `id` (number) | — | Store as `externalId` for re-import matching |
+| `firstName` + `lastName` | `name` | Combine: `"${firstName} ${lastName}"` |
+| `jerseyNumber` | `jerseyNumber` | May be null — default to `""` |
+| (not available) | `positions` | Default to `[]` — coach assigns in-app |
+
+**SportsEngine Player → Player:**
+| SportsEngine Field | VolleyTrack Player Field | Notes |
+|--------------------|--------------------------|-------|
+| `profileId` (string) | — | Store as `externalId` for re-import matching |
+| `firstName` + `lastName` | `name` | From roster player object |
+| (not standard) | `jerseyNumber` | May not be available via API — default to `""` |
+| (not available) | `positions` | Default to `[]` |
+
+### 3.2 Team → Season
+
+VolleyTrack's `Season` interface (from `/types/index.ts`):
+```typescript
+interface Season {
+  id: string;          // Internal UUID
+  name: string;        // "2024-2025 Club"
+  teamName: string;    // "My Team 15U"
+  level: string;       // "Varsity", "15 Open"
+  startDate: number;   // Epoch ms
+  lastAccessed?: number;
+  roster: Player[];
+}
+```
+
+**TeamSnap Team → Season:**
+| TeamSnap Field | VolleyTrack Season Field | Notes |
+|----------------|--------------------------|-------|
+| `name` | `teamName` | e.g., "Badger 15 Open" |
+| `name` + year | `name` | e.g., "2025-2026 Badger 15 Open" |
+| `divisionName` | `level` | If available, otherwise `""` |
+| (not available) | `startDate` | Default to `Date.now()` or season start |
+| roster (fetched separately) | `roster` | Mapped `Player[]` |
+
+**SportsEngine Team → Season:**
+| SportsEngine Field | VolleyTrack Season Field | Notes |
+|--------------------|--------------------------|-------|
+| `name` | `teamName` | e.g., "16U National" |
+| `name` + program | `name` | Combined with season/program info |
+| `gender` / `type` | `level` | Can combine for level description |
+| (not standard) | `startDate` | Default to `Date.now()` |
+| players (nested) | `roster` | Mapped `Player[]` |
+
+### 3.3 Schedule → Event + MatchRecord[]
+
+VolleyTrack's `Event` interface:
+```typescript
+interface Event {
+  id: string;        // Internal UUID
+  seasonId: string;  // Links to parent Season
+  name: string;      // "Windy City Qualifier"
+  location: string;
+  startDate: number; // Epoch ms
+  endDate?: number;
+}
+```
+
+VolleyTrack's `MatchRecord` interface (relevant fields for import):
+```typescript
+interface MatchRecord {
+  id: string;
+  eventId?: string;     // Links to parent Event (if part of tournament)
+  seasonId?: string;    // Links to parent Season
+  opponentName: string;
+  date: number;         // Epoch ms
+  time?: string;        // e.g., "2:00 PM"
+  courtNumber?: string;
+  result: 'Scheduled';  // Always 'Scheduled' on import
+  setsWon: { myTeam: 0, opponent: 0 };
+  scores: [{ myTeam: 0, opponent: 0 }];
+  history: [];           // Empty — no stats yet
+}
+```
+
+**TeamSnap Event → Event or MatchRecord:**
+
+TeamSnap events can be tournaments (multi-match) or individual games. The mapping depends on the event type:
+
+| TeamSnap Field | Target | Notes |
+|----------------|--------|-------|
+| `isGame: true` | `MatchRecord` | Individual game → create a MatchRecord |
+| `isGame: false` | `Event` | Tournament/practice → create an Event |
+| `name` / `title` | `Event.name` or `MatchRecord.opponentName` | Parse opponent from game title if possible |
+| `startDate` | `startDate` / `date` | Convert ISO string to epoch ms |
+| `endDate` | `endDate` | For multi-day events |
+| `locationName` | `location` | May need to combine address fields |
+| `opponentName` | `MatchRecord.opponentName` | If available (games only) |
+
+**SportsEngine Event → Event or MatchRecord:**
+
+| SportsEngine Field | Target | Notes |
+|--------------------|--------|-------|
+| `type: "game"` | `MatchRecord` | Game events become scheduled matches |
+| `type: "practice"` / `type: "tournament"` | `Event` | Non-game events become Events |
+| `name` | `Event.name` / opponent parsing | |
+| `start` (UTC) | `startDate` / `date` | Convert UTC ISO to epoch ms |
+| `end` (UTC) | `endDate` | |
+| `location.name` | `location` | |
+| `eventTeams[].name` | `MatchRecord.opponentName` | Filter out own team to find opponent |
+
+---
+
+## 4. Prerequisites
+
+### 4.1 Developer Accounts
+
+| Platform | Registration | What You Get |
+|----------|-------------|--------------|
+| **TeamSnap** | Register at [auth.teamsnap.com/oauth/applications](https://auth.teamsnap.com/oauth/applications). Create an OAuth application with redirect URI `volleytrack://integrations/teamsnap`. | **Client ID** and **Client Secret** |
+| **SportsEngine** | Register at [developer.sportsengine.com](https://developer.sportsengine.com). Create an OAuth app. | **Client ID**, **Client Secret** |
+
+### 4.2 New npm Dependencies
+
+```bash
+npx expo install expo-auth-session expo-secure-store
+```
+
+Note: `expo-crypto` is a peer dependency of `expo-auth-session` and is already installed in VolleyTrack. `expo-web-browser` is also already installed.
+
+### 4.3 app.json Updates
+
+The `scheme` field is already set to `"volleytrack"` in app.json, which is used by `expo-auth-session` for redirect URIs. No changes needed for deep linking.
+
+For SportsEngine GraphQL, no additional plugins are needed — plain `fetch` is sufficient.
+
+### 4.4 Environment Variables
+
+Add to `.env` (same pattern as Gemini API key):
+```
+EXPO_PUBLIC_TEAMSNAP_CLIENT_ID=your_client_id
+EXPO_PUBLIC_TEAMSNAP_CLIENT_SECRET=your_client_secret
+EXPO_PUBLIC_SPORTSENGINE_CLIENT_ID=your_client_id
+EXPO_PUBLIC_SPORTSENGINE_CLIENT_SECRET=your_client_secret
+```
+
+**Security Note:** Client secrets should ideally live on a backend server and be exchanged via a proxy endpoint. For an MVP, storing them as env vars that get bundled into the app binary is acceptable but should be migrated to a server-side token exchange before scale. The same approach is currently used for the Gemini API key (`process.env.EXPO_PUBLIC_GEMINI_API_KEY`).
+
+---
+
+## 5. OAuth Authentication (Shared)
+
+Both platforms use OAuth 2.0. VolleyTrack uses `expo-auth-session` for the browser-based auth flow, which handles PKCE, redirect URIs, and token exchange.
+
+### 5.1 Shared Auth Utility
+
+**New file: `services/integrations/authUtils.ts`**
+
+```typescript
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
+
+// Required: dismiss the web popup after auth completes
+WebBrowser.maybeCompleteAuthSession();
+
+// Token storage keys
+const TOKEN_KEYS = {
+  teamsnap: 'volleytrack-teamsnap-token',
+  sportsengine: 'volleytrack-sportsengine-token',
+} as const;
+
+export type IntegrationPlatform = 'teamsnap' | 'sportsengine';
+
+export interface StoredToken {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number; // epoch ms
+}
+
+export async function storeToken(platform: IntegrationPlatform, token: StoredToken): Promise<void> {
+  await SecureStore.setItemAsync(TOKEN_KEYS[platform], JSON.stringify(token));
+}
+
+export async function getToken(platform: IntegrationPlatform): Promise<StoredToken | null> {
+  const raw = await SecureStore.getItemAsync(TOKEN_KEYS[platform]);
+  if (!raw) return null;
+  const token: StoredToken = JSON.parse(raw);
+  // Check expiry
+  if (token.expiresAt && Date.now() > token.expiresAt) {
+    return null; // Expired — caller should re-auth or refresh
+  }
+  return token;
+}
+
+export async function clearToken(platform: IntegrationPlatform): Promise<void> {
+  await SecureStore.deleteItemAsync(TOKEN_KEYS[platform]);
+}
+
+export function makeRedirectUri(platform: IntegrationPlatform): string {
+  return AuthSession.makeRedirectUri({
+    scheme: 'volleytrack',
+    path: `integrations/${platform}`,
+  });
+}
+```
+
+### 5.2 Integration Connection Store
+
+**New file: `store/useIntegrationStore.ts`**
+
+```typescript
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { IntegrationPlatform } from '../services/integrations/authUtils';
+
+interface IntegrationConnection {
+  platform: IntegrationPlatform;
+  connectedAt: number;
+  teamId?: string;     // Last-selected team ID for quick re-import
+  teamName?: string;   // Display name of connected team
+}
+
+interface IntegrationState {
+  connections: IntegrationConnection[];
+
+  addConnection: (conn: IntegrationConnection) => void;
+  removeConnection: (platform: IntegrationPlatform) => void;
+  getConnection: (platform: IntegrationPlatform) => IntegrationConnection | undefined;
+  isConnected: (platform: IntegrationPlatform) => boolean;
+  updateTeamSelection: (platform: IntegrationPlatform, teamId: string, teamName: string) => void;
+}
+
+export const useIntegrationStore = create<IntegrationState>()(
+  persist(
+    (set, get) => ({
+      connections: [],
+
+      addConnection: (conn) => set((state) => ({
+        connections: [
+          ...state.connections.filter(c => c.platform !== conn.platform),
+          conn,
+        ],
+      })),
+
+      removeConnection: (platform) => set((state) => ({
+        connections: state.connections.filter(c => c.platform !== platform),
+      })),
+
+      getConnection: (platform) => get().connections.find(c => c.platform === platform),
+
+      isConnected: (platform) => get().connections.some(c => c.platform === platform),
+
+      updateTeamSelection: (platform, teamId, teamName) => set((state) => ({
+        connections: state.connections.map(c =>
+          c.platform === platform ? { ...c, teamId, teamName } : c
+        ),
+      })),
+    }),
+    {
+      name: 'volleytrack-integrations',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ connections: state.connections }),
+    }
+  )
+);
+```
+
+---
+
+## 6. TeamSnap Integration (Phase 1)
+
+### 6.1 API Overview
+
+- **API Type:** REST (Collection+JSON format), APIv3
+- **Base URL:** `https://api.teamsnap.com/v3`
+- **Auth:** OAuth 2.0 Bearer token
+- **Rate Limits:** ~100 requests/minute
+- **Official Docs:** [teamsnap.com/documentation/apiv3](https://www.teamsnap.com/documentation/apiv3)
+- **Swagger (staging):** [staging-teams-api.teamsnap.com/api-docs](https://staging-teams-api.teamsnap.com/api-docs/)
+- **JS SDK:** Available but browser-only, NOT compatible with React Native. Use direct `fetch` calls instead.
+
+### 6.2 Key Endpoints
+
+| Resource | Endpoint | Method | Key Params | Key Response Fields |
+|----------|----------|--------|------------|---------------------|
+| User's Teams | `/me/teams` | GET | — | `id`, `name`, `sport_id`, `division_name`, `season_name` |
+| Team Members (Roster) | `/teams/{team_id}/members` | GET | — | `id`, `first_name`, `last_name`, `jersey_number`, `is_non_player` |
+| Team Events (Schedule) | `/teams/{team_id}/events` | GET | `started_after`, `started_before` | `id`, `name`, `start_date`, `end_date`, `location_name`, `is_game`, `opponent_name` |
+
+**Note:** TeamSnap API uses Collection+JSON format. Responses are wrapped in a `collection` object with `items` array. Each item has a `data` array of name/value pairs, not a flat JSON object. The parsing layer must handle this format.
+
+**Pagination:** `page` and `per_page` query params (default 50, max 100).
+
+### 6.3 OAuth Flow
+
+**New file: `services/integrations/TeamSnapService.ts`**
+
+```typescript
+import * as AuthSession from 'expo-auth-session';
+import { storeToken, getToken, clearToken, makeRedirectUri, StoredToken } from './authUtils';
+
+const CLIENT_ID = process.env.EXPO_PUBLIC_TEAMSNAP_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.EXPO_PUBLIC_TEAMSNAP_CLIENT_SECRET || '';
+const BASE_URL = 'https://api.teamsnap.com/v3';
+
+// TeamSnap OAuth discovery
+const discovery: AuthSession.DiscoveryDocument = {
+  authorizationEndpoint: 'https://auth.teamsnap.com/oauth/authorize',
+  tokenEndpoint: 'https://auth.teamsnap.com/oauth/token',
+};
+
+export class TeamSnapService {
+  private accessToken: string | null = null;
+
+  // ── Authentication ──────────────────────────────────────────────
+
+  /**
+   * Returns the AuthSession hook config for TeamSnap OAuth.
+   * Use with AuthSession.useAuthRequest() in a component.
+   */
+  static getAuthConfig() {
+    return {
+      clientId: CLIENT_ID,
+      scopes: ['read'],
+      redirectUri: makeRedirectUri('teamsnap'),
+      responseType: AuthSession.ResponseType.Code,
+    };
+  }
+
+  static getDiscovery() {
+    return discovery;
+  }
+
+  /**
+   * Exchange authorization code for access token.
+   * Called after successful OAuth redirect.
+   */
+  async exchangeCodeForToken(code: string): Promise<StoredToken> {
+    const redirectUri = makeRedirectUri('teamsnap');
+
+    const response = await fetch(discovery.tokenEndpoint!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        redirect_uri: redirectUri,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TeamSnap token exchange failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const token: StoredToken = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: data.expires_in ? Date.now() + (data.expires_in * 1000) : undefined,
+    };
+
+    await storeToken('teamsnap', token);
+    this.accessToken = token.accessToken;
+    return token;
+  }
+
+  async ensureAuth(): Promise<string> {
+    if (this.accessToken) return this.accessToken;
+    const stored = await getToken('teamsnap');
+    if (stored) {
+      this.accessToken = stored.accessToken;
+      return stored.accessToken;
+    }
+    throw new Error('TeamSnap not authenticated. Please connect first.');
+  }
+
+  // ── API Helpers ─────────────────────────────────────────────────
+
+  private async apiGet(path: string, params?: Record<string, string>): Promise<any> {
+    const token = await this.ensureAuth();
+    const url = new URL(`${BASE_URL}${path}`);
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (response.status === 401) {
+      await clearToken('teamsnap');
+      this.accessToken = null;
+      throw new Error('TeamSnap session expired. Please reconnect.');
+    }
+
+    if (response.status === 429) {
+      throw new Error('TeamSnap rate limit reached. Please wait a moment and try again.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`TeamSnap API error: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Parse Collection+JSON items into flat objects.
+   * TeamSnap returns { collection: { items: [{ data: [{ name, value }] }] } }
+   */
+  private parseCollectionItems(responseData: any): Record<string, any>[] {
+    const items = responseData?.collection?.items || [];
+    return items.map((item: any) => {
+      const obj: Record<string, any> = {};
+      (item.data || []).forEach((field: any) => {
+        // Convert snake_case to camelCase
+        const key = field.name.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+        obj[key] = field.value;
+      });
+      obj._href = item.href; // Keep link for nested fetches
+      return obj;
+    });
+  }
+
+  // ── Data Fetching ───────────────────────────────────────────────
+
+  async fetchTeams(): Promise<TeamSnapTeam[]> {
+    const data = await this.apiGet('/me/teams');
+    const items = this.parseCollectionItems(data);
+    // Filter to volleyball teams only (sport_id for volleyball may vary)
+    return items.map(item => ({
+      id: String(item.id),
+      name: item.name || 'Unknown Team',
+      divisionName: item.divisionName || '',
+      seasonName: item.seasonName || '',
+    }));
+  }
+
+  async fetchMembers(teamId: string): Promise<TeamSnapMember[]> {
+    const data = await this.apiGet(`/teams/${teamId}/members`);
+    const items = this.parseCollectionItems(data);
+    return items
+      .filter(item => !item.isNonPlayer) // Exclude managers/coaches
+      .map(item => ({
+        id: String(item.id),
+        firstName: item.firstName || '',
+        lastName: item.lastName || '',
+        jerseyNumber: item.jerseyNumber != null ? String(item.jerseyNumber) : '',
+      }));
+  }
+
+  async fetchEvents(teamId: string, startAfter?: Date): Promise<TeamSnapEvent[]> {
+    const params: Record<string, string> = {};
+    if (startAfter) {
+      params.started_after = startAfter.toISOString();
+    }
+
+    const data = await this.apiGet(`/teams/${teamId}/events`, params);
+    const items = this.parseCollectionItems(data);
+    return items.map(item => ({
+      id: String(item.id),
+      name: item.name || '',
+      startDate: item.startDate ? new Date(item.startDate).getTime() : Date.now(),
+      endDate: item.endDate ? new Date(item.endDate).getTime() : undefined,
+      locationName: item.locationName || '',
+      isGame: item.isGame === true,
+      opponentName: item.opponentName || '',
+    }));
+  }
+
+  async disconnect(): Promise<void> {
+    await clearToken('teamsnap');
+    this.accessToken = null;
+  }
+}
+
+// ── TeamSnap Response Types ─────────────────────────────────────
+
+export interface TeamSnapTeam {
+  id: string;
+  name: string;
+  divisionName: string;
+  seasonName: string;
+}
+
+export interface TeamSnapMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jerseyNumber: string;
+}
+
+export interface TeamSnapEvent {
+  id: string;
+  name: string;
+  startDate: number;
+  endDate?: number;
+  locationName: string;
+  isGame: boolean;
+  opponentName: string;
+}
+```
+
+---
+
+## 7. SportsEngine Integration (Phase 2)
+
+### 7.1 API Overview
+
+- **API Type:** GraphQL
+- **Endpoint:** `https://api.sportsengine.com/graphql` (all requests are POST)
+- **Auth:** OAuth 2.0 Bearer token
+- **Official Docs:** [help.sportsengine.com/en/collections/6024309-sportsengine-api](https://help.sportsengine.com/en/collections/6024309-sportsengine-api)
+- **Schema Explorer:** [dev.sportsengine.com/explorer](https://dev.sportsengine.com/explorer)
+- **Pagination:** Defaults to page 1, 25 items per page, max 100 per page
+- **Date Format:** All dates in UTC (YYYY-MM-DDThh:mm:ss.SSSZ)
+- **Complexity Limits:** Queries that require too many internal API calls are rejected. Reduce page size or remove attributes if you hit this.
+
+### 7.2 Key Concepts
+
+- **Organization ID** is the most important identifier — most queries require one.
+- Teams belong to organizations and contain players, staff, status, program, and events.
+- Players and staff on a team roster are NOT paginated (can be long lists).
+- Each player/staff has a `profileId` for fetching full profile details if needed.
+- Player `rosterStatus` indicates eligibility/division compliance.
+- Events are the intersection of organization, teams, location, and time.
+
+### 7.3 OAuth Flow
+
+**New file: `services/integrations/SportsEngineService.ts`**
+
+```typescript
+import * as AuthSession from 'expo-auth-session';
+import { storeToken, getToken, clearToken, makeRedirectUri, StoredToken } from './authUtils';
+
+const CLIENT_ID = process.env.EXPO_PUBLIC_SPORTSENGINE_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.EXPO_PUBLIC_SPORTSENGINE_CLIENT_SECRET || '';
+const GQL_ENDPOINT = 'https://api.sportsengine.com/graphql';
+
+const discovery: AuthSession.DiscoveryDocument = {
+  authorizationEndpoint: 'https://auth.sportsengine.com/oauth/authorize',
+  tokenEndpoint: 'https://auth.sportsengine.com/oauth/token',
+};
+
+export class SportsEngineService {
+  private accessToken: string | null = null;
+
+  // ── Authentication ──────────────────────────────────────────────
+
+  static getAuthConfig() {
+    return {
+      clientId: CLIENT_ID,
+      scopes: ['read:teams', 'read:rosters', 'read:events'],
+      redirectUri: makeRedirectUri('sportsengine'),
+      responseType: AuthSession.ResponseType.Code,
+    };
+  }
+
+  static getDiscovery() {
+    return discovery;
+  }
+
+  async exchangeCodeForToken(code: string): Promise<StoredToken> {
+    const redirectUri = makeRedirectUri('sportsengine');
+
+    const response = await fetch(discovery.tokenEndpoint!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        redirect_uri: redirectUri,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`SportsEngine token exchange failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const token: StoredToken = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: data.expires_in ? Date.now() + (data.expires_in * 1000) : undefined,
+    };
+
+    await storeToken('sportsengine', token);
+    this.accessToken = token.accessToken;
+    return token;
+  }
+
+  private async ensureAuth(): Promise<string> {
+    if (this.accessToken) return this.accessToken;
+    const stored = await getToken('sportsengine');
+    if (stored) {
+      this.accessToken = stored.accessToken;
+      return stored.accessToken;
+    }
+    throw new Error('SportsEngine not authenticated. Please connect first.');
+  }
+
+  // ── GraphQL Helper ──────────────────────────────────────────────
+
+  private async gqlQuery<T>(query: string, variables?: Record<string, any>): Promise<T> {
+    const token = await this.ensureAuth();
+
+    const response = await fetch(GQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (response.status === 401) {
+      await clearToken('sportsengine');
+      this.accessToken = null;
+      throw new Error('SportsEngine session expired. Please reconnect.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`SportsEngine API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result.errors?.length) {
+      const msg = result.errors.map((e: any) => e.message).join('; ');
+      throw new Error(`SportsEngine GraphQL error: ${msg}`);
+    }
+
+    return result.data;
+  }
+
+  // ── Data Fetching ───────────────────────────────────────────────
+
+  async fetchOrganizations(): Promise<SEOrganization[]> {
+    const query = `
+      query GetOrganizations($page: Int, $perPage: Int) {
+        organizations(page: $page, perPage: $perPage) {
+          pageInformation { pages count }
+          results {
+            id
+            name
+          }
+        }
+      }
+    `;
+    const data = await this.gqlQuery<any>(query, { page: 1, perPage: 50 });
+    return (data.organizations?.results || []).map((org: any) => ({
+      id: String(org.id),
+      name: org.name || 'Unknown Organization',
+    }));
+  }
+
+  async fetchTeams(organizationId: string): Promise<SETeam[]> {
+    const query = `
+      query GetTeams($orgId: ID!, $page: Int, $perPage: Int) {
+        organization(id: $orgId) {
+          teams(page: $page, perPage: $perPage) {
+            pageInformation { pages count }
+            results {
+              id
+              name
+              gender
+              type
+              sport
+              status
+              rosterStatus
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.gqlQuery<any>(query, {
+      orgId: organizationId,
+      page: 1,
+      perPage: 100,
+    });
+    const teams = data.organization?.teams?.results || [];
+    // Filter to volleyball teams if sport field is available
+    return teams
+      .filter((t: any) => !t.sport || t.sport.toLowerCase().includes('volleyball'))
+      .map((t: any) => ({
+        id: String(t.id),
+        name: t.name || 'Unknown Team',
+        gender: t.gender || '',
+        type: t.type || '',
+        sport: t.sport || '',
+        status: t.status || '',
+      }));
+  }
+
+  async fetchRoster(teamId: string): Promise<SERosterEntry[]> {
+    const query = `
+      query GetTeamRoster($teamId: ID!) {
+        team(id: $teamId) {
+          players {
+            profileId
+            firstName
+            lastName
+            rosterStatus
+          }
+          staff {
+            profileId
+            firstName
+            lastName
+            title
+          }
+        }
+      }
+    `;
+    const data = await this.gqlQuery<any>(query, { teamId });
+    const players = data.team?.players || [];
+    // Return players only (not staff) for roster import
+    return players.map((p: any) => ({
+      profileId: String(p.profileId),
+      firstName: p.firstName || '',
+      lastName: p.lastName || '',
+      rosterStatus: p.rosterStatus || '',
+    }));
+  }
+
+  async fetchEvents(
+    organizationId: string,
+    teamId?: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<SEEvent[]> {
+    // Query events through the team if teamId is provided
+    const query = teamId
+      ? `
+        query GetTeamEvents($teamId: ID!, $start: DateTime, $end: DateTime, $page: Int, $perPage: Int) {
+          team(id: $teamId) {
+            events(start: $start, end: $end, page: $page, perPage: $perPage) {
+              pageInformation { pages count }
+              results {
+                id
+                name
+                start
+                end
+                type
+                location { name }
+                eventTeams { name score }
+              }
+            }
+          }
+        }
+      `
+      : `
+        query GetOrgEvents($orgId: ID!, $start: DateTime, $end: DateTime, $page: Int, $perPage: Int) {
+          organization(id: $orgId) {
+            events(start: $start, end: $end, page: $page, perPage: $perPage) {
+              pageInformation { pages count }
+              results {
+                id
+                name
+                start
+                end
+                type
+                location { name }
+                eventTeams { name score }
+              }
+            }
+          }
+        }
+      `;
+
+    const variables: Record<string, any> = {
+      page: 1,
+      perPage: 100,
+      ...(teamId ? { teamId } : { orgId: organizationId }),
+      ...(startDate && { start: startDate.toISOString() }),
+      ...(endDate && { end: endDate.toISOString() }),
+    };
+
+    const data = await this.gqlQuery<any>(query, variables);
+    const source = teamId ? data.team : data.organization;
+    const events = source?.events?.results || [];
+
+    return events.map((e: any) => ({
+      id: String(e.id),
+      name: e.name || '',
+      start: e.start ? new Date(e.start).getTime() : Date.now(),
+      end: e.end ? new Date(e.end).getTime() : undefined,
+      type: e.type || '',
+      locationName: e.location?.name || '',
+      eventTeams: (e.eventTeams || []).map((t: any) => ({
+        name: t.name || '',
+        score: t.score,
+      })),
+    }));
+  }
+
+  async disconnect(): Promise<void> {
+    await clearToken('sportsengine');
+    this.accessToken = null;
+  }
+}
+
+// ── SportsEngine Response Types ─────────────────────────────────
+
+export interface SEOrganization {
+  id: string;
+  name: string;
+}
+
+export interface SETeam {
+  id: string;
+  name: string;
+  gender: string;
+  type: string;
+  sport: string;
+  status: string;
+}
+
+export interface SERosterEntry {
+  profileId: string;
+  firstName: string;
+  lastName: string;
+  rosterStatus: string;
+}
+
+export interface SEEvent {
+  id: string;
+  name: string;
+  start: number;
+  end?: number;
+  type: string;
+  locationName: string;
+  eventTeams: { name: string; score?: number }[];
+}
+```
+
+---
+
+## 8. Import Service Layer
+
+The import service maps external platform data to VolleyTrack types and writes it into the existing stores.
+
+**New file: `services/integrations/ImportService.ts`**
+
+```typescript
+import { Event, MatchRecord, Player, Season } from '../../types';
+import { useDataStore } from '../../store/useDataStore';
+import { TeamSnapMember, TeamSnapEvent, TeamSnapTeam } from './TeamSnapService';
+import { SERosterEntry, SEEvent, SETeam } from './SportsEngineService';
+
+// ── ID Generation (same pattern as existing season/event creation) ────
+
+function generateId(): string {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+// ── Roster Mapping ────────────────────────────────────────────────────
+
+export function mapTeamSnapMembersToPlayers(members: TeamSnapMember[]): Player[] {
+  return members.map(m => ({
+    id: generateId(),
+    name: `${m.firstName} ${m.lastName}`.trim(),
+    jerseyNumber: m.jerseyNumber || '',
+    positions: [], // Coach assigns positions in-app
+    _externalId: m.id, // Preserved for re-import matching (not part of Player type)
+  })).filter(p => p.name.length > 0) as Player[];
+}
+
+export function mapSERosterToPlayers(roster: SERosterEntry[]): Player[] {
+  return roster.map(p => ({
+    id: generateId(),
+    name: `${p.firstName} ${p.lastName}`.trim(),
+    jerseyNumber: '', // SportsEngine may not expose jersey numbers via API
+    positions: [],
+    _externalId: p.profileId,
+  })).filter(p => p.name.length > 0) as Player[];
+}
+
+// ── Season Mapping ────────────────────────────────────────────────────
+
+export function mapTeamSnapTeamToSeason(
+  team: TeamSnapTeam,
+  players: Player[],
+): Season {
+  return {
+    id: generateId(),
+    name: team.seasonName
+      ? `${team.seasonName} ${team.name}`
+      : team.name,
+    teamName: team.name,
+    level: team.divisionName || '',
+    startDate: Date.now(),
+    roster: players,
+  };
+}
+
+export function mapSETeamToSeason(
+  team: SETeam,
+  players: Player[],
+): Season {
+  return {
+    id: generateId(),
+    name: team.name,
+    teamName: team.name,
+    level: [team.gender, team.type].filter(Boolean).join(' '),
+    startDate: Date.now(),
+    roster: players,
+  };
+}
+
+// ── Schedule Mapping ──────────────────────────────────────────────────
+
+export interface ImportedSchedule {
+  events: Event[];
+  matches: MatchRecord[];
+}
+
+export function mapTeamSnapEventsToSchedule(
+  tsEvents: TeamSnapEvent[],
+  seasonId: string,
+): ImportedSchedule {
+  const events: Event[] = [];
+  const matches: MatchRecord[] = [];
+
+  // Group: games become MatchRecords, non-games become Events
+  const nonGames = tsEvents.filter(e => !e.isGame);
+  const games = tsEvents.filter(e => e.isGame);
+
+  // Create Events from non-game entries (tournaments, practices, etc.)
+  for (const evt of nonGames) {
+    events.push({
+      id: generateId(),
+      seasonId,
+      name: evt.name || 'Unnamed Event',
+      location: evt.locationName || '',
+      startDate: evt.startDate,
+      endDate: evt.endDate,
+    });
+  }
+
+  // Create MatchRecords from games
+  // If games fall within an event's date range, link them to that event
+  for (const game of games) {
+    const parentEvent = events.find(e =>
+      game.startDate >= e.startDate &&
+      e.endDate &&
+      game.startDate <= e.endDate
+    );
+
+    matches.push({
+      id: generateId(),
+      seasonId,
+      eventId: parentEvent?.id,
+      opponentName: game.opponentName || 'TBD',
+      date: game.startDate,
+      time: new Date(game.startDate).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+      result: 'Scheduled',
+      setsWon: { myTeam: 0, opponent: 0 },
+      scores: [{ myTeam: 0, opponent: 0 }],
+      history: [],
+    });
+  }
+
+  return { events, matches };
+}
+
+export function mapSEEventsToSchedule(
+  seEvents: SEEvent[],
+  seasonId: string,
+  myTeamName: string,
+): ImportedSchedule {
+  const events: Event[] = [];
+  const matches: MatchRecord[] = [];
+
+  for (const evt of seEvents) {
+    const isGame = evt.type?.toLowerCase() === 'game';
+
+    if (isGame) {
+      // Find opponent: the eventTeam that isn't our team
+      const opponent = evt.eventTeams.find(
+        t => t.name.toLowerCase() !== myTeamName.toLowerCase()
+      );
+
+      matches.push({
+        id: generateId(),
+        seasonId,
+        opponentName: opponent?.name || 'TBD',
+        date: evt.start,
+        time: new Date(evt.start).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+        }),
+        result: 'Scheduled',
+        setsWon: { myTeam: 0, opponent: 0 },
+        scores: [{ myTeam: 0, opponent: 0 }],
+        history: [],
+      });
+    } else {
+      events.push({
+        id: generateId(),
+        seasonId,
+        name: evt.name || 'Unnamed Event',
+        location: evt.locationName || '',
+        startDate: evt.start,
+        endDate: evt.end,
+      });
+    }
+  }
+
+  // Link games that fall within event date ranges
+  for (const match of matches) {
+    if (!match.eventId) {
+      const parent = events.find(e =>
+        match.date >= e.startDate &&
+        e.endDate &&
+        match.date <= e.endDate
+      );
+      if (parent) match.eventId = parent.id;
+    }
+  }
+
+  return { events, matches };
+}
+
+// ── Commit to Stores ──────────────────────────────────────────────────
+
+/**
+ * Saves a fully-mapped Season (with roster) and its schedule into useDataStore.
+ * Returns the created Season ID for navigation.
+ */
+export function commitImport(
+  season: Season,
+  schedule: ImportedSchedule,
+): string {
+  const store = useDataStore.getState();
+
+  // Add season (with roster already attached)
+  store.addSeason(season);
+
+  // Add events
+  for (const event of schedule.events) {
+    store.addEvent(event);
+  }
+
+  // Add scheduled matches
+  for (const match of schedule.matches) {
+    store.saveMatchRecord(match);
+  }
+
+  return season.id;
+}
+```
+
+---
+
+## 9. UI Integration
+
+### 9.1 Entry Points
+
+The import feature is accessible from two places:
+
+1. **Season Creation** (`app/season/create.tsx`) — "Import from TeamSnap/SportsEngine" button at the top of the form, as an alternative to manual entry. This is the primary entry point, since creating a season with a roster is exactly what the import does.
+
+2. **Season Detail** (`app/season/[id].tsx`) — "Refresh Roster" and "Import Schedule" buttons in the roster and events sections, allowing coaches to update an existing season with fresh data.
+
+3. **Settings** (`app/settings.tsx`) — "Integrations" section for managing connected accounts (connect/disconnect TeamSnap, SportsEngine).
+
+### 9.2 Import Flow (UI Sequence)
+
+```
+1. User taps "Import from TeamSnap" (on season/create or settings)
+       │
+2. If not connected → OAuth login in browser (expo-auth-session)
+       │
+3. Fetch user's teams → Show team picker modal
+       │
+4. User selects a team → Fetch roster + schedule
+       │
+5. Show import preview:
+   - "12 players found"
+   - "8 upcoming matches, 2 tournaments"
+   - Checkboxes: ☑ Import Roster  ☑ Import Schedule
+       │
+6. User taps "Import" → commitImport() writes to useDataStore
+       │
+7. Navigate to the new Season detail page (season/[id])
+       │
+8. Firebase sync happens automatically if user is logged in
+```
+
+### 9.3 New Components
+
+| Component | Purpose |
+|-----------|---------|
+| `components/IntegrationConnectButton.tsx` | OAuth login button for a platform (TeamSnap or SportsEngine) |
+| `components/TeamPickerModal.tsx` | Modal listing user's teams from the platform; single-select |
+| `components/ImportPreviewModal.tsx` | Shows what will be imported (player count, event count, match count) with toggle checkboxes before committing |
+| `components/IntegrationSettingsSection.tsx` | Settings page section showing connected platforms with disconnect option |
+
+### 9.4 Hook: useIntegrationImport
+
+**New file: `hooks/useIntegrationImport.ts`**
+
+Orchestrates the full import flow:
+
+```typescript
+import { useState, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { TeamSnapService } from '../services/integrations/TeamSnapService';
+import { SportsEngineService } from '../services/integrations/SportsEngineService';
+import {
+  mapTeamSnapMembersToPlayers,
+  mapTeamSnapTeamToSeason,
+  mapTeamSnapEventsToSchedule,
+  mapSERosterToPlayers,
+  mapSETeamToSeason,
+  mapSEEventsToSchedule,
+  commitImport,
+  ImportedSchedule,
+} from '../services/integrations/ImportService';
+import { useIntegrationStore } from '../store/useIntegrationStore';
+import { IntegrationPlatform } from '../services/integrations/authUtils';
+import { Player, Season } from '../types';
+
+export type ImportPhase = 'idle' | 'fetching-teams' | 'selecting-team' | 'fetching-data' | 'previewing' | 'importing' | 'done';
+
+export interface ImportPreview {
+  season: Season;
+  schedule: ImportedSchedule;
+  playerCount: number;
+  eventCount: number;
+  matchCount: number;
+}
+
+export function useIntegrationImport() {
+  const [phase, setPhase] = useState<ImportPhase>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const { updateTeamSelection } = useIntegrationStore();
+
+  const startImport = useCallback(async (platform: IntegrationPlatform) => {
+    try {
+      setError(null);
+      setPhase('fetching-teams');
+
+      let fetchedTeams: { id: string; name: string }[];
+      if (platform === 'teamsnap') {
+        const service = new TeamSnapService();
+        fetchedTeams = await service.fetchTeams();
+      } else {
+        const service = new SportsEngineService();
+        const orgs = await service.fetchOrganizations();
+        if (orgs.length === 0) throw new Error('No organizations found.');
+        // For now, use the first org. Future: let user pick org.
+        fetchedTeams = await service.fetchTeams(orgs[0].id);
+      }
+
+      if (fetchedTeams.length === 0) {
+        throw new Error('No teams found on your account.');
+      }
+
+      setTeams(fetchedTeams);
+      setPhase('selecting-team');
+    } catch (err: any) {
+      setError(err.message);
+      setPhase('idle');
+    }
+  }, []);
+
+  const selectTeam = useCallback(async (
+    platform: IntegrationPlatform,
+    teamId: string,
+    teamName: string,
+  ) => {
+    try {
+      setError(null);
+      setPhase('fetching-data');
+      updateTeamSelection(platform, teamId, teamName);
+
+      let season: Season;
+      let schedule: ImportedSchedule;
+
+      if (platform === 'teamsnap') {
+        const service = new TeamSnapService();
+        const [team] = (await service.fetchTeams()).filter(t => t.id === teamId);
+        const members = await service.fetchMembers(teamId);
+        const events = await service.fetchEvents(teamId, new Date());
+
+        const players = mapTeamSnapMembersToPlayers(members);
+        season = mapTeamSnapTeamToSeason(team, players);
+        schedule = mapTeamSnapEventsToSchedule(events, season.id);
+      } else {
+        const service = new SportsEngineService();
+        const orgs = await service.fetchOrganizations();
+        const orgId = orgs[0]?.id;
+        const [team] = (await service.fetchTeams(orgId)).filter(t => t.id === teamId);
+        const roster = await service.fetchRoster(teamId);
+        const events = await service.fetchEvents(orgId, teamId, new Date());
+
+        const players = mapSERosterToPlayers(roster);
+        season = mapSETeamToSeason(team, players);
+        schedule = mapSEEventsToSchedule(events, season.id, season.teamName);
+      }
+
+      setPreview({
+        season,
+        schedule,
+        playerCount: season.roster.length,
+        eventCount: schedule.events.length,
+        matchCount: schedule.matches.length,
+      });
+      setPhase('previewing');
+    } catch (err: any) {
+      setError(err.message);
+      setPhase('idle');
+    }
+  }, []);
+
+  const confirmImport = useCallback((importRoster: boolean, importSchedule: boolean) => {
+    if (!preview) return;
+
+    setPhase('importing');
+    try {
+      const season = importRoster
+        ? preview.season
+        : { ...preview.season, roster: [] };
+
+      const schedule = importSchedule
+        ? preview.schedule
+        : { events: [], matches: [] };
+
+      const seasonId = commitImport(season, schedule);
+      setPhase('done');
+      return seasonId;
+    } catch (err: any) {
+      setError(err.message);
+      setPhase('idle');
+      return null;
+    }
+  }, [preview]);
+
+  const reset = useCallback(() => {
+    setPhase('idle');
+    setError(null);
+    setTeams([]);
+    setPreview(null);
+  }, []);
+
+  return {
+    phase,
+    error,
+    teams,
+    preview,
+    startImport,
+    selectTeam,
+    confirmImport,
+    reset,
+  };
+}
+```
+
+---
+
+## 10. Monetization & Gating
+
+### Recommendation: Pro Feature
+
+Integration imports should be a **Pro-only feature** for these reasons:
+
+1. It provides significant time savings (high perceived value).
+2. It requires ongoing API maintenance (developer cost).
+3. Free users already get manual roster entry (no feature gap for the free tier).
+4. It naturally fits the existing gating pattern.
+
+### Implementation
+
+Add to `constants/monetization.ts`:
+```typescript
+export const INTEGRATION_IMPORT_PRO_ONLY = true;
+```
+
+Add `'integration_import'` to the `PaywallTrigger` type in `components/PaywallModal.tsx`:
+```typescript
+type PaywallTrigger = 'season' | 'ai_narrative' | 'export' | 'settings' | 'voice_input' | 'integration_import';
+```
+
+Gate check before starting import:
+```typescript
+const { isPro } = useSubscriptionStore();
+
+if (INTEGRATION_IMPORT_PRO_ONLY && !isPro) {
+  setShowPaywall(true);
+  return;
+}
+```
+
+Update the Free vs Pro table (in PROJECT_HANDOFF.md):
+
+| Feature | Free | Pro |
+|---------|------|-----|
+| TeamSnap/SportsEngine Import | No | Yes |
+
+---
+
+## 11. Sync, Conflicts & Re-Import
+
+### 11.1 Firebase Sync
+
+Imported seasons, events, and matches are saved to `useDataStore`, which persists to AsyncStorage and syncs to Firestore via `syncService.ts`. No special handling needed — they flow through the same pipeline as manually created data.
+
+After import, if the user is authenticated:
+```typescript
+const { uid } = useAuth();
+if (uid) {
+  await useDataStore.getState().syncWithCloud(uid);
+}
+```
+
+### 11.2 Re-Import (Roster Refresh)
+
+When refreshing a roster for an existing season:
+
+1. Fetch fresh members from the platform.
+2. Match by name (since external IDs are not stored in the `Player` type).
+3. **Strategy: Merge, don't replace.**
+   - New players (name not found) → add to roster.
+   - Existing players (name match) → update jersey number if changed.
+   - Players removed from external platform → leave in VolleyTrack roster (coach can remove manually). This prevents accidental deletion of players who already have match stats.
+
+```typescript
+export function mergeRoster(existing: Player[], incoming: Player[]): Player[] {
+  const merged = [...existing];
+
+  for (const newPlayer of incoming) {
+    const match = merged.find(p =>
+      p.name.toLowerCase() === newPlayer.name.toLowerCase()
+    );
+    if (match) {
+      // Update jersey number if it changed
+      if (newPlayer.jerseyNumber && newPlayer.jerseyNumber !== match.jerseyNumber) {
+        match.jerseyNumber = newPlayer.jerseyNumber;
+      }
+    } else {
+      // New player — add to roster
+      merged.push(newPlayer);
+    }
+  }
+
+  return merged;
+}
+```
+
+### 11.3 Re-Import (Schedule Refresh)
+
+When refreshing a schedule for an existing season:
+
+1. Fetch fresh events from the platform.
+2. Match existing MatchRecords by `opponentName` + `date` (within 1-hour window).
+3. **Strategy:**
+   - New games → create new MatchRecords with `result: 'Scheduled'`.
+   - Existing matches already played (`result: 'Win' | 'Loss'`) → **never modify** (protect stat data).
+   - Existing matches still `'Scheduled'` → update time/location if changed.
+   - Cancelled games on external platform → leave as `'Scheduled'` in VolleyTrack (coach removes manually).
+
+### 11.4 External ID Tracking
+
+To support better re-import matching in the future, consider adding an optional `externalId` field to `Player`, `Event`, and `MatchRecord` types. This is not required for the MVP but makes re-import matching more reliable:
+
+```typescript
+// Future addition to types/index.ts
+interface Player {
+  // ... existing fields
+  externalId?: string;      // TeamSnap member ID or SportsEngine profileId
+  externalSource?: 'teamsnap' | 'sportsengine';
+}
+```
+
+---
+
+## 12. Testing
+
+### 12.1 Unit Tests
+
+- [ ] `mapTeamSnapMembersToPlayers()` — handles missing names, null jersey numbers, non-player filtering
+- [ ] `mapTeamSnapEventsToSchedule()` — correctly splits games vs non-games, links games to parent events
+- [ ] `mapSERosterToPlayers()` — handles empty roster, missing fields
+- [ ] `mapSEEventsToSchedule()` — correctly identifies opponents from eventTeams
+- [ ] `mergeRoster()` — adds new players, updates jersey numbers, preserves existing players
+- [ ] Collection+JSON parsing — handles TeamSnap's unique response format
+
+### 12.2 Mock Data
+
+Create mock JSON files for each platform's API responses:
+```
+__tests__/mocks/
+  teamsnap-teams.json
+  teamsnap-members.json
+  teamsnap-events.json
+  sportsengine-organizations.json
+  sportsengine-teams.json
+  sportsengine-roster.json
+  sportsengine-events.json
+```
+
+### 12.3 Integration Tests
+
+- [ ] Full OAuth flow with each platform (requires sandbox accounts)
+- [ ] End-to-end: connect → select team → import → verify in useDataStore
+- [ ] Token expiry handling: verify re-auth prompt when token expires
+- [ ] Rate limiting: verify graceful error message on 429
+
+### 12.4 Edge Cases
+
+- [ ] User has no teams on external platform
+- [ ] Team has zero players (coaches/managers only)
+- [ ] Team has 50+ players (pagination for TeamSnap members)
+- [ ] Events with no date or location
+- [ ] Games with no opponent name
+- [ ] Network timeout during multi-step import
+- [ ] User disconnects mid-import
+- [ ] Re-import after players have match stats (must not lose data)
+
+### 12.5 Testing Tools
+
+- **Postman** — Test TeamSnap REST and SportsEngine GraphQL endpoints manually
+- **SportsEngine Schema Explorer** — [dev.sportsengine.com/explorer](https://dev.sportsengine.com/explorer) for testing GraphQL queries
+- **TeamSnap Swagger** — [staging-teams-api.teamsnap.com/api-docs](https://staging-teams-api.teamsnap.com/api-docs/) for REST endpoint testing
+- **Charles Proxy / Flipper** — Debug network requests from the app
+
+---
+
+## 13. Pitfalls & Mitigations
+
+| Pitfall | Mitigation |
+|---------|------------|
+| **TeamSnap Collection+JSON format** is unusual and easy to parse incorrectly | The `parseCollectionItems()` helper in `TeamSnapService` handles this; test thoroughly with real responses |
+| **SportsEngine complexity limits** can reject large queries | Use conservative `perPage` values (25-50); paginate manually if needed |
+| **OAuth tokens expire** without warning | Check `expiresAt` before API calls; handle 401 with a "Please reconnect" prompt |
+| **TeamSnap rate limits** (~100 req/min) | Import fetches ~3 requests total (teams + members + events), well within limits. Add exponential backoff for retries. |
+| **Client secrets in app binary** | Acceptable for MVP. Before scale, migrate to a backend proxy that performs the token exchange server-side. |
+| **No jersey numbers from SportsEngine** | SportsEngine roster API may not expose jersey numbers. Set to `""` and let coach fill in manually. |
+| **Player name format inconsistency** | Trim whitespace, handle null first/last names, skip empty names |
+| **API breaking changes** | Pin to known working API versions. Monitor TeamSnap changelog and SportsEngine developer portal. |
+| **COPPA/SafeSport compliance** | Both platforms handle youth data. VolleyTrack only imports names and jersey numbers — no emails, phone numbers, or PII beyond what's already in the platforms. |
+| **Expo managed workflow compatibility** | Both `expo-auth-session` and `expo-secure-store` work in Expo managed workflow. No native modules needed. |
+
+---
+
+## 14. File Manifest
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `constants/integrations.ts` | Feature flag (`INTEGRATIONS_ENABLED`), platform config |
+| `services/integrations/authUtils.ts` | Shared OAuth token storage/retrieval (expo-secure-store) |
+| `services/integrations/TeamSnapService.ts` | TeamSnap REST API client (auth + data fetching) |
+| `services/integrations/SportsEngineService.ts` | SportsEngine GraphQL API client (auth + data fetching) |
+| `services/integrations/ImportService.ts` | Data mapping + commit to stores |
+| `store/useIntegrationStore.ts` | Connection state (which platforms connected, last team) |
+| `hooks/useIntegrationImport.ts` | Import lifecycle orchestration hook |
+| `components/IntegrationConnectButton.tsx` | OAuth login button component |
+| `components/TeamPickerModal.tsx` | Team selection modal |
+| `components/ImportPreviewModal.tsx` | Pre-import preview with toggle options |
+| `components/IntegrationSettingsSection.tsx` | Settings page integration management |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `app/season/create.tsx` | Add "Import from…" button at top of form |
+| `app/season/[id].tsx` | Add "Refresh Roster" / "Import Schedule" buttons |
+| `app/settings.tsx` | Add Integrations section |
+| `components/PaywallModal.tsx` | Add `'integration_import'` trigger |
+| `constants/monetization.ts` | Add `INTEGRATION_IMPORT_PRO_ONLY` |
+| `package.json` | Add `expo-auth-session`, `expo-secure-store` |
+| `app.json` | No changes needed (scheme already set) |
+| `types/index.ts` | Optional: add `externalId?` to Player (future improvement) |
+
+### Dependencies
+
+| Package | Purpose | Already Installed? |
+|---------|---------|-------------------|
+| `expo-auth-session` | OAuth browser-based auth flow | **No — install** |
+| `expo-secure-store` | Secure token storage | **No — install** |
+| `expo-crypto` | Peer dep of expo-auth-session | Yes |
+| `expo-web-browser` | Auth session browser | Yes |
+| `expo-linking` | Deep linking for redirects | Yes (via expo-router) |
+
+---
+
+## Sources & References
+
+- [TeamSnap APIv3 Documentation](https://www.teamsnap.com/documentation/apiv3)
+- [TeamSnap JavaScript SDK (GitHub)](https://github.com/teamsnap/teamsnap-javascript-sdk) — reference for field names and Collection+JSON parsing; not directly usable in React Native
+- [TeamSnap Staging API Swagger](https://staging-teams-api.teamsnap.com/api-docs/)
+- [SportsEngine API Help Center](https://help.sportsengine.com/en/collections/6024309-sportsengine-api)
+- [SportsEngine Developer Portal & Schema Explorer](https://dev.sportsengine.com/explorer)
+- [SportsEngine Getting Started Guide](https://help.sportsengine.com/en/articles/8225304-getting-started-with-api)
+- [SportsEngine Teams & Rosters Guide](https://help.sportsengine.com/en/articles/8336934-navigating-teams-and-rosters)
+- [SportsEngine Events & Mutations Guide](https://help.sportsengine.com/en/articles/8261039-working-with-events-and-mutations)
+- [SportsEngine Authentication Guide](https://help.sportsengine.com/en/articles/8891727-authenticating-with-sportsengine)
+- [Expo AuthSession Documentation](https://docs.expo.dev/versions/latest/sdk/auth-session/)
+- [Expo Authentication Guide](https://docs.expo.dev/guides/authentication/)

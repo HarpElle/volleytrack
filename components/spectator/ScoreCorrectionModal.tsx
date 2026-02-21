@@ -93,7 +93,7 @@ export function ScoreCorrectionModal({
                         {/* Header */}
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: colors.text }]}>
-                                Score Doesn't Match?
+                                Score Doesn&apos;t Match?
                             </Text>
                             <TouchableOpacity onPress={onClose} hitSlop={12}>
                                 <X size={22} color={colors.textSecondary} />
@@ -101,7 +101,7 @@ export function ScoreCorrectionModal({
                         </View>
 
                         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                            Enter the score shown on the scorer's table and we'll notify the coach.
+                            Enter the score shown on the scorer&apos;s table and we&apos;ll notify the coach.
                         </Text>
 
                         {/* What the app shows (read-only reference) */}
@@ -111,7 +111,7 @@ export function ScoreCorrectionModal({
 
                         {/* What the scorer's table shows */}
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
-                            Scorer's table shows:
+                            Scorer&apos;s table shows:
                         </Text>
                         <View style={styles.editRow}>
                             <View style={styles.editGroup}>

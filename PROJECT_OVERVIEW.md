@@ -583,12 +583,12 @@ VolleyTrack/
 
 ### Key File Paths (Absolute)
 
-- Package metadata: `/VolleyTrack/package.json`
-- Expo config: `/VolleyTrack/app.json`
-- Firebase config: `/VolleyTrack/services/firebase/config.ts`
-- Monetization constants: `/VolleyTrack/constants/monetization.ts`
-- Zustand stores: `/VolleyTrack/store/`
-- Type definitions: `/VolleyTrack/types/index.ts`
+- Package metadata: `package.json`
+- Expo config: `app.json`
+- Firebase config: `services/firebase/config.ts`
+- Monetization constants: `constants/monetization.ts`
+- Zustand stores: `store/`
+- Type definitions: `types/index.ts`
 
 ---
 

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 import { LineupPosition, Player, StatLog } from "../../types";
-import { GEMINI_PARSE_TIMEOUT_MS, GEMINI_PARSE_RETRY_DELAY_MS, VOICE_STAT_VOCABULARY } from "../../constants/voice";
+import { GEMINI_PARSE_TIMEOUT_MS, GEMINI_PARSE_RETRY_DELAY_MS } from "../../constants/voice";
 
 const DEFAULT_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
 
@@ -119,7 +119,11 @@ export class VoiceParsingService {
 
     /**
      * Build the Gemini prompt with all necessary context.
-     * Optimized for speed: only includes rally-state-relevant vocabulary and court lineup.
+     *
+     * Design philosophy: describe stat type MEANINGS (not trigger phrases) so Gemini
+     * can leverage its own volleyball knowledge to map natural speech variations
+     * (e.g. "good hit", "nice swing", "put it in play") to the correct stat type.
+     * This is both more flexible AND more token-efficient than enumerating synonyms.
      */
     private buildPrompt(
         transcript: string,
@@ -137,59 +141,58 @@ export class VoiceParsingService {
                 .map(pos => pos.playerId as string)
         );
 
-        // Build roster reference with court/bench status
-        const rosterLines = roster.map(p => {
-            const courtStatus = onCourtIds.size > 0
-                ? (onCourtIds.has(p.id) ? '[ON COURT]' : '[BENCH]')
-                : '';
+        // Build roster reference — only on-court players for compact prompt,
+        // with bench players listed separately in case coach mentions a sub
+        const onCourtLines: string[] = [];
+        const benchLines: string[] = [];
+        roster.forEach(p => {
             const courtPos = currentRotation.find(pos => pos.playerId === p.id);
             const posLabel = courtPos ? ` P${courtPos.position}` : '';
-            return `  - ID: "${p.id}", Name: "${p.name}", Jersey: #${p.jerseyNumber}${posLabel} ${courtStatus}`;
-        }).join('\n');
+            const line = `  "${p.id}" #${p.jerseyNumber} ${p.name}${posLabel}`;
+            if (onCourtIds.size === 0 || onCourtIds.has(p.id)) {
+                onCourtLines.push(line);
+            } else {
+                benchLines.push(line);
+            }
+        });
 
-        // Only include vocabulary relevant to current rally state (reduces prompt size)
-        const relevantVocab = rallyState === 'pre-serve'
-            ? VOICE_STAT_VOCABULARY.preServe
-            : VOICE_STAT_VOCABULARY.inRally;
-
-        // Always include a few cross-phase types that can appear in either state
-        const crossPhaseTypes: Record<string, string[]> = {};
-        if (rallyState === 'pre-serve') {
-            // During pre-serve, also include kill/attack in case coach describes a full rally
-            if (VOICE_STAT_VOCABULARY.inRally.kill) crossPhaseTypes.kill = VOICE_STAT_VOCABULARY.inRally.kill;
-            if (VOICE_STAT_VOCABULARY.inRally.attack_error) crossPhaseTypes.attack_error = VOICE_STAT_VOCABULARY.inRally.attack_error;
-            if (VOICE_STAT_VOCABULARY.inRally.block) crossPhaseTypes.block = VOICE_STAT_VOCABULARY.inRally.block;
-        } else {
-            // During in-rally, also include serve types in case coach starts from serve
-            if (VOICE_STAT_VOCABULARY.preServe.ace) crossPhaseTypes.ace = VOICE_STAT_VOCABULARY.preServe.ace;
-            if (VOICE_STAT_VOCABULARY.preServe.serve_error) crossPhaseTypes.serve_error = VOICE_STAT_VOCABULARY.preServe.serve_error;
+        let rosterSection = `ON COURT:\n${onCourtLines.join('\n')}`;
+        if (benchLines.length > 0) {
+            rosterSection += `\nBENCH:\n${benchLines.join('\n')}`;
         }
 
-        const vocabLines = Object.entries({ ...relevantVocab, ...crossPhaseTypes })
-            .map(([type, phrases]) =>
-                `  "${type}": [${(phrases as string[]).map(p => `"${p}"`).join(', ')}]`
-            ).join('\n');
+        // Identify server by P1 position
+        const serverPos = currentRotation.find(pos => pos.position === 1);
+        const serverContext = servingTeam === 'myTeam' && serverPos?.playerId
+            ? ` (server: #${roster.find(p => p.id === serverPos.playerId)?.jerseyNumber || '?'})`
+            : '';
 
-        return `You are a volleyball stat parser. Convert a spoken rally description into a JSON array of stat actions.
+        return `You parse volleyball rally descriptions into JSON stat actions for ${myTeamName}.
 
-CONTEXT:
-- Serving: ${servingTeam === 'myTeam' ? myTeamName + ' (myTeam)' : 'Opponent'}
-- Rally: ${rallyState}
-- Score: ${myTeamName} ${currentScore.myTeam}-${currentScore.opponent}
+MATCH STATE:
+- Serving: ${servingTeam === 'myTeam' ? myTeamName + serverContext : 'Opponent'} | Rally: ${rallyState} | Score: ${currentScore.myTeam}-${currentScore.opponent}
 
-ROSTER (${myTeamName}):
-${rosterLines}
+PLAYERS (${myTeamName}):
+${rosterSection}
 
-STAT TYPES:
-${vocabLines}
+VALID STAT TYPES — use the type string exactly:
+Serve: "ace" (untouched), "serve_good" (in play), "serve_error" (net/out)
+Receive: "receive_3" (perfect), "receive_2" (good), "receive_1" (poor), "receive_error" (bad, no point lost), "receive_0" (point lost to serve)
+Attack: "kill" (wins point), "attack_good" (in play, no point, no error), "attack_error" (net/out)
+Defense: "block" (wins point), "dig" (kept in play), "dig_error" (failed)
+Errors: "set_error" (setting fault), "pass_error" (passing fault), "drop" (ball fell untouched)
+Other: "timeout", "point_adjust" (score correction)
 
-RULES:
-1. Return an ORDERED JSON array of stat actions.
-2. Each action: { "type", "team" ("myTeam"/"opponent"), "playerId" (or null), "assistPlayerId" (or null), "confidence" ("high"/"medium"/"low"), "rawFragment" }
-3. Jersey numbers are MORE RELIABLE than names. Prefer number matches.
-4. Players marked [ON COURT] are more likely to be referenced than [BENCH] players.
-5. "opponent"/"they"/"them" actions → team: "opponent", playerId: null.
-6. Do NOT invent actions not mentioned. Return [] if nothing valid.
+CRITICAL RULES:
+1. ALL actions are for myTeam with a playerId from the roster — NEVER create opponent player stats.
+2. The ONLY allowed opponent actions are "timeout" and "point_adjust" (no playerId). If the coach says something like "opponent serve error" or "opponent hits out", record it as { type: "point_adjust", team: "opponent" } since we only track our own team's individual stats.
+3. SETTER-ATTACKER PATTERN: "X sets Y for a [result]" = ONE action with type based on the result (kill/attack_good/attack_error), playerId = Y (the attacker), assistPlayerId = X (the setter). A set alone without a stated attack outcome is not a recorded stat.
+4. Serves can ONLY be by the P1 player when myTeam is serving.
+5. Only [ON COURT] players can perform actions (except substitution).
+6. Jersey numbers are more reliable than names. Prefer number matches.
+7. Do NOT invent actions that weren't spoken. Return [] if nothing valid.
+
+OUTPUT: JSON array of { "type", "team", "playerId" (or null), "assistPlayerId" (or null), "confidence" ("high"/"medium"/"low"), "rawFragment" }
 
 TRANSCRIPT: "${transcript}"`;
     }
@@ -215,7 +218,20 @@ TRANSCRIPT: "${transcript}"`;
                 return { actions: [], error: "Couldn't identify any actions. Try speaking more clearly." };
             }
 
-            // Validate and enrich each action
+            // Valid stat types the app supports
+            const VALID_TYPES = new Set([
+                'ace', 'serve_error', 'serve_good',
+                'kill', 'attack_error', 'attack_good',
+                'block', 'dig', 'dig_error',
+                'set_error', 'pass_error', 'drop',
+                'receive_0', 'receive_1', 'receive_2', 'receive_3', 'receive_error',
+                'timeout', 'point_adjust', 'substitution',
+            ]);
+
+            // Only these types are allowed for opponent team
+            const ALLOWED_OPPONENT_TYPES = new Set(['timeout', 'point_adjust']);
+
+            // Validate, enforce constraints, and enrich each action
             const actions: ParsedVoiceAction[] = parsed.map((raw: any) => {
                 const action: ParsedVoiceAction = {
                     type: raw.type || 'no_play',
@@ -225,6 +241,23 @@ TRANSCRIPT: "${transcript}"`;
                     confidence: raw.confidence || 'low',
                     rawFragment: raw.rawFragment || '',
                 };
+
+                // ── Constraint enforcement (safety net for LLM mistakes) ──
+
+                // Drop actions with unrecognized stat types
+                if (!VALID_TYPES.has(action.type)) {
+                    action.type = 'no_play' as any;
+                    return action;
+                }
+
+                // Opponent can ONLY have timeout or point_adjust — convert anything
+                // else the LLM might generate (e.g., attack_error for opponent) into
+                // a point_adjust since those opponent actions only affect score
+                if (action.team === 'opponent' && !ALLOWED_OPPONENT_TYPES.has(action.type)) {
+                    action.type = 'point_adjust';
+                    action.playerId = undefined;
+                    action.assistPlayerId = undefined;
+                }
 
                 // Resolve player labels for display
                 if (action.playerId) {

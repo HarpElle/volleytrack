@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { auth } from '../services/firebase/config';
 import { deleteCloudItem, fullSync, pushItem } from '../services/firebase/syncService';
 import { Event, MatchRecord, Season } from '../types';
 
@@ -67,17 +68,54 @@ export const useDataStore = create<DataState>()(
             touchSeason: (id) => set((state) => ({
                 seasons: state.seasons.map((s) => (s.id === id ? { ...s, lastAccessed: Date.now() } : s))
             })),
-            deleteSeason: (id) => set((state) => ({
-                seasons: state.seasons.filter((s) => s.id !== id),
-            })),
+            deleteSeason: (id) => {
+                const { events, savedMatches } = get();
+                // Find child events and their matches for cascade deletion
+                const childEvents = events.filter((e) => e.seasonId === id);
+                const childEventIds = new Set(childEvents.map((e) => e.id));
+                const childMatches = savedMatches.filter(
+                    (m) => m.seasonId === id || (m.eventId && childEventIds.has(m.eventId))
+                );
+
+                // Remove locally: season + child events + child matches
+                set((state) => ({
+                    seasons: state.seasons.filter((s) => s.id !== id),
+                    events: state.events.filter((e) => e.seasonId !== id),
+                    savedMatches: state.savedMatches.filter(
+                        (m) => m.seasonId !== id && !(m.eventId && childEventIds.has(m.eventId))
+                    ),
+                }));
+
+                // Delete from cloud (fire-and-forget; next sync will reconcile if these fail)
+                const uid = auth?.currentUser?.uid;
+                if (uid) {
+                    deleteCloudItem(uid, 'season', id).catch(() => {});
+                    childEvents.forEach((e) => deleteCloudItem(uid, 'event', e.id).catch(() => {}));
+                    childMatches.forEach((m) => deleteCloudItem(uid, 'match', m.id).catch(() => {}));
+                }
+            },
 
             addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
             updateEvent: (id, updates) => set((state) => ({
                 events: state.events.map((e) => (e.id === id ? { ...e, ...updates } : e))
             })),
-            deleteEvent: (id) => set((state) => ({
-                events: state.events.filter((e) => e.id !== id)
-            })),
+            deleteEvent: (id) => {
+                const { savedMatches } = get();
+                const childMatches = savedMatches.filter((m) => m.eventId === id);
+
+                // Remove locally: event + child matches
+                set((state) => ({
+                    events: state.events.filter((e) => e.id !== id),
+                    savedMatches: state.savedMatches.filter((m) => m.eventId !== id),
+                }));
+
+                // Delete from cloud
+                const uid = auth?.currentUser?.uid;
+                if (uid) {
+                    deleteCloudItem(uid, 'event', id).catch(() => {});
+                    childMatches.forEach((m) => deleteCloudItem(uid, 'match', m.id).catch(() => {}));
+                }
+            },
 
             saveMatchRecord: (match) => set((state) => {
                 const exists = state.savedMatches.find(m => m.id === match.id);
@@ -103,9 +141,17 @@ export const useDataStore = create<DataState>()(
                 savedMatches: state.savedMatches.map(m => m.id === matchId ? { ...m, aiNarrative: narrative } : m)
             })),
 
-            deleteMatchRecord: (id) => set((state) => ({
-                savedMatches: state.savedMatches.filter((m) => m.id !== id)
-            })),
+            deleteMatchRecord: (id) => {
+                set((state) => ({
+                    savedMatches: state.savedMatches.filter((m) => m.id !== id)
+                }));
+
+                // Delete from cloud
+                const uid = auth?.currentUser?.uid;
+                if (uid) {
+                    deleteCloudItem(uid, 'match', id).catch(() => {});
+                }
+            },
 
             // Spectator Match History
             saveSpectatorMatch: (match) => set((state) => {
@@ -203,6 +249,15 @@ export const useDataStore = create<DataState>()(
         {
             name: 'volleytrack-data',
             storage: createJSONStorage(() => AsyncStorage),
+            // Exclude transient sync state from persistence — syncStatus, syncError
+            // are runtime-only. lastSyncedAt IS persisted so the UI can show the date.
+            partialize: (state) => ({
+                seasons: state.seasons,
+                events: state.events,
+                savedMatches: state.savedMatches,
+                savedSpectatorMatches: state.savedSpectatorMatches,
+                lastSyncedAt: state.lastSyncedAt,
+            }),
         }
     )
 );

@@ -33,8 +33,9 @@ export const VOICE_COLORS = {
 export const VOICE_TIPS_SEEN_KEY = 'volleytrack-voice-tips-seen';
 
 // ── Valid Stat Types for Voice Parsing ────────────────────────────────────────
-// These are the action types the Gemini parser should recognize from voice input.
-// Organized by rally phase for prompt engineering.
+// Reference vocabulary for each stat type. No longer sent to Gemini — the prompt
+// now describes type MEANINGS so Gemini can leverage its own volleyball knowledge.
+// Retained for documentation and potential future use (e.g., local fallback parser).
 export const VOICE_STAT_VOCABULARY = {
     preServe: {
         ace: ['ace', 'service ace', 'aced', 'untouched serve'],
