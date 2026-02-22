@@ -8,7 +8,9 @@ import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import StatsView from '../../components/stats/StatsView';
 import { GeminiService } from '../../services/ai/GeminiService';
+import { PaywallModal } from '../../components/PaywallModal';
 import { useDataStore } from '../../store/useDataStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { StatLog } from '../../types';
 
 export default function SeasonDetailsScreen() {
@@ -29,6 +31,11 @@ export default function SeasonDetailsScreen() {
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showPaywall, setShowPaywall] = useState(false);
+
+    // Subscription gating for AI narratives
+    const canUseAINarrative = useSubscriptionStore((s) => s.canUseAINarrative);
+    const incrementAINarratives = useSubscriptionStore((s) => s.incrementAINarratives);
 
     const season = seasons.find(s => s.id === id);
 
@@ -101,14 +108,23 @@ export default function SeasonDetailsScreen() {
             return;
         }
 
+        // Check subscription / free tier limit
+        if (!canUseAINarrative()) {
+            setShowPaywall(true);
+            return;
+        }
+
         setIsGenerating(true);
         try {
             const service = new GeminiService();
             const narrative = await service.generateSeasonRecap(season, seasonMatches, events);
             updateSeason(season.id, { aiNarrative: narrative });
+
+            // Track usage after successful generation
+            incrementAINarratives();
         } catch (error) {
             console.error(error);
-            Alert.alert("AI Error", "Failed to generate season recap.");
+            Alert.alert("AI Error", "Failed to generate season recap. Check your connection and try again.");
         } finally {
             setIsGenerating(false);
         }
@@ -274,6 +290,13 @@ export default function SeasonDetailsScreen() {
                 {activeTab === 'overview' ? renderOverview() : renderStats()}
 
             </ScrollView>
+
+            {/* Paywall Modal */}
+            <PaywallModal
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                trigger="ai_narrative"
+            />
         </SafeAreaView>
     );
 }

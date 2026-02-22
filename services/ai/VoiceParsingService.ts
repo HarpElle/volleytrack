@@ -1,10 +1,23 @@
-import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
+/**
+ * VoiceParsingService — Client-Side Voice-to-Stat Parser
+ * =======================================================
+ * Sends voice transcripts to the `parseRallyVoice` Firebase Cloud Function
+ * which handles LLM inference securely on the backend (Groq primary, Gemini fallback).
+ *
+ * This service preserves the exact same public API as the original direct-Gemini
+ * implementation so that no changes are needed in hooks or UI components.
+ *
+ * Security: No API keys are stored or used client-side for this feature.
+ * Observability: Logs timing and metadata for every parse attempt.
+ *
+ * @module VoiceParsingService
+ */
+
+import { getFunctions, httpsCallable, HttpsCallableResult } from "firebase/functions";
+import { app } from "../firebase/config";
 import { LineupPosition, Player, StatLog } from "../../types";
-import { GEMINI_PARSE_TIMEOUT_MS, GEMINI_PARSE_RETRY_DELAY_MS } from "../../constants/voice";
 
-const DEFAULT_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
-
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types (unchanged public API) ────────────────────────────────────────────
 
 export interface ParsedVoiceAction {
     type: StatLog['type'];
@@ -22,20 +35,74 @@ export interface VoiceParseResult {
     error?: string;
 }
 
-// ── Service ──────────────────────────────────────────────────────────────────
+// ── Backend response shape (from Cloud Function) ────────────────────────────
+
+interface CloudFunctionAction {
+    type: string;
+    team: 'myTeam' | 'opponent';
+    playerId: string | null;
+    assistPlayerId: string | null;
+    confidence: 'high' | 'medium' | 'low';
+    rawFragment: string;
+}
+
+interface CloudFunctionResponse {
+    actions: CloudFunctionAction[];
+    meta: {
+        model: string;
+        provider: string;
+        latencyMs: number;
+        actionCount: number;
+        fallbackUsed: boolean;
+        tokensUsed?: number;
+    };
+    error?: string;
+}
+
+// ── Client-side timeout for the callable ────────────────────────────────────
+const CALLABLE_TIMEOUT_MS = 12000; // 12s client-side ceiling (function has 15s server-side)
+
+// ── Valid stat types whitelist (client-side safety net) ──────────────────────
+
+const VALID_TYPES = new Set([
+    'ace', 'serve_error', 'serve_good',
+    'kill', 'attack_error', 'attack_good',
+    'block', 'dig', 'dig_error',
+    'set_error', 'pass_error', 'drop',
+    'receive_0', 'receive_1', 'receive_2', 'receive_3', 'receive_error',
+    'timeout', 'point_adjust', 'substitution',
+]);
+
+const ALLOWED_OPPONENT_TYPES = new Set(['timeout', 'point_adjust']);
+
+// ── Service ─────────────────────────────────────────────────────────────────
 
 export class VoiceParsingService {
-    private genAI: GoogleGenerativeAI;
+    private callable: ReturnType<typeof httpsCallable<any, CloudFunctionResponse>> | null = null;
 
-    constructor(apiKey: string = DEFAULT_API_KEY) {
-        if (!apiKey) {
-            console.error("❌ VoiceParsingService: No API Key found!");
+    constructor() {
+        // Initialize the callable reference if Firebase is available
+        if (app) {
+            try {
+                const functions = getFunctions(app, "us-central1");
+                this.callable = httpsCallable<any, CloudFunctionResponse>(
+                    functions,
+                    "parseRallyVoice",
+                    { timeout: CALLABLE_TIMEOUT_MS }
+                );
+            } catch (err) {
+                console.error("❌ VoiceParsingService: Failed to initialize Firebase Functions callable:", err);
+            }
+        } else {
+            console.warn("⚠️ VoiceParsingService: Firebase not initialized. Voice parsing unavailable.");
         }
-        this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
     /**
      * Parse a voice transcript into structured StatLog-compatible actions.
+     *
+     * Calls the parseRallyVoice Firebase Cloud Function, then applies
+     * client-side validation and label enrichment as a safety net.
      *
      * @param transcript - Raw text from speech recognition
      * @param roster - Array of players with IDs, names, and jersey numbers
@@ -43,7 +110,7 @@ export class VoiceParsingService {
      * @param rallyState - Current rally phase (pre-serve or in-rally)
      * @param currentScore - Current score for context
      * @param myTeamName - Display name for the user's team
-     * @param currentRotation - Current court positions (P1-P6) to distinguish on-court vs bench players
+     * @param currentRotation - Current court positions (P1-P6)
      * @returns ParsedVoiceAction[] ready for confirmation modal
      */
     async parseVoiceInput(
@@ -59,182 +126,101 @@ export class VoiceParsingService {
             return { actions: [], error: 'No speech detected. Please try again.' };
         }
 
-        const prompt = this.buildPrompt(transcript, roster, servingTeam, rallyState, currentScore, myTeamName, currentRotation);
-
-        const safetySettings = [
-            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ];
-
-        // Model fallback chain — prioritize speed over reasoning depth for voice parsing
-        // gemini-2.0-flash is fastest for structured JSON output tasks
-        const candidateModels = [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite-001",
-            "gemini-flash-latest",
-        ];
-
-        let lastError: any = null;
-
-        for (const modelId of candidateModels) {
-            try {
-                const model = this.genAI.getGenerativeModel({
-                    model: modelId,
-                    safetySettings,
-                    generationConfig: {
-                        responseMimeType: 'application/json',
-                    },
-                });
-                if (lastError) await new Promise(resolve => setTimeout(resolve, GEMINI_PARSE_RETRY_DELAY_MS));
-
-                // Race against timeout
-                const result = await Promise.race([
-                    model.generateContent(prompt),
-                    new Promise<never>((_, reject) =>
-                        setTimeout(() => reject(new Error('Parse timeout')), GEMINI_PARSE_TIMEOUT_MS)
-                    ),
-                ]);
-
-                const responseText = result.response.text().trim();
-                return this.parseResponse(responseText, roster);
-            } catch (error: any) {
-                console.warn(`⚠️ VoiceParsingService: ${modelId} failed:`, error.message);
-                lastError = error;
-            }
+        if (!this.callable) {
+            return { actions: [], error: 'Voice parsing is not available. Please check your connection.' };
         }
 
-        // All models failed
-        const errorMsg = lastError?.message || 'Unknown error';
-        if (errorMsg.includes('429') || errorMsg.includes('quota')) {
-            return { actions: [], error: 'AI is temporarily busy. Please wait a moment and try again.' };
-        }
-        if (errorMsg.includes('timeout') || errorMsg.includes('Parse timeout')) {
-            return { actions: [], error: 'Parsing took too long. Try a shorter description.' };
-        }
+        const startTime = Date.now();
 
-        return { actions: [], error: 'Could not parse your input. Please try again.' };
-    }
-
-    /**
-     * Build the Gemini prompt with all necessary context.
-     *
-     * Design philosophy: describe stat type MEANINGS (not trigger phrases) so Gemini
-     * can leverage its own volleyball knowledge to map natural speech variations
-     * (e.g. "good hit", "nice swing", "put it in play") to the correct stat type.
-     * This is both more flexible AND more token-efficient than enumerating synonyms.
-     */
-    private buildPrompt(
-        transcript: string,
-        roster: Player[],
-        servingTeam: 'myTeam' | 'opponent',
-        rallyState: 'pre-serve' | 'in-rally',
-        currentScore: { myTeam: number; opponent: number },
-        myTeamName: string,
-        currentRotation: LineupPosition[],
-    ): string {
-        // Determine which players are on court vs bench
-        const onCourtIds = new Set(
-            currentRotation
-                .filter(pos => pos.playerId)
-                .map(pos => pos.playerId as string)
-        );
-
-        // Build roster reference — only on-court players for compact prompt,
-        // with bench players listed separately in case coach mentions a sub
-        const onCourtLines: string[] = [];
-        const benchLines: string[] = [];
-        roster.forEach(p => {
-            const courtPos = currentRotation.find(pos => pos.playerId === p.id);
-            const posLabel = courtPos ? ` P${courtPos.position}` : '';
-            const line = `  "${p.id}" #${p.jerseyNumber} ${p.name}${posLabel}`;
-            if (onCourtIds.size === 0 || onCourtIds.has(p.id)) {
-                onCourtLines.push(line);
-            } else {
-                benchLines.push(line);
-            }
-        });
-
-        let rosterSection = `ON COURT:\n${onCourtLines.join('\n')}`;
-        if (benchLines.length > 0) {
-            rosterSection += `\nBENCH:\n${benchLines.join('\n')}`;
-        }
-
-        // Identify server by P1 position
-        const serverPos = currentRotation.find(pos => pos.position === 1);
-        const serverContext = servingTeam === 'myTeam' && serverPos?.playerId
-            ? ` (server: #${roster.find(p => p.id === serverPos.playerId)?.jerseyNumber || '?'})`
-            : '';
-
-        return `You parse volleyball rally descriptions into JSON stat actions for ${myTeamName}.
-
-MATCH STATE:
-- Serving: ${servingTeam === 'myTeam' ? myTeamName + serverContext : 'Opponent'} | Rally: ${rallyState} | Score: ${currentScore.myTeam}-${currentScore.opponent}
-
-PLAYERS (${myTeamName}):
-${rosterSection}
-
-VALID STAT TYPES — use the type string exactly:
-Serve: "ace" (untouched), "serve_good" (in play), "serve_error" (net/out)
-Receive: "receive_3" (perfect), "receive_2" (good), "receive_1" (poor), "receive_error" (bad, no point lost), "receive_0" (point lost to serve)
-Attack: "kill" (wins point), "attack_good" (in play, no point, no error), "attack_error" (net/out)
-Defense: "block" (wins point), "dig" (kept in play), "dig_error" (failed)
-Errors: "set_error" (setting fault), "pass_error" (passing fault), "drop" (ball fell untouched)
-Other: "timeout", "point_adjust" (score correction)
-
-CRITICAL RULES:
-1. ALL actions are for myTeam with a playerId from the roster — NEVER create opponent player stats.
-2. The ONLY allowed opponent actions are "timeout" and "point_adjust" (no playerId). If the coach says something like "opponent serve error" or "opponent hits out", record it as { type: "point_adjust", team: "opponent" } since we only track our own team's individual stats.
-3. SETTER-ATTACKER PATTERN: "X sets Y for a [result]" = ONE action with type based on the result (kill/attack_good/attack_error), playerId = Y (the attacker), assistPlayerId = X (the setter). A set alone without a stated attack outcome is not a recorded stat.
-4. Serves can ONLY be by the P1 player when myTeam is serving.
-5. Only [ON COURT] players can perform actions (except substitution).
-6. Jersey numbers are more reliable than names. Prefer number matches.
-7. Do NOT invent actions that weren't spoken. Return [] if nothing valid.
-
-OUTPUT: JSON array of { "type", "team", "playerId" (or null), "assistPlayerId" (or null), "confidence" ("high"/"medium"/"low"), "rawFragment" }
-
-TRANSCRIPT: "${transcript}"`;
-    }
-
-    /**
-     * Parse the raw Gemini response text into structured actions.
-     */
-    private parseResponse(responseText: string, roster: Player[]): VoiceParseResult {
         try {
-            // Strip any accidental markdown code fences (shouldn't happen with JSON mode, but safe)
-            let cleaned = responseText;
-            if (cleaned.startsWith('```')) {
-                cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+            // ── Call the Cloud Function ──
+            const result: HttpsCallableResult<CloudFunctionResponse> = await Promise.race([
+                this.callable({
+                    transcript: transcript.trim(),
+                    roster,
+                    servingTeam,
+                    rallyState,
+                    currentScore,
+                    myTeamName,
+                    currentRotation,
+                }),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Client timeout')), CALLABLE_TIMEOUT_MS)
+                ),
+            ]);
+
+            const response = result.data;
+            const clientLatencyMs = Date.now() - startTime;
+
+            // ── Telemetry Logging ──
+            console.log(
+                `🎙️ Voice parse complete: ${clientLatencyMs}ms client | ` +
+                `${response.meta.latencyMs}ms server | ` +
+                `model=${response.meta.model} (${response.meta.provider}) | ` +
+                `actions=${response.meta.actionCount} | ` +
+                `fallback=${response.meta.fallbackUsed}` +
+                (response.meta.tokensUsed ? ` | tokens=${response.meta.tokensUsed}` : '')
+            );
+
+            // ── Handle server-reported errors ──
+            if (response.error && response.actions.length === 0) {
+                return { actions: [], error: response.error };
             }
 
-            const parsed = JSON.parse(cleaned);
+            // ── Client-side validation & label enrichment (safety net) ──
+            const enrichedActions = this.validateAndEnrich(response.actions, roster);
 
-            if (!Array.isArray(parsed)) {
-                return { actions: [], error: 'Unexpected response format. Please try again.' };
+            if (enrichedActions.length === 0 && response.actions.length > 0) {
+                // Server returned actions but all failed client validation
+                return { actions: [], error: "Couldn't identify valid actions. Try speaking more clearly." };
             }
 
-            if (parsed.length === 0) {
+            if (enrichedActions.length === 0) {
                 return { actions: [], error: "Couldn't identify any actions. Try speaking more clearly." };
             }
 
-            // Valid stat types the app supports
-            const VALID_TYPES = new Set([
-                'ace', 'serve_error', 'serve_good',
-                'kill', 'attack_error', 'attack_good',
-                'block', 'dig', 'dig_error',
-                'set_error', 'pass_error', 'drop',
-                'receive_0', 'receive_1', 'receive_2', 'receive_3', 'receive_error',
-                'timeout', 'point_adjust', 'substitution',
-            ]);
+            return { actions: enrichedActions };
+        } catch (error: any) {
+            const clientLatencyMs = Date.now() - startTime;
+            console.warn(`⚠️ VoiceParsingService error (${clientLatencyMs}ms):`, error.message);
 
-            // Only these types are allowed for opponent team
-            const ALLOWED_OPPONENT_TYPES = new Set(['timeout', 'point_adjust']);
+            // Map common errors to user-friendly messages
+            if (error.message?.includes('timeout') || error.message?.includes('Client timeout')) {
+                return { actions: [], error: 'Parsing took too long — you may have a weak signal. Try a shorter description or use manual entry.' };
+            }
+            if (error.code === 'functions/unavailable' || error.message?.includes('unavailable') ||
+                error.message?.includes('network') || error.message?.includes('Failed to fetch')) {
+                return { actions: [], error: 'No connection to the server. Check your signal and try again, or use manual stat entry.' };
+            }
+            if (error.code === 'functions/resource-exhausted' || error.message?.includes('429') || error.message?.includes('quota')) {
+                return { actions: [], error: 'AI is temporarily busy. Please wait a moment and try again.' };
+            }
+            if (error.code === 'functions/invalid-argument') {
+                return { actions: [], error: error.message || 'Invalid input. Please try again.' };
+            }
+            if (error.code === 'functions/internal') {
+                return { actions: [], error: 'Server error. Please try again, or use manual stat entry.' };
+            }
 
-            // Validate, enforce constraints, and enrich each action
-            const actions: ParsedVoiceAction[] = parsed.map((raw: any) => {
+            return { actions: [], error: 'Could not parse your input. Please try again or use manual entry.' };
+        }
+    }
+
+    /**
+     * Client-side validation and label enrichment.
+     * Acts as a safety net — the server already validates, but we double-check
+     * to protect against any edge cases.
+     */
+    private validateAndEnrich(
+        rawActions: CloudFunctionAction[],
+        roster: Player[],
+    ): ParsedVoiceAction[] {
+        if (!Array.isArray(rawActions)) return [];
+
+        return rawActions
+            .map((raw): ParsedVoiceAction | null => {
                 const action: ParsedVoiceAction = {
-                    type: raw.type || 'no_play',
+                    type: raw.type as StatLog['type'] || 'no_play' as any,
                     team: raw.team === 'opponent' ? 'opponent' : 'myTeam',
                     playerId: raw.playerId || undefined,
                     assistPlayerId: raw.assistPlayerId || undefined,
@@ -246,13 +232,10 @@ TRANSCRIPT: "${transcript}"`;
 
                 // Drop actions with unrecognized stat types
                 if (!VALID_TYPES.has(action.type)) {
-                    action.type = 'no_play' as any;
-                    return action;
+                    return null;
                 }
 
-                // Opponent can ONLY have timeout or point_adjust — convert anything
-                // else the LLM might generate (e.g., attack_error for opponent) into
-                // a point_adjust since those opponent actions only affect score
+                // Opponent can ONLY have timeout or point_adjust
                 if (action.team === 'opponent' && !ALLOWED_OPPONENT_TYPES.has(action.type)) {
                     action.type = 'point_adjust';
                     action.playerId = undefined;
@@ -265,6 +248,7 @@ TRANSCRIPT: "${transcript}"`;
                     if (player) {
                         action.playerLabel = `#${player.jerseyNumber} ${player.name}`;
                     } else {
+                        // Player ID from LLM doesn't match roster — clear it
                         action.playerId = undefined;
                         action.confidence = 'low';
                     }
@@ -280,12 +264,7 @@ TRANSCRIPT: "${transcript}"`;
                 }
 
                 return action;
-            }).filter((a: ParsedVoiceAction) => a.type !== 'no_play');
-
-            return { actions };
-        } catch (e) {
-            console.error('VoiceParsingService: JSON parse failed:', e, 'Response:', responseText);
-            return { actions: [], error: 'Failed to understand the response. Please try again.' };
-        }
+            })
+            .filter((a): a is ParsedVoiceAction => a !== null);
     }
 }

@@ -90,6 +90,20 @@ export function useVoiceInput() {
             setFinalTranscript('');
             setParsedActions([]);
 
+            // ── Free-tier voice limit check ──
+            // Verify the user can use voice input for this match BEFORE recording
+            // to avoid wasting Cloud Function calls on exhausted free-tier users.
+            const matchId = useMatchStore.getState().matchId;
+            if (matchId && !useSubscriptionStore.getState().canUseVoiceInput(matchId)) {
+                const remaining = useSubscriptionStore.getState().getRemainingVoiceMatches();
+                setError(
+                    remaining <= 0
+                        ? 'You\'ve used voice input in all 3 free matches. Upgrade to Pro for unlimited voice input!'
+                        : 'Voice input is not available for this match.'
+                );
+                return;
+            }
+
             // Check/request permissions
             const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
             if (!granted) {

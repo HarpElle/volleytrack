@@ -32,14 +32,27 @@ export default function MatchDetailScreen() {
     const [failedPrompt, setFailedPrompt] = useState<string | undefined>(undefined);
     const [showShareModal, setShowShareModal] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [paywallTrigger, setPaywallTrigger] = useState<'export' | 'ai_narrative'>('export');
     const viewShotRef = useRef<ViewShot>(null);
 
     // Subscription gating for exports
     const canUseExport = useSubscriptionStore((s) => s.canUseExport);
     const incrementExports = useSubscriptionStore((s) => s.incrementExports);
 
+    // Subscription gating for AI narratives
+    const canUseAINarrative = useSubscriptionStore((s) => s.canUseAINarrative);
+    const incrementAINarratives = useSubscriptionStore((s) => s.incrementAINarratives);
+
     const handleGenerateAI = async () => {
         if (!match) return;
+
+        // Check subscription / free tier limit
+        if (!canUseAINarrative()) {
+            setPaywallTrigger('ai_narrative');
+            setShowPaywall(true);
+            return;
+        }
+
         setIsGenerating(true);
         setFailedPrompt(undefined);
         try {
@@ -67,13 +80,16 @@ export default function MatchDetailScreen() {
             const updatedMatch = { ...match, aiNarrative: narrative };
             useDataStore.getState().saveMatchRecord(updatedMatch);
 
+            // Track usage after successful generation
+            incrementAINarratives();
+
         } catch (error: any) {
             console.error(error);
             if (error instanceof AIError) {
                 setFailedPrompt(error.prompt);
                 Alert.alert("AI Error", error.message);
             } else {
-                Alert.alert("AI Error", "Failed to generate analysis. Check your connection or API Key.");
+                Alert.alert("AI Error", "Failed to generate analysis. Check your connection and try again.");
             }
         } finally {
             setIsGenerating(false);
@@ -83,6 +99,7 @@ export default function MatchDetailScreen() {
     const handleSocialShare = async () => {
         // Check export limit for free tier
         if (!canUseExport()) {
+            setPaywallTrigger('export');
             setShowPaywall(true);
             return;
         }
@@ -327,7 +344,7 @@ export default function MatchDetailScreen() {
             <PaywallModal
                 visible={showPaywall}
                 onClose={() => setShowPaywall(false)}
-                trigger="export"
+                trigger={paywallTrigger}
             />
         </SafeAreaView>
     );

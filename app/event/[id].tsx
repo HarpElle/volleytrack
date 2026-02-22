@@ -7,8 +7,10 @@ import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
 import StatsView from '../../components/stats/StatsView';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { AIError, GeminiService } from '../../services/ai/GeminiService';
+import { PaywallModal } from '../../components/PaywallModal';
 import { useDataStore } from '../../store/useDataStore';
 import { useMatchStore } from '../../store/useMatchStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { StatLog } from '../../types';
 
 export default function EventDetailsScreen() {
@@ -45,10 +47,15 @@ export default function EventDetailsScreen() {
         return allLogs;
     }, [matches]);
 
+    // Subscription gating for AI narratives
+    const canUseAINarrative = useSubscriptionStore((s) => s.canUseAINarrative);
+    const incrementAINarratives = useSubscriptionStore((s) => s.incrementAINarratives);
+
     // Local State
     const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
     const [isGenerating, setIsGenerating] = useState(false);
     const [failedPrompt, setFailedPrompt] = useState<string | undefined>(undefined);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     const { setSetup } = useMatchStore();
 
@@ -94,16 +101,22 @@ export default function EventDetailsScreen() {
             return;
         }
 
+        // Check subscription / free tier limit
+        if (!canUseAINarrative()) {
+            setShowPaywall(true);
+            return;
+        }
+
         setIsGenerating(true);
         try {
             const service = new GeminiService();
-            // Check models silently
             const narrative = await service.generateEventRecap(matches, season, event);
 
-            // Save to store (we need to update the event object with the new narrative)
-            // Assuming event object has aiNarrative optional field. If not, we might need to update type.
-            // checking types... let's assume updateEvent handles partial updates.
+            // Save to store
             updateEvent(event.id, { aiNarrative: narrative });
+
+            // Track usage after successful generation
+            incrementAINarratives();
 
         } catch (error: any) {
             console.error(error);
@@ -111,7 +124,7 @@ export default function EventDetailsScreen() {
                 setFailedPrompt(error.prompt);
                 Alert.alert("AI Error", error.message);
             } else {
-                Alert.alert("AI Error", "Failed to generate recap. Please try again.");
+                Alert.alert("AI Error", "Failed to generate recap. Check your connection and try again.");
             }
         } finally {
             setIsGenerating(false);
@@ -369,6 +382,13 @@ export default function EventDetailsScreen() {
                 )}
 
             </ScrollView>
+
+            {/* Paywall Modal */}
+            <PaywallModal
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                trigger="ai_narrative"
+            />
         </SafeAreaView >
     );
 }
