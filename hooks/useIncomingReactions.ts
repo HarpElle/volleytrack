@@ -15,6 +15,7 @@ export function useIncomingReactions(matchCode: string) {
     useEffect(() => {
         if (!matchCode) return;
 
+        if (!db) return;
         const reactionsRef = collection(db, 'liveMatches', matchCode, 'reactions');
         const q = query(reactionsRef, orderBy('timestamp', 'desc'), limit(10));
 

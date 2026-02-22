@@ -32,6 +32,7 @@ const MAX_ALERTS = 20;
  * Get a reference to the interactions subdocument for a match.
  */
 function getInteractionsRef(matchCode: string) {
+    if (!db) throw new Error('Firestore not initialized');
     return doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
 }
 
@@ -46,6 +47,7 @@ export async function registerSpectator(
     cheeringFor: string[] = []
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         const viewer: SpectatorViewer = {
             deviceId,
@@ -74,6 +76,7 @@ export async function updateSpectatorPresence(
     deviceId: string
 ): Promise<void> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         await updateDoc(interactionsRef, {
             [`spectators.${deviceId}.lastSeen`]: Date.now(),
@@ -91,6 +94,7 @@ export async function unregisterSpectator(
     deviceId: string
 ): Promise<void> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         await updateDoc(interactionsRef, {
             [`spectators.${deviceId}`]: deleteField(),
@@ -110,6 +114,7 @@ export async function sendSpectatorAlert(
     alert: Omit<SpectatorAlert, 'id' | 'timestamp' | 'acknowledged'>
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         const fullAlert: SpectatorAlert = {
             ...alert,
@@ -139,6 +144,7 @@ export async function sendCheer(
     matchCode: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         await updateDoc(interactionsRef, {
             cheerCount: increment(1),
@@ -159,6 +165,7 @@ export async function acknowledgeAlerts(
     alerts: SpectatorAlert[]
 ): Promise<void> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         const acknowledged = alerts.map(a => ({ ...a, acknowledged: true }));
         await updateDoc(interactionsRef, {
@@ -180,6 +187,7 @@ export async function trimAlerts(
     if (currentAlerts.length <= MAX_ALERTS) return;
 
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
         const trimmed = currentAlerts.slice(-MAX_ALERTS);
         await updateDoc(interactionsRef, {
@@ -201,6 +209,7 @@ export async function sendReaction(
     senderId: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const reactionsRef = collection(db, 'liveMatches', matchCode, 'reactions');
         await addDoc(reactionsRef, {
             type: reactionType,
@@ -223,6 +232,7 @@ export async function sendCheerPulse(
     intensity: number // 0-100
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const reactionsRef = collection(db, 'liveMatches', matchCode, 'reactions');
         await addDoc(reactionsRef, {
             type: 'cheer_pulse',

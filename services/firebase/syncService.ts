@@ -18,16 +18,16 @@
 
 import {
     collection,
+    deleteDoc,
     doc,
     getDocs,
-    writeBatch,
     serverTimestamp,
     Timestamp,
-    deleteDoc,
+    writeBatch,
 } from 'firebase/firestore';
-import { db } from './config';
-import { Season, Event, MatchRecord } from '../../types';
+import { Event, MatchRecord, Season } from '../../types';
 import { logger } from '../../utils/logger';
+import { db } from './config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -50,10 +50,12 @@ interface CloudDocument {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function userCollection(uid: string, subcollection: string) {
+    if (!db) throw new Error('Firestore not initialized');
     return collection(db, 'users', uid, subcollection);
 }
 
 function userDoc(uid: string, subcollection: string, docId: string) {
+    if (!db) throw new Error('Firestore not initialized');
     return doc(db, 'users', uid, subcollection, docId);
 }
 
@@ -85,6 +87,7 @@ export async function pushToCloud(
             ...matches.map((m) => ({ subcollection: 'matches', id: m.id, data: m })),
         ];
 
+        if (!db) throw new Error('Firestore not initialized');
         let batch = writeBatch(db);
         let count = 0;
 
@@ -121,6 +124,7 @@ export async function pushItem(
 ) {
     try {
         const subcollection = type === 'season' ? 'seasons' : type === 'event' ? 'events' : 'matches';
+        if (!db) throw new Error('Firestore not initialized');
         const batch = writeBatch(db);
         batch.set(userDoc(uid, subcollection, data.id), withTimestamp(data));
         await batch.commit();

@@ -22,29 +22,22 @@
 
 import {
     collection,
+    deleteDoc,
     doc,
     getDoc,
     getDocs,
+    onSnapshot,
     query,
-    where,
     setDoc,
     updateDoc,
-    deleteDoc,
-    onSnapshot,
-    serverTimestamp,
+    where
 } from 'firebase/firestore';
-import { db } from './config';
 import {
     LiveMatchSnapshot,
     MatchState,
-    Player,
-    Score,
-    StatLog,
-    LineupPosition,
-    SetResult,
-    MatchConfig,
-    Team,
+    StatLog
 } from '../../types';
+import { db } from './config';
 
 // Characters for match code (excludes ambiguous 0/O, 1/I/L)
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -260,6 +253,7 @@ export async function startLiveMatch(
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         const matchCode = generateMatchCode();
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
 
         try {
@@ -282,6 +276,7 @@ export async function startLiveMatch(
             await setDoc(docRef, snapshot);
 
             // Create the interactions subdoc for spectator writes
+            if (!db) throw new Error('Firestore not initialized');
             const interactionsRef = doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
             await setDoc(interactionsRef, {
                 spectators: {},
@@ -317,6 +312,7 @@ export async function updateLiveMatch(
     status: 'live' | 'between-sets' | 'completed' = 'live'
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
 
         // Try delta update first
@@ -350,6 +346,7 @@ export async function updateBroadcastSettings(
     settings: { allowSpectatorAlerts: boolean }
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
         await updateDoc(docRef, { broadcastSettings: settings });
         return { success: true };
@@ -366,6 +363,7 @@ export async function stopLiveMatch(
     coachUid: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
         await updateDoc(docRef, {
             isActive: false,
@@ -387,6 +385,7 @@ export async function deleteLiveMatch(
     coachUid: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
         await deleteDoc(docRef);
         lastPushedStateCache.delete(matchCode);
@@ -403,6 +402,7 @@ export async function getLiveMatch(
     matchCode: string
 ): Promise<{ success: boolean; match: LiveMatchSnapshot | null; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const docRef = doc(db, 'liveMatches', matchCode);
         const snapshot = await getDoc(docRef);
 
@@ -427,6 +427,10 @@ export function subscribeLiveMatch(
     onUpdate: (match: LiveMatchSnapshot) => void,
     onError: (error: string) => void
 ): () => void {
+    if (!db) {
+        onError('Firestore not initialized');
+        return () => { };
+    }
     const docRef = doc(db, 'liveMatches', matchCode);
 
     const unsubscribe = onSnapshot(
@@ -457,6 +461,10 @@ export function subscribeInteractions(
     onUpdate: (data: any) => void,
     onError: (error: string) => void
 ): () => void {
+    if (!db) {
+        onError('Firestore not initialized');
+        return () => { };
+    }
     const interactionsRef = doc(db, 'liveMatches', matchCode, 'meta', 'interactions');
 
     const unsubscribe = onSnapshot(
@@ -492,6 +500,7 @@ const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function cleanupStaleBroadcasts(coachUid: string): Promise<number> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const q = query(
             collection(db, 'liveMatches'),
             where('coachUid', '==', coachUid),

@@ -29,6 +29,7 @@ export async function sendChatMessage(
     extra?: { triggerEvent?: string; triggerPlayerName?: string; linkedStatId?: string }
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const chatRef = collection(db, 'liveMatches', matchCode, 'chat');
         await addDoc(chatRef, {
             senderDeviceId: deviceId,
@@ -65,6 +66,7 @@ export async function sendCelebrationMessage(
     const text = `${label} by ${playerTag}!`;
 
     try {
+        if (!db) throw new Error('Firestore not initialized');
         const chatRef = collection(db, 'liveMatches', matchCode, 'chat');
         await addDoc(chatRef, {
             senderDeviceId: 'system',
@@ -89,6 +91,7 @@ export function subscribeToChatMessages(
     callback: (messages: SpectatorChatMessage[]) => void,
     messageLimit: number = 50
 ): () => void {
+    if (!db) return () => { };
     const chatRef = collection(db, 'liveMatches', matchCode, 'chat');
     const q = query(chatRef, orderBy('timestamp', 'desc'), limit(messageLimit));
 
