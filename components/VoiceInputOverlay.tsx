@@ -174,12 +174,8 @@ export function VoiceInputOverlay({
                                 </View>
                             )}
 
-                            <TouchableOpacity
-                                style={[styles.secondaryBtn, { backgroundColor: colors.bgCard, marginTop: 16 }]}
-                                onPress={onCancel}
-                            >
-                                <X size={18} color={colors.textSecondary} />
-                                <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                            <TouchableOpacity onPress={onCancel} style={[styles.cancelLink, { marginTop: 12 }]}>
+                                <Text style={[styles.cancelLinkText, { color: colors.textTertiary }]}>Cancel</Text>
                             </TouchableOpacity>
                         </View>
                     )}

@@ -2,7 +2,7 @@ import {
     ExpoSpeechRecognitionModule,
     useSpeechRecognitionEvent,
 } from 'expo-speech-recognition';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import { VOICE_RECORDING_MAX_MS } from '../constants/voice';
 import { ParsedVoiceAction, VoiceParsingService } from '../services/ai/VoiceParsingService';
@@ -41,6 +41,14 @@ export function useVoiceInput() {
 
     // Track recording timeout
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Refs to track transcript values reliably (state reads are async/stale)
+    const finalTranscriptRef = useRef('');
+    const liveTranscriptRef = useRef('');
+
+    // Keep refs in sync with state
+    useEffect(() => { finalTranscriptRef.current = finalTranscript; }, [finalTranscript]);
+    useEffect(() => { liveTranscriptRef.current = liveTranscript; }, [liveTranscript]);
 
     // ── Speech Recognition Event Handlers ────────────────────────────────
 
@@ -88,6 +96,8 @@ export function useVoiceInput() {
             setParseError(null);
             setLiveTranscript('');
             setFinalTranscript('');
+            finalTranscriptRef.current = '';
+            liveTranscriptRef.current = '';
             setParsedActions([]);
 
             // ── Free-tier voice limit check ──
@@ -145,12 +155,20 @@ export function useVoiceInput() {
         ExpoSpeechRecognitionModule.stop();
         setIsListening(false);
 
-        // Wait a brief moment for final results to arrive
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for final results to arrive — speech recognition delivers them
+        // asynchronously after stop(). 100ms is too short for longer inputs;
+        // poll for up to 1.5s until a final transcript appears.
+        const maxWaitMs = 1500;
+        const pollIntervalMs = 100;
+        let waited = 0;
 
-        // Get the transcript to parse
-        // We need to use the latest state, so read from a ref or use the setter callback
-        // Using a promise-based approach to get latest state
+        while (waited < maxWaitMs) {
+            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+            waited += pollIntervalMs;
+            // If we have a final transcript, we're good
+            if (finalTranscriptRef.current.trim().length > 0) break;
+        }
+
         parseCurrentTranscript();
     }, []);
 
@@ -164,21 +182,20 @@ export function useVoiceInput() {
         const roster = myTeamRoster || [];
         const rotation = currentRotation || [];
 
-        // Get the transcript — combine final + any remaining live
-        // We need to access the latest state value
-        setFinalTranscript(prev => {
-            const transcript = prev.trim();
+        // Read transcript from refs (always current, unlike async state reads)
+        // Fall back to live transcript if final hasn't been delivered yet
+        let transcript = finalTranscriptRef.current.trim();
+        if (!transcript) {
+            transcript = liveTranscriptRef.current.trim();
+        }
 
-            if (!transcript) {
-                setParseError('No speech detected. Please try again.');
-                setPhase('idle');
-                return prev;
-            }
+        if (!transcript) {
+            setError('No speech detected. Please try again.');
+            setPhase('recording');
+            return;
+        }
 
-            // Kick off parsing (async, but we can't await inside setState)
-            doParse(transcript, roster, servingTeam, rallyState, currentScore, myTeamName, rotation);
-            return prev;
-        });
+        doParse(transcript, roster, servingTeam, rallyState, currentScore, myTeamName, rotation);
     }, []);
 
     const doParse = useCallback(async (
@@ -206,17 +223,24 @@ export function useVoiceInput() {
             );
 
             if (result.error) {
-                setParseError(result.error);
-                setParsedActions([]);
-                // Stay on parsing screen so user can retry
-                setPhase(result.actions.length > 0 ? 'confirming' : 'recording');
+                if (result.actions.length > 0) {
+                    // Partial success — show actions with warning on confirming screen
+                    setParseError(result.error);
+                    setParsedActions(result.actions);
+                    setPhase('confirming');
+                } else {
+                    // Total failure — show error on recording screen so user can retry
+                    setError(result.error);
+                    setParsedActions([]);
+                    setPhase('recording');
+                }
             } else {
                 setParsedActions(result.actions);
                 setPhase('confirming');
             }
         } catch (err: any) {
             console.error('Voice parsing failed:', err);
-            setParseError('Something went wrong. Please try again.');
+            setError('Something went wrong. Please try again.');
             setPhase('recording');
         } finally {
             setIsParsing(false);
@@ -237,6 +261,8 @@ export function useVoiceInput() {
         setIsListening(false);
         setLiveTranscript('');
         setFinalTranscript('');
+        finalTranscriptRef.current = '';
+        liveTranscriptRef.current = '';
         setParsedActions([]);
         setIsParsing(false);
         setParseError(null);
