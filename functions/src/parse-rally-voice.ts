@@ -17,7 +17,7 @@
  * @module parse-rally-voice
  */
 
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory, SchemaType } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
@@ -31,7 +31,7 @@ const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 const MODEL_CONFIG = {
   primary: {
     provider: "groq" as const,
-    model: "llama-4-scout-17b-16e-instruct",      // Fast, excellent structured JSON
+    model: "meta-llama/llama-4-scout-17b-16e-instruct", // Fast, excellent structured JSON
     baseURL: "https://api.groq.com/openai/v1",
     temperature: 0.1,
     maxTokens: 800,
@@ -109,42 +109,7 @@ const VALID_STAT_TYPES = new Set([
 
 const ALLOWED_OPPONENT_TYPES = new Set(["timeout", "point_adjust"]);
 
-// ─── JSON Schema for Structured Output ──────────────────────────────────────
-// Used by both Groq (via OpenAI response_format) and Gemini (via responseSchema)
-
-const ACTION_JSON_SCHEMA = {
-  type: "object" as const,
-  properties: {
-    actions: {
-      type: "array" as const,
-      items: {
-        type: "object" as const,
-        properties: {
-          type: {
-            type: "string" as const,
-            enum: [
-              "ace", "serve_good", "serve_error",
-              "receive_3", "receive_2", "receive_1", "receive_error", "receive_0",
-              "kill", "attack_good", "attack_error",
-              "block", "dig", "dig_error",
-              "set_error", "pass_error", "drop",
-              "timeout", "point_adjust", "substitution",
-            ],
-          },
-          team: { type: "string" as const, enum: ["myTeam", "opponent"] },
-          playerId: { type: ["string", "null"] as any },
-          assistPlayerId: { type: ["string", "null"] as any },
-          confidence: { type: "string" as const, enum: ["high", "medium", "low"] },
-          rawFragment: { type: "string" as const },
-        },
-        required: ["type", "team", "playerId", "assistPlayerId", "confidence", "rawFragment"],
-      },
-    },
-  },
-  required: ["actions"],
-};
-
-// Gemini-flavored schema (uses SchemaType enums)
+// ─── JSON Schema for Structured Output (Gemini) ─────────────────────────────
 const GEMINI_RESPONSE_SCHEMA: any = {
   type: SchemaType.OBJECT,
   properties: {
@@ -318,7 +283,7 @@ async function callGroq(
       {
         model: MODEL_CONFIG.primary.model,
         messages: [
-          { role: "system", content: "You are a volleyball stat parser. Return only valid JSON." },
+          { role: "system", content: "You are a volleyball sports statistics parser for a scorekeeping app. All input uses standard volleyball terminology: 'kill' means a winning attack/spike, 'block' means a defensive play at the net, 'ace' means an unreturnable serve, 'dig' means a defensive save, 'attack' means an offensive hit. Parse the coach's spoken play-by-play into structured JSON stats." },
           { role: "user", content: prompt },
         ],
         temperature: MODEL_CONFIG.primary.temperature,
@@ -361,6 +326,15 @@ async function callGemini(
       temperature: MODEL_CONFIG.fallback.temperature,
       maxOutputTokens: MODEL_CONFIG.fallback.maxTokens,
     },
+    // Volleyball terminology ("kill", "block", "attack", "hit") can trip default
+    // safety filters. This is a sports scorekeeping context — disable content
+    // filtering so standard volleyball play-by-play is never blocked.
+    safetySettings: [
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    ],
   });
 
   // Timeout via Promise.race
@@ -371,7 +345,20 @@ async function callGemini(
     ),
   ]);
 
-  const text = result.response.text().trim();
+  // Extract response text — log raw output for debuggability
+  let text: string;
+  try {
+    text = result.response.text().trim();
+  } catch (textErr: any) {
+    // text() can throw if response was blocked or empty
+    const finishReason = result.response.candidates?.[0]?.finishReason;
+    logger.warn("Gemini response.text() threw", {
+      error: textErr.message,
+      finishReason,
+      safetyRatings: JSON.stringify(result.response.candidates?.[0]?.safetyRatings),
+    });
+    throw new Error(`Gemini response error (finishReason=${finishReason}): ${textErr.message}`);
+  }
 
   // Handle potential markdown fences
   let cleaned = text;
@@ -379,10 +366,32 @@ async function callGemini(
     cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   }
 
-  const parsed = JSON.parse(cleaned);
-  const actions = Array.isArray(parsed) ? parsed : (parsed.actions || []);
+  // Parse JSON with fallback — if the response is slightly malformed,
+  // try to extract the JSON object via regex before giving up
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (jsonErr: any) {
+    logger.warn("Gemini JSON.parse failed, attempting regex extraction", {
+      error: jsonErr.message,
+      rawResponseLength: text.length,
+      rawResponsePreview: text.substring(0, 300),
+    });
 
-  // Gemini doesn't expose token counts easily in this SDK version
+    // Try to find and extract a JSON object from the response
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        throw new Error(`Gemini returned invalid JSON (pos ${jsonErr.message}). Preview: ${text.substring(0, 200)}`);
+      }
+    } else {
+      throw new Error(`Gemini returned non-JSON response. Preview: ${text.substring(0, 200)}`);
+    }
+  }
+
+  const actions = Array.isArray(parsed) ? parsed : (parsed.actions || []);
   return { actions };
 }
 
@@ -466,9 +475,14 @@ export const parseRallyVoice = onCall(
         modelUsed = MODEL_CONFIG.primary.model;
         providerUsed = MODEL_CONFIG.primary.provider;
       } catch (primaryErr: any) {
+        const errMsg = primaryErr.message || "";
+        const isSafetyBlock = /safety|content.?filter|moderat|policy|refus|blocked/i.test(errMsg)
+          || primaryErr.status === 400;
         logger.warn("Primary model (Groq) failed, falling back to Gemini", {
-          error: primaryErr.message,
+          error: errMsg,
+          errorType: isSafetyBlock ? "safety_filter" : "other",
           latencyMs: Date.now() - startTime,
+          transcript: req.transcript.substring(0, 100),
         });
 
         // ── Fallback: Gemini ──
@@ -483,10 +497,15 @@ export const parseRallyVoice = onCall(
           modelUsed = MODEL_CONFIG.fallback.model;
           providerUsed = MODEL_CONFIG.fallback.provider;
         } catch (fallbackErr: any) {
+          const fallbackMsg = fallbackErr.message || "";
+          const isFallbackSafety = /safety|content.?filter|moderat|policy|refus|blocked|SAFETY/i.test(fallbackMsg);
           logger.error("All models failed", {
-            primaryError: (primaryErr as Error).message,
-            fallbackError: fallbackErr.message,
+            primaryError: errMsg,
+            primaryErrorType: isSafetyBlock ? "safety_filter" : "other",
+            fallbackError: fallbackMsg,
+            fallbackErrorType: isFallbackSafety ? "safety_filter" : "other",
             latencyMs: Date.now() - startTime,
+            transcript: req.transcript.substring(0, 200),
           });
 
           const latencyMs = Date.now() - startTime;
