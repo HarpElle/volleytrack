@@ -231,7 +231,7 @@ export default function SpectateScreen() {
 
         if (relevantCheckIns.length > 0) {
             const playerNames = relevantCheckIns.map(id => {
-                const p = state.myTeamRoster.find(r => r.id === id);
+                const p = state.myTeamRoster?.find(r => r.id === id);
                 return p ? p.name : 'Your player';
             }).join(' and ');
 
@@ -239,7 +239,7 @@ export default function SpectateScreen() {
         }
 
         prevRotationRef.current = currentIds;
-    }, [state?.currentRotation, interactions.cheeringFor]);
+    }, [state?.currentRotation, interactions.cheeringFor, state?.myTeamRoster]);
 
     // Auto-generate celebration messages + Proud Moment cards for new plays
     useEffect(() => {
@@ -257,7 +257,7 @@ export default function SpectateScreen() {
         for (const event of newEvents) {
             // Celebration messages for home team big plays
             if (event.team === 'myTeam' && POINT_SCORERS.includes(event.type) && event.playerId) {
-                const player = state.myTeamRoster.find(p => p.id === event.playerId);
+                const player = state.myTeamRoster?.find(p => p.id === event.playerId);
                 if (player) {
                     sendCelebrationMessage(
                         code,
@@ -292,7 +292,7 @@ export default function SpectateScreen() {
             const completedSet = prevSetNumberRef.current;
             if (interactions.cheeringFor && interactions.cheeringFor.length > 0) {
                 const playerId = interactions.cheeringFor[0];
-                const player = state.myTeamRoster.find(p => p.id === playerId);
+                const player = state.myTeamRoster?.find(p => p.id === playerId);
                 if (player) {
                     setSummaryPlayer(player);
                     setSetForSummary(completedSet);
@@ -397,21 +397,23 @@ export default function SpectateScreen() {
         );
     }
 
-    if (!state) return null;
-
     const recentEvents = useMemo(
-        () => (state.history || [])
-            .filter(e => e.setNumber === state.currentSet)
-            .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
-            .slice(-15)
-            .reverse(),
-        [state.history?.length, state.currentSet]
+        () => state
+            ? (state.history || [])
+                .filter(e => e.setNumber === state.currentSet)
+                .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
+                .slice(-15)
+                .reverse()
+            : [],
+        [state?.history?.length, state?.currentSet]
     );
 
     const cheeringForSet = useMemo(
         () => new Set(interactions.cheeringFor || []),
         [interactions.cheeringFor]
     );
+
+    if (!state) return null;
 
     // Point streak indicator for score area
     const streak = momentum.currentStreak;
