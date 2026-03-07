@@ -175,6 +175,24 @@ export default function SpectateScreen() {
         [state?.config?.sets, state?.currentSet]
     );
 
+    // Recent events for activity feed (must be before any early returns for Rules of Hooks)
+    const recentEvents = useMemo(
+        () => state
+            ? (state.history || [])
+                .filter(e => e.setNumber === state.currentSet)
+                .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
+                .slice(-15)
+                .reverse()
+            : [],
+        [state?.history?.length, state?.currentSet]
+    );
+
+    // Cheering-for set (must be before any early returns for Rules of Hooks)
+    const cheeringForSet = useMemo(
+        () => new Set(interactions.cheeringFor || []),
+        [interactions.cheeringFor]
+    );
+
     // Momentum detection (Enhancement 6) — memoize props to avoid recalc
     const momentumProps = useMemo(() => ({
         history: state?.history || [],
@@ -396,22 +414,6 @@ export default function SpectateScreen() {
             </SafeAreaView>
         );
     }
-
-    const recentEvents = useMemo(
-        () => state
-            ? (state.history || [])
-                .filter(e => e.setNumber === state.currentSet)
-                .filter(e => !['rotation'].includes(e.type) && !e.metadata?.isAssignment)
-                .slice(-15)
-                .reverse()
-            : [],
-        [state?.history?.length, state?.currentSet]
-    );
-
-    const cheeringForSet = useMemo(
-        () => new Set(interactions.cheeringFor || []),
-        [interactions.cheeringFor]
-    );
 
     if (!state) return null;
 
