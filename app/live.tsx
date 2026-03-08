@@ -108,6 +108,9 @@ function LiveScreen() {
     const roster = (activeSeason?.roster?.length ? activeSeason.roster : myTeamRoster) || [];
     const haptics = useHaptics();
 
+    // "Just Score" mode — no roster means simplified UI (scores, TOs, serve only)
+    const isJustScore = roster.length === 0;
+
     // Voice Input
     const voiceInput = useVoiceInput();
     const { canUseVoiceInput } = useSubscriptionStore();
@@ -586,89 +589,90 @@ function LiveScreen() {
                     onDecrement={(team) => { decrementScore(team); haptics('light'); }}
                 />
 
-                {/* Lineup Tracker */}
-                <LineupTracker
-                    rotation={currentRotation || []}
-                    roster={roster}
-                    selectedPlayerIds={selectedPlayerIds as any}
-                    onSelectPlayer={handlePlayerSelect}
-                    onSubstitute={(pos) => setSubPicker({ visible: true, position: pos })}
-                    highlightPosition={(() => {
-                        if (!history || history.length === 0) return null;
+                {/* Lineup Tracker — hidden in Just Score mode */}
+                {!isJustScore && (
+                    <LineupTracker
+                        rotation={currentRotation || []}
+                        roster={roster}
+                        selectedPlayerIds={selectedPlayerIds as any}
+                        onSelectPlayer={handlePlayerSelect}
+                        onSubstitute={(pos) => setSubPicker({ visible: true, position: pos })}
+                        highlightPosition={(() => {
+                            if (!history || history.length === 0) return null;
 
-                        // Check last few events
-                        const recentEvents = history.slice(-10).reverse();
-                        const autoSwapEvent = recentEvents.find(e => e.type === 'substitution' && e.metadata?.autoSwap);
-                        const rotationEvent = recentEvents.find(e => e.type === 'rotation');
+                            // Check last few events
+                            const recentEvents = history.slice(-10).reverse();
+                            const autoSwapEvent = recentEvents.find(e => e.type === 'substitution' && e.metadata?.autoSwap);
+                            const rotationEvent = recentEvents.find(e => e.type === 'rotation');
 
-                        if (autoSwapEvent && autoSwapEvent.metadata) {
-                            // If we have rotated SINCE the swap, stop highlighting to prevent "following" the player
-                            if (rotationEvent && rotationEvent.timestamp > autoSwapEvent.timestamp) {
-                                return null;
+                            if (autoSwapEvent && autoSwapEvent.metadata) {
+                                // If we have rotated SINCE the swap, stop highlighting to prevent "following" the player
+                                if (rotationEvent && rotationEvent.timestamp > autoSwapEvent.timestamp) {
+                                    return null;
+                                }
+
+                                const subInId = autoSwapEvent.metadata.subIn;
+                                const slot = currentRotation?.find(p => p.playerId === subInId);
+                                return slot ? slot.position : null;
                             }
-
-                            const subInId = autoSwapEvent.metadata.subIn;
-                            const slot = currentRotation?.find(p => p.playerId === subInId);
-                            // Only highlight if they are still in the position we expect? 
-                            // Actually, just returning the current position is fine IF we are sure no rotation happened.
-                            // If no rotation happened, they are at the swap position.
-                            return slot ? slot.position : null;
-                        }
-                        return null;
-                    })()}
-                />
-
-                {/* Subs & Rotation Control Row */}
-                <View style={styles.subsRow}>
-                    <View style={styles.subsContainer}>
-                        <Text style={[styles.subsLabel, { color: colors.textSecondary }]}>Subs</Text>
-                        {(() => {
-                            const totalSubs = config.subsPerSet || 12;
-                            const MAX_DOTS = 12;
-                            const showDots = Math.min(totalSubs, MAX_DOTS);
-                            return (
-                                <View style={styles.subsDots}>
-                                    {[...Array(showDots)].map((_, i) => {
-                                        const isAvailable = i < subsRemaining.myTeam;
-                                        return (
-                                            <View
-                                                key={i}
-                                                style={[styles.subDot, { backgroundColor: isAvailable ? colors.primary : colors.momentumBase }]}
-                                            />
-                                        );
-                                    })}
-                                    {totalSubs > MAX_DOTS && (
-                                        <Text style={[styles.subsOverflowBadge, { color: colors.textSecondary }]}>
-                                            {subsRemaining.myTeam}
-                                        </Text>
-                                    )}
-                                </View>
-                            );
+                            return null;
                         })()}
+                    />
+                )}
+
+                {/* Subs & Rotation Control Row — hidden in Just Score mode */}
+                {!isJustScore && (
+                    <View style={styles.subsRow}>
+                        <View style={styles.subsContainer}>
+                            <Text style={[styles.subsLabel, { color: colors.textSecondary }]}>Subs</Text>
+                            {(() => {
+                                const totalSubs = config.subsPerSet || 12;
+                                const MAX_DOTS = 12;
+                                const showDots = Math.min(totalSubs, MAX_DOTS);
+                                return (
+                                    <View style={styles.subsDots}>
+                                        {[...Array(showDots)].map((_, i) => {
+                                            const isAvailable = i < subsRemaining.myTeam;
+                                            return (
+                                                <View
+                                                    key={i}
+                                                    style={[styles.subDot, { backgroundColor: isAvailable ? colors.primary : colors.momentumBase }]}
+                                                />
+                                            );
+                                        })}
+                                        {totalSubs > MAX_DOTS && (
+                                            <Text style={[styles.subsOverflowBadge, { color: colors.textSecondary }]}>
+                                                {subsRemaining.myTeam}
+                                            </Text>
+                                        )}
+                                    </View>
+                                );
+                            })()}
+                        </View>
+
+                        <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
+                            {/* Rotate Back */}
+                            <TouchableOpacity
+                                style={styles.rotateInlineBtn}
+                                onPress={() => { rotate('backward'); haptics('light'); }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                            >
+                                <RotateCcw size={18} color={colors.primary} />
+                            </TouchableOpacity>
+
+                            <Text style={[styles.rotateInlineLabel, { color: colors.primary }]}>Rotate</Text>
+
+                            {/* Rotate Forward */}
+                            <TouchableOpacity
+                                style={styles.rotateInlineBtn}
+                                onPress={() => { rotate('forward'); haptics('light'); }}
+                                hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                            >
+                                <RotateCw size={18} color={colors.primary} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-
-                    <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
-                        {/* Rotate Back */}
-                        <TouchableOpacity
-                            style={styles.rotateInlineBtn}
-                            onPress={() => { rotate('backward'); haptics('light'); }}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
-                        >
-                            <RotateCcw size={18} color={colors.primary} />
-                        </TouchableOpacity>
-
-                        <Text style={[styles.rotateInlineLabel, { color: colors.primary }]}>Rotate</Text>
-
-                        {/* Rotate Forward */}
-                        <TouchableOpacity
-                            style={styles.rotateInlineBtn}
-                            onPress={() => { rotate('forward'); haptics('light'); }}
-                            hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
-                        >
-                            <RotateCw size={18} color={colors.primary} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                )}
 
                 {/* Modals */}
                 <MatchMenuModal
@@ -723,24 +727,26 @@ function LiveScreen() {
                     onChoose={handleServeChoice}
                 />
 
-                <LineupCarryoverModal
-                    visible={showLineupCarryover && !showServeChoice}
-                    setNumber={currentSet}
-                    sourceSetNumber={lineupCarryover?.sourceSet ?? currentSet - 1}
-                    wasRotated={lineupCarryover?.wasRotated ?? false}
-                    rotationDirection={lineupCarryover?.rotationDirection}
-                    rotation={currentRotation || []}
-                    roster={roster}
-                    onKeep={() => {
-                        setShowLineupCarryover(false);
-                        useMatchStore.setState({ lineupCarryover: null });
-                    }}
-                    onClear={() => {
-                        clearRotation();
-                        setShowLineupCarryover(false);
-                        useMatchStore.setState({ lineupCarryover: null });
-                    }}
-                />
+                {!isJustScore && (
+                    <LineupCarryoverModal
+                        visible={showLineupCarryover && !showServeChoice}
+                        setNumber={currentSet}
+                        sourceSetNumber={lineupCarryover?.sourceSet ?? currentSet - 1}
+                        wasRotated={lineupCarryover?.wasRotated ?? false}
+                        rotationDirection={lineupCarryover?.rotationDirection}
+                        rotation={currentRotation || []}
+                        roster={roster}
+                        onKeep={() => {
+                            setShowLineupCarryover(false);
+                            useMatchStore.setState({ lineupCarryover: null });
+                        }}
+                        onClear={() => {
+                            clearRotation();
+                            setShowLineupCarryover(false);
+                            useMatchStore.setState({ lineupCarryover: null });
+                        }}
+                    />
+                )}
 
                 <EndOfSetModal
                     visible={showEndOfSet}
@@ -803,155 +809,162 @@ function LiveScreen() {
                     />
                 )}
 
-                {/* Sub Picker Modal */}
-                <Modal visible={!!subPicker} animationType="slide" presentationStyle="pageSheet">
-                    <SubstituteModalContent
-                        subPicker={subPicker}
-                        roster={roster}
-                        currentRotation={currentRotation}
-                        subPairs={subPairs}
-                        liberoIds={useMatchStore.getState().liberoIds} // Access latest store state
-                        nonLiberoDesignations={nonLiberoDesignations || []}
-                        onClose={() => setSubPicker(null)}
-                        onSub={handleSubClick}
-                        onDesignateNonLibero={designateNonLibero}
-                    />
-                </Modal>
-
-                {/* Stat Grid — only the active row renders to save vertical space */}
-                <View style={styles.statGrid}>
-                    {isPreServe ? (
-                        /* Pre-Serve: Serve & Receive */
-                        <View style={styles.statRow}>
-                            <StatButton
-                                label="Serve"
-                                color={canServe ? "#4a90e2" : colors.buttonDisabled}
-                                disabled={!canServe}
-                                onPress={() => {
-                                    setStatPicker({
-                                        visible: true,
-                                        title: 'Serve Result',
-                                        team: 'myTeam',
-                                        attribution: getAttribution('serve'),
-                                        options: [
-                                            { label: 'Ace', subLabel: 'Point', value: 'ace', color: '#2196f3' },
-                                            { label: 'Good', subLabel: 'In Play', value: 'serve_good', color: '#4caf50' },
-                                            { label: 'Error', subLabel: 'Net/Out', value: 'serve_error', color: '#f44336' },
-                                        ]
-                                    });
-                                    haptics('light');
-                                }}
-                                onLongPress={() => { handleStat('serve_error', 'myTeam', 'Serve Error'); haptics('error'); }}
-                            />
-                            <StatButton
-                                label="Receive"
-                                color={canReceive ? "#f5a623" : colors.buttonDisabled}
-                                disabled={!canReceive}
-                                onPress={() => {
-                                    setStatPicker({
-                                        visible: true,
-                                        title: 'Receive Quality',
-                                        team: 'myTeam',
-                                        attribution: getAttribution('general'),
-                                        options: [
-                                            { label: '3', subLabel: 'Perfect', value: 'receive_3', color: '#4caf50' },
-                                            { label: '2', subLabel: 'Good', value: 'receive_2', color: '#8bc34a' },
-                                            { label: '1', subLabel: 'Poor', value: 'receive_1', color: '#ffc107' },
-                                            { label: 'Error (No Point)', subLabel: 'Play Continues', value: 'receive_error', color: '#e91e63' },
-                                            { label: 'Error (Point)', subLabel: 'Ends Rally', value: 'receive_0', color: '#f44336' },
-                                        ]
-                                    });
-                                    haptics('light');
-                                }}
-                                onLongPress={() => { handleStat('receive_0', 'myTeam', 'Receive Error'); haptics('error'); }}
-                            />
-                        </View>
-                    ) : (
-                        /* In-Rally: Attack, Block, Dig, Error */
-                        <View style={styles.statRow}>
-                            <View style={styles.statRowSplit}>
-                                <StatButton
-                                    label="Attack"
-                                    color={inRally ? "#50c878" : colors.buttonDisabled}
-                                    disabled={!inRally}
-                                    style={{ flex: 1 }}
-                                    onPress={() => {
-                                        setStatPicker({
-                                            visible: true,
-                                            title: 'Attack Result',
-                                            team: 'myTeam',
-                                            attribution: getAttribution('attack'),
-                                            options: [
-                                                { label: 'Kill', subLabel: 'Point', value: 'kill', color: '#4caf50' },
-                                                { label: 'Good', subLabel: 'In Play', value: 'attack_good', color: '#8bc34a' },
-                                                { label: 'Error', subLabel: 'Net/Out', value: 'attack_error', color: '#f44336' },
-                                            ]
-                                        });
-                                        haptics('light');
-                                    }}
-                                    onLongPress={() => { handleStat('attack_error', 'myTeam', 'Attack Error'); haptics('error'); }}
-                                />
-                                <StatButton
-                                    label="Block"
-                                    color={inRally ? "#009688" : colors.buttonDisabled}
-                                    disabled={!inRally}
-                                    style={{ flex: 1 }}
-                                    onPress={() => { handleStat('block', 'myTeam', 'Block'); haptics('success'); }}
-                                />
-                            </View>
-                            <View style={styles.statRowSplit}>
-                                <StatButton
-                                    label="Dig"
-                                    color={inRally ? "#bd10e0" : colors.buttonDisabled}
-                                    disabled={!inRally}
-                                    style={{ flex: 1 }}
-                                    onPress={() => { handleStat('dig', 'myTeam', 'Dig'); haptics('light'); }}
-                                />
-                                <StatButton
-                                    label="Error"
-                                    color={inRally ? "#9013fe" : colors.buttonDisabled}
-                                    disabled={!inRally}
-                                    style={{ flex: 1 }}
-                                    onPress={() => {
-                                        setStatPicker({
-                                            visible: true,
-                                            title: 'Error Type',
-                                            team: 'myTeam',
-                                            attribution: getAttribution('general'),
-                                            descriptor: 'These errors result in a point for the opponent.',
-                                            options: [
-                                                { label: 'Drop', subLabel: 'Ball fell', value: 'drop', color: '#f44336' },
-                                                { label: 'Passing Error', subLabel: 'Shank/Double/Etc', value: 'pass_error', color: '#e91e63' },
-                                                { label: 'Setting Error', subLabel: 'Shank/Net/Etc', value: 'set_error', color: '#9c27b0' },
-                                            ]
-                                        });
-                                        haptics('light');
-                                    }}
-                                />
-                            </View>
-                        </View>
-                    )}
-                </View>
-
-                {/* Voice Input Floating Mic Button */}
-                {VOICE_INPUT_ENABLED && (
-                    <TouchableOpacity
-                        style={[
-                            styles.voiceMicButton,
-                            {
-                                backgroundColor: voiceInput.phase !== 'idle' ? VOICE_COLORS.recording : colors.bgCard,
-                                shadowColor: colors.shadow,
-                            },
-                        ]}
-                        onPress={handleMicPress}
-                        disabled={voiceInput.phase !== 'idle'}
-                        activeOpacity={0.7}
-                    >
-                        <Mic
-                            size={22}
-                            color={voiceInput.phase !== 'idle' ? '#ffffff' : colors.primary}
+                {/* Sub Picker Modal — hidden in Just Score mode */}
+                {!isJustScore && (
+                    <Modal visible={!!subPicker} animationType="slide" presentationStyle="pageSheet">
+                        <SubstituteModalContent
+                            subPicker={subPicker}
+                            roster={roster}
+                            currentRotation={currentRotation}
+                            subPairs={subPairs}
+                            liberoIds={useMatchStore.getState().liberoIds} // Access latest store state
+                            nonLiberoDesignations={nonLiberoDesignations || []}
+                            onClose={() => setSubPicker(null)}
+                            onSub={handleSubClick}
+                            onDesignateNonLibero={designateNonLibero}
                         />
-                    </TouchableOpacity>
+                    </Modal>
+                )}
+
+                {/* Stat Grid & Voice Input — hidden in Just Score mode */}
+                {!isJustScore && (
+                    <>
+                        {/* Stat Grid — only the active row renders to save vertical space */}
+                        <View style={styles.statGrid}>
+                            {isPreServe ? (
+                                /* Pre-Serve: Serve & Receive */
+                                <View style={styles.statRow}>
+                                    <StatButton
+                                        label="Serve"
+                                        color={canServe ? "#4a90e2" : colors.buttonDisabled}
+                                        disabled={!canServe}
+                                        onPress={() => {
+                                            setStatPicker({
+                                                visible: true,
+                                                title: 'Serve Result',
+                                                team: 'myTeam',
+                                                attribution: getAttribution('serve'),
+                                                options: [
+                                                    { label: 'Ace', subLabel: 'Point', value: 'ace', color: '#2196f3' },
+                                                    { label: 'Good', subLabel: 'In Play', value: 'serve_good', color: '#4caf50' },
+                                                    { label: 'Error', subLabel: 'Net/Out', value: 'serve_error', color: '#f44336' },
+                                                ]
+                                            });
+                                            haptics('light');
+                                        }}
+                                        onLongPress={() => { handleStat('serve_error', 'myTeam', 'Serve Error'); haptics('error'); }}
+                                    />
+                                    <StatButton
+                                        label="Receive"
+                                        color={canReceive ? "#f5a623" : colors.buttonDisabled}
+                                        disabled={!canReceive}
+                                        onPress={() => {
+                                            setStatPicker({
+                                                visible: true,
+                                                title: 'Receive Quality',
+                                                team: 'myTeam',
+                                                attribution: getAttribution('general'),
+                                                options: [
+                                                    { label: '3', subLabel: 'Perfect', value: 'receive_3', color: '#4caf50' },
+                                                    { label: '2', subLabel: 'Good', value: 'receive_2', color: '#8bc34a' },
+                                                    { label: '1', subLabel: 'Poor', value: 'receive_1', color: '#ffc107' },
+                                                    { label: 'Error (No Point)', subLabel: 'Play Continues', value: 'receive_error', color: '#e91e63' },
+                                                    { label: 'Error (Point)', subLabel: 'Ends Rally', value: 'receive_0', color: '#f44336' },
+                                                ]
+                                            });
+                                            haptics('light');
+                                        }}
+                                        onLongPress={() => { handleStat('receive_0', 'myTeam', 'Receive Error'); haptics('error'); }}
+                                    />
+                                </View>
+                            ) : (
+                                /* In-Rally: Attack, Block, Dig, Error */
+                                <View style={styles.statRow}>
+                                    <View style={styles.statRowSplit}>
+                                        <StatButton
+                                            label="Attack"
+                                            color={inRally ? "#50c878" : colors.buttonDisabled}
+                                            disabled={!inRally}
+                                            style={{ flex: 1 }}
+                                            onPress={() => {
+                                                setStatPicker({
+                                                    visible: true,
+                                                    title: 'Attack Result',
+                                                    team: 'myTeam',
+                                                    attribution: getAttribution('attack'),
+                                                    options: [
+                                                        { label: 'Kill', subLabel: 'Point', value: 'kill', color: '#4caf50' },
+                                                        { label: 'Good', subLabel: 'In Play', value: 'attack_good', color: '#8bc34a' },
+                                                        { label: 'Error', subLabel: 'Net/Out', value: 'attack_error', color: '#f44336' },
+                                                    ]
+                                                });
+                                                haptics('light');
+                                            }}
+                                            onLongPress={() => { handleStat('attack_error', 'myTeam', 'Attack Error'); haptics('error'); }}
+                                        />
+                                        <StatButton
+                                            label="Block"
+                                            color={inRally ? "#009688" : colors.buttonDisabled}
+                                            disabled={!inRally}
+                                            style={{ flex: 1 }}
+                                            onPress={() => { handleStat('block', 'myTeam', 'Block'); haptics('success'); }}
+                                        />
+                                    </View>
+                                    <View style={styles.statRowSplit}>
+                                        <StatButton
+                                            label="Dig"
+                                            color={inRally ? "#bd10e0" : colors.buttonDisabled}
+                                            disabled={!inRally}
+                                            style={{ flex: 1 }}
+                                            onPress={() => { handleStat('dig', 'myTeam', 'Dig'); haptics('light'); }}
+                                        />
+                                        <StatButton
+                                            label="Error"
+                                            color={inRally ? "#9013fe" : colors.buttonDisabled}
+                                            disabled={!inRally}
+                                            style={{ flex: 1 }}
+                                            onPress={() => {
+                                                setStatPicker({
+                                                    visible: true,
+                                                    title: 'Error Type',
+                                                    team: 'myTeam',
+                                                    attribution: getAttribution('general'),
+                                                    descriptor: 'These errors result in a point for the opponent.',
+                                                    options: [
+                                                        { label: 'Drop', subLabel: 'Ball fell', value: 'drop', color: '#f44336' },
+                                                        { label: 'Passing Error', subLabel: 'Shank/Double/Etc', value: 'pass_error', color: '#e91e63' },
+                                                        { label: 'Setting Error', subLabel: 'Shank/Net/Etc', value: 'set_error', color: '#9c27b0' },
+                                                    ]
+                                                });
+                                                haptics('light');
+                                            }}
+                                        />
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Voice Input Floating Mic Button */}
+                        {VOICE_INPUT_ENABLED && (
+                            <TouchableOpacity
+                                style={[
+                                    styles.voiceMicButton,
+                                    {
+                                        backgroundColor: voiceInput.phase !== 'idle' ? VOICE_COLORS.recording : colors.bgCard,
+                                        shadowColor: colors.shadow,
+                                    },
+                                ]}
+                                onPress={handleMicPress}
+                                disabled={voiceInput.phase !== 'idle'}
+                                activeOpacity={0.7}
+                            >
+                                <Mic
+                                    size={22}
+                                    color={voiceInput.phase !== 'idle' ? '#ffffff' : colors.primary}
+                                />
+                            </TouchableOpacity>
+                        )}
+                    </>
                 )}
 
                 {/* Log Area & Undo */}

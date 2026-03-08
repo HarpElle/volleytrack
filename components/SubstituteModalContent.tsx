@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Lock, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { usePreferencesStore } from '../store/usePreferencesStore';
 import { LineupPosition, Player } from '../types';
 
 interface SubstituteModalContentProps {
@@ -28,6 +29,7 @@ export function SubstituteModalContent({
     onDesignateNonLibero
 }: SubstituteModalContentProps) {
     const [showIneligible, setShowIneligible] = useState(false);
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
     const { colors } = useAppTheme();
 
     if (!subPicker) return null;
@@ -86,9 +88,19 @@ export function SubstituteModalContent({
         }
     });
 
-    // Sort both lists by jersey number for consistency with other player displays
-    eligible.sort((a, b) => parseInt(a.jerseyNumber, 10) - parseInt(b.jerseyNumber, 10));
-    ineligible.sort((a, b) => parseInt(a.player.jerseyNumber, 10) - parseInt(b.player.jerseyNumber, 10));
+    // Sort both lists by global sort preference (default: name)
+    const sortPlayers = (a: Player, b: Player) => {
+        if (rosterSortBy === 'jersey') {
+            const numA = parseInt(a.jerseyNumber, 10);
+            const numB = parseInt(b.jerseyNumber, 10);
+            if (isNaN(numA)) return 1;
+            if (isNaN(numB)) return -1;
+            return numA - numB;
+        }
+        return a.name.localeCompare(b.name);
+    };
+    eligible.sort(sortPlayers);
+    ineligible.sort((a, b) => sortPlayers(a.player, b.player));
 
     const renderRosterItem = (item: Player, isDisabled: boolean = false, reason?: string) => {
         const isLibero = knownLiberos.includes(item.id);
@@ -176,9 +188,14 @@ export function SubstituteModalContent({
                     <Text style={[styles.modalTitle, { color: colors.text }]}>Substitute P{currentPosition}</Text>
                     {isFrontRow && <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Front Row (No Liberos)</Text>}
                 </View>
-                <TouchableOpacity onPress={onClose}>
-                    <X size={24} color={colors.text} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    <TouchableOpacity onPress={toggleRosterSort}>
+                        <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onClose}>
+                        <X size={24} color={colors.text} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
@@ -239,6 +256,10 @@ const styles = StyleSheet.create({
     },
     modalSubtitle: {
         fontSize: 12,
+    },
+    sortToggleText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     filterRow: {
         flexDirection: 'row',

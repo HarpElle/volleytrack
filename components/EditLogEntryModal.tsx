@@ -2,6 +2,7 @@ import { Save, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { usePreferencesStore } from '../store/usePreferencesStore';
 import { Player, StatLog } from '../types';
 
 interface EditLogEntryModalProps {
@@ -15,6 +16,7 @@ interface EditLogEntryModalProps {
 
 export default function EditLogEntryModal({ visible, onClose, entry, roster, activePlayerIds, onSave }: EditLogEntryModalProps) {
     const { colors, radius } = useAppTheme();
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
     const [selectedType, setSelectedType] = useState<string>('');
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedAssistId, setSelectedAssistId] = useState<string | null>(null);
@@ -80,8 +82,17 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
         ? roster.filter(p => activePlayerIds.includes(p.id))
         : roster;
 
-    // Sort visible roster by jersey number
-    const sortedRoster = [...visibleRoster].sort((a, b) => parseInt(a.jerseyNumber) - parseInt(b.jerseyNumber));
+    // Sort visible roster by global sort preference (default: name)
+    const sortedRoster = [...visibleRoster].sort((a, b) => {
+        if (rosterSortBy === 'jersey') {
+            const numA = parseInt(a.jerseyNumber, 10);
+            const numB = parseInt(b.jerseyNumber, 10);
+            if (isNaN(numA)) return 1;
+            if (isNaN(numB)) return -1;
+            return numA - numB;
+        }
+        return a.name.localeCompare(b.name);
+    });
 
     return (
         <Modal visible={visible} animationType="fade" transparent>
@@ -90,9 +101,14 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                 <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <View style={[styles.header, { borderBottomColor: colors.border }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Edit Log Entry</Text>
-                        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
-                            <X size={24} color={colors.textSecondary} />
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                            <TouchableOpacity onPress={toggleRosterSort}>
+                                <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
+                                <X size={24} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <ScrollView style={styles.content}>
@@ -227,6 +243,10 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 18,
         fontWeight: '700',
+    },
+    sortToggleText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     closeBtn: {
         padding: 4,

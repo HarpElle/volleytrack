@@ -396,15 +396,22 @@ export const useMatchStore = create<MatchState>()(
                     const winner = score.myTeam > score.opponent ? 'myTeam' : 'opponent';
 
                     const nextSetVal = state.currentSet + 1;
-                    let nextRotation = state.lineups?.[nextSetVal];
+
+                    // Helper: treat an all-empty lineup (no players assigned) as unset
+                    const hasPlayers = (lineup: LineupPosition[] | undefined) =>
+                        lineup && lineup.some(p => p.playerId);
+
+                    let nextRotation = hasPlayers(state.lineups?.[nextSetVal])
+                        ? state.lineups![nextSetVal]
+                        : undefined;
 
                     // Cascade Lineup Lookup: Try formal lineups first, then fall back to live rotation
                     let carryoverSource: 'lineup' | 'rotation' | null = null;
                     if (!nextRotation) {
                         // 1. Check formal lineups (set during match setup)
                         for (let i = nextSetVal - 1; i >= 1; i--) {
-                            if (state.lineups?.[i]) {
-                                nextRotation = [...state.lineups[i]];
+                            if (hasPlayers(state.lineups?.[i])) {
+                                nextRotation = [...state.lineups![i]];
                                 carryoverSource = 'lineup';
                                 break;
                             }

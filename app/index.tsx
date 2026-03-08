@@ -560,6 +560,9 @@ export default function DashboardScreen() {
                                 <Eye size={20} color={colors.textSecondary} />
                                 <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Watched Matches</Text>
                             </View>
+                            <TouchableOpacity onPress={() => router.push('/spectate/join')}>
+                                <Text style={[styles.seeAll, themedStyles.seeAll]}>+ Watch Live</Text>
+                            </TouchableOpacity>
                         </View>
                         <View style={styles.list}>
                             {spectatorHistory.map(match => renderMatchItem(match, 'spectator'))}

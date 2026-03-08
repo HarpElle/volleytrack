@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useDataStore } from '../../store/useDataStore';
 import { useMatchStore } from '../../store/useMatchStore';
+import { usePreferencesStore } from '../../store/usePreferencesStore';
 import { LineupPosition, MatchConfig, MatchRecord, Player, SetConfig } from '../../types';
 
 /* 
@@ -206,11 +207,11 @@ export default function MatchSetupScreen() {
     const [showPlayerPicker, setShowPlayerPicker] = useState(false);
     const [editingSlot, setEditingSlot] = useState<{ pos: number; current: LineupPosition | undefined } | null>(null);
 
-    // Player Picker Sort
-    const [pickerSortBy, setPickerSortBy] = useState<'name' | 'jersey'>('name');
+    // Player Picker Sort (uses global preference)
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
     const sortedPickerRoster = useMemo(() => {
         return [...(displayRoster || [])].sort((a, b) => {
-            if (pickerSortBy === 'jersey') {
+            if (rosterSortBy === 'jersey') {
                 const numA = parseInt(a.jerseyNumber, 10);
                 const numB = parseInt(b.jerseyNumber, 10);
                 if (isNaN(numA)) return 1;
@@ -219,7 +220,7 @@ export default function MatchSetupScreen() {
             }
             return a.name.localeCompare(b.name);
         });
-    }, [activeSeason?.roster, pickerSortBy]);
+    }, [activeSeason?.roster, rosterSortBy]);
 
     // Helper: Initialize a default empty lineup
     const createEmptyLineup = (): LineupPosition[] => {
@@ -808,8 +809,8 @@ export default function MatchSetupScreen() {
                         <View style={[styles.modalHeader, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
                             <Text style={[styles.modalTitle, { color: colors.text }]}>Select Player for P{editingSlot?.pos}</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                                <TouchableOpacity onPress={() => setPickerSortBy(prev => prev === 'name' ? 'jersey' : 'name')}>
-                                    <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {pickerSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                                <TouchableOpacity onPress={toggleRosterSort}>
+                                    <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowPlayerPicker(false)}>
                                     <Text style={[styles.closeText, { color: colors.primary }]}>Close</Text>

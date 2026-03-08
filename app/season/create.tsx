@@ -5,6 +5,7 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Te
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useDataStore } from '../../store/useDataStore';
+import { usePreferencesStore } from '../../store/usePreferencesStore';
 import { Player, Season } from '../../types';
 
 export default function CreateSeasonScreen() {
@@ -27,11 +28,11 @@ export default function CreateSeasonScreen() {
     const [newPlayerName, setNewPlayerName] = useState('');
     const [newPlayerNumber, setNewPlayerNumber] = useState('');
     const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-    const [sortBy, setSortBy] = useState<'name' | 'jersey'>('name');
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
 
     const sortedPlayers = useMemo(() => {
         return [...players].sort((a, b) => {
-            if (sortBy === 'jersey') {
+            if (rosterSortBy === 'jersey') {
                 const numA = parseInt(a.jerseyNumber || '', 10);
                 const numB = parseInt(b.jerseyNumber || '', 10);
                 if (isNaN(numA)) return 1;
@@ -40,7 +41,7 @@ export default function CreateSeasonScreen() {
             }
             return (a.name || '').localeCompare(b.name || '');
         });
-    }, [players, sortBy]);
+    }, [players, rosterSortBy]);
 
     const handleAddOrUpdatePlayer = () => {
         if (!newPlayerName.trim()) return;
@@ -156,8 +157,8 @@ export default function CreateSeasonScreen() {
                             <Text style={[styles.sectionTitle, { color: colors.text }]}>{isEditing ? 'Manage Roster' : 'Initial Roster'}</Text>
                         </View>
                         {players.length > 1 && (
-                            <TouchableOpacity onPress={() => setSortBy(prev => prev === 'name' ? 'jersey' : 'name')}>
-                                <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {sortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                            <TouchableOpacity onPress={toggleRosterSort}>
+                                <Text style={[styles.sortToggleText, { color: colors.primary }]}>Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
                             </TouchableOpacity>
                         )}
                     </View>

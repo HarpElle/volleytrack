@@ -549,6 +549,7 @@ VolleyTrack/
 ├── store/                      # Zustand stores
 │   ├── useMatchStore.ts        # Live match state
 │   ├── useDataStore.ts         # Seasons/events/matches + sync
+│   ├── usePreferencesStore.ts  # Persisted user preferences (roster sort order)
 │   └── useSubscriptionStore.ts # Device UUID + Pro status + free tier
 │
 ├── types/
@@ -1297,6 +1298,7 @@ Critical infrastructure hardening for production:
 ### State Management
 - **Live Match:** `/store/useMatchStore.ts`
 - **Cloud Data:** `/store/useDataStore.ts`
+- **Preferences:** `/store/usePreferencesStore.ts`
 - **Subscription:** `/store/useSubscriptionStore.ts`
 
 ### Firebase Services

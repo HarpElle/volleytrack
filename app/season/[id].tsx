@@ -10,6 +10,7 @@ import StatsView from '../../components/stats/StatsView';
 import { GeminiService } from '../../services/ai/GeminiService';
 import { PaywallModal } from '../../components/PaywallModal';
 import { useDataStore } from '../../store/useDataStore';
+import { usePreferencesStore } from '../../store/usePreferencesStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { StatLog } from '../../types';
 
@@ -26,7 +27,7 @@ export default function SeasonDetailsScreen() {
     // Local state
     // State
     const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
-    const [sortBy, setSortBy] = useState<'name' | 'jersey'>('name');
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
     const [showAllEvents, setShowAllEvents] = useState(false);
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
@@ -46,10 +47,10 @@ export default function SeasonDetailsScreen() {
 
     const displayedEvents = showAllEvents ? events : events.slice(0, 3);
 
-    // Sort Roster
+    // Sort Roster (uses global preference)
     const sortedRoster = useMemo(() => {
         return [...(season?.roster || [])].sort((a, b) => {
-            if (sortBy === 'jersey') {
+            if (rosterSortBy === 'jersey') {
                 const numA = parseInt(a.jerseyNumber, 10);
                 const numB = parseInt(b.jerseyNumber, 10);
                 if (isNaN(numA)) return 1;
@@ -58,7 +59,7 @@ export default function SeasonDetailsScreen() {
             }
             return a.name.localeCompare(b.name);
         });
-    }, [season?.roster, sortBy]);
+    }, [season?.roster, rosterSortBy]);
 
     // Aggregate Stats with Date Filter
     const { logs: seasonStats, matchesWon } = useMemo(() => {
@@ -208,8 +209,8 @@ export default function SeasonDetailsScreen() {
                     <Users size={20} color={colors.textSecondary} />
                     <Text style={[styles.sectionTitle, { color: colors.text }]}>Roster ({season.roster.length})</Text>
                 </View>
-                <TouchableOpacity onPress={() => setSortBy(prev => prev === 'name' ? 'jersey' : 'name')}>
-                    <Text style={[styles.linkText, { color: colors.primary }]}>Sort by {sortBy === 'name' ? 'Jersey' : 'Name'}</Text>
+                <TouchableOpacity onPress={toggleRosterSort}>
+                    <Text style={[styles.linkText, { color: colors.primary }]}>Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}</Text>
                 </TouchableOpacity>
             </View>
 

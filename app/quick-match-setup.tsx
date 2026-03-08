@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Minus, Play, Plus, Settings2, Trash2, Users } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
     Alert,
@@ -16,13 +16,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
-import { LineupPosition, MatchConfig, Player } from '../types';
+import { usePreferencesStore } from '../store/usePreferencesStore';
+import { LineupPosition, MatchConfig, Player, SetConfig } from '../types';
 
 export default function QuickMatchSetup() {
     const router = useRouter();
     const { colors, spacing, radius } = useAppTheme();
     const { seasons } = useDataStore();
     const { setSetup } = useMatchStore();
+    const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
 
     // Team names
     const [myTeamName, setMyTeamName] = useState('My Team');
@@ -36,33 +38,67 @@ export default function QuickMatchSetup() {
     const [showRoster, setShowRoster] = useState(false);
 
     // Match format
-    const [totalSets, setTotalSets] = useState<3 | 5>(3);
+    const [preset, setPreset] = useState<MatchConfig['presetName']>('3-Set');
+    const [totalSets, setTotalSets] = useState(3);
+    const [setsConfig, setSetsConfig] = useState<SetConfig[]>([
+        { targetScore: 25, winBy: 2, cap: 100 },
+        { targetScore: 25, winBy: 2, cap: 100 },
+        { targetScore: 15, winBy: 2, cap: 100 },
+    ]);
 
-    const config: MatchConfig = totalSets === 3
-        ? {
-            presetName: '3-Set',
-            totalSets: 3,
-            sets: [
+    // Custom Rules State
+    const [timeoutsPerSet, setTimeoutsPerSet] = useState(2);
+    const [subsPerSet, setSubsPerSet] = useState(15);
+    const [isConfigExpanded, setIsConfigExpanded] = useState(false);
+    const [activeSetTab, setActiveSetTab] = useState(0);
+
+    // Track which season was imported (for visual selection state)
+    const [importedSeasonId, setImportedSeasonId] = useState<string | null>(null);
+
+    // Apply Presets (matches match/setup.tsx pattern)
+    const applyPreset = (name: MatchConfig['presetName']) => {
+        setPreset(name);
+        if (name === '3-Set') {
+            setTotalSets(3);
+            setSetsConfig([
                 { targetScore: 25, winBy: 2, cap: 100 },
                 { targetScore: 25, winBy: 2, cap: 100 },
                 { targetScore: 15, winBy: 2, cap: 100 },
-            ],
-            timeoutsPerSet: 2,
-            subsPerSet: 15,
+            ]);
+        } else if (name === '5-Set') {
+            setTotalSets(5);
+            setSetsConfig([
+                { targetScore: 25, winBy: 2, cap: 100 },
+                { targetScore: 25, winBy: 2, cap: 100 },
+                { targetScore: 25, winBy: 2, cap: 100 },
+                { targetScore: 25, winBy: 2, cap: 100 },
+                { targetScore: 15, winBy: 2, cap: 100 },
+            ]);
+        } else if (name === '2-Set-Seeding') {
+            setTotalSets(2);
+            setSetsConfig([
+                { targetScore: 25, winBy: 2, cap: 27 },
+                { targetScore: 25, winBy: 2, cap: 27 },
+            ]);
         }
-        : {
-            presetName: '5-Set',
-            totalSets: 5,
-            sets: [
-                { targetScore: 25, winBy: 2, cap: 100 },
-                { targetScore: 25, winBy: 2, cap: 100 },
-                { targetScore: 25, winBy: 2, cap: 100 },
-                { targetScore: 25, winBy: 2, cap: 100 },
-                { targetScore: 15, winBy: 2, cap: 100 },
-            ],
-            timeoutsPerSet: 2,
-            subsPerSet: 15,
-        };
+        setActiveSetTab(0);
+    };
+
+    const updateSetConfig = (index: number, field: keyof SetConfig, value: number) => {
+        const newConfigs = [...setsConfig];
+        if (value < 0) return;
+        newConfigs[index] = { ...newConfigs[index], [field]: value };
+        setSetsConfig(newConfigs);
+        setPreset('Custom');
+    };
+
+    const config: MatchConfig = {
+        presetName: preset,
+        totalSets,
+        sets: setsConfig,
+        timeoutsPerSet,
+        subsPerSet,
+    };
 
     const parsePlayerInput = (text: string): { jerseyNumber: string; name: string } | null => {
         const trimmed = text.trim();
@@ -157,6 +193,7 @@ export default function QuickMatchSetup() {
 
         setPlayers(season.roster || []);
         if (season.teamName) setMyTeamName(season.teamName);
+        setImportedSeasonId(seasonId);
         setShowRoster(true);
     };
 
@@ -194,6 +231,20 @@ export default function QuickMatchSetup() {
 
     // Seasons that have rosters
     const seasonsWithRosters = seasons.filter(s => s.roster && s.roster.length > 0);
+
+    // Sorted player list (uses global preference)
+    const sortedPlayers = useMemo(() => {
+        return [...players].sort((a, b) => {
+            if (rosterSortBy === 'jersey') {
+                const numA = parseInt(a.jerseyNumber, 10);
+                const numB = parseInt(b.jerseyNumber, 10);
+                if (isNaN(numA)) return 1;
+                if (isNaN(numB)) return -1;
+                return numA - numB;
+            }
+            return a.name.localeCompare(b.name);
+        });
+    }, [players, rosterSortBy]);
 
     // Memoized theme-dependent styles for render stability
     const themedStyles = useMemo(() => StyleSheet.create({
@@ -251,9 +302,152 @@ export default function QuickMatchSetup() {
                         <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                     </View>
 
-                    {/* Team Names */}
+                    {/* Match Format — moved above Teams */}
+                    <View style={[styles.section, { backgroundColor: colors.bgCard }]}>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Match Format</Text>
+                        <View style={styles.formatRow}>
+                            {(['3-Set', '5-Set', '2-Set-Seeding'] as const).map((p) => (
+                                <TouchableOpacity
+                                    key={p}
+                                    style={[
+                                        styles.formatOption,
+                                        { borderColor: colors.border, borderWidth: 1 },
+                                        preset === p && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
+                                    ]}
+                                    onPress={() => applyPreset(p)}
+                                >
+                                    <Text style={[
+                                        styles.formatText,
+                                        { color: colors.textSecondary },
+                                        preset === p && { color: colors.primary, fontWeight: '700' },
+                                    ]}>{p === '2-Set-Seeding' ? '2-Set' : p}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Customize Rules & Scoring */}
+                        <TouchableOpacity
+                            style={[styles.expandConfigBtn, { marginTop: 16, backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                            onPress={() => setIsConfigExpanded(!isConfigExpanded)}
+                        >
+                            <Settings2 size={18} color={colors.primary} />
+                            <Text style={[styles.expandConfigText, { color: colors.textSecondary }]}>
+                                {isConfigExpanded ? 'Hide Advanced Rules' : 'Customize Rules & Scoring'}
+                            </Text>
+                            {isConfigExpanded ? <ChevronUp size={18} color={colors.primary} /> : <ChevronDown size={18} color={colors.primary} />}
+                        </TouchableOpacity>
+
+                        {isConfigExpanded && (
+                            <View style={[styles.advancedConfig, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+                                {/* Global Rules */}
+                                <View style={styles.rulesRow}>
+                                    <View style={[styles.ruleItem, { borderBottomColor: colors.border }]}>
+                                        <Text style={[styles.ruleLabel, { color: colors.text }]}>Timeouts</Text>
+                                        <View style={[styles.stepper, { backgroundColor: colors.buttonSecondary }]}>
+                                            <TouchableOpacity onPress={() => setTimeoutsPerSet(Math.max(0, timeoutsPerSet - 1))}>
+                                                <Minus size={16} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                            <Text style={[styles.stepperValue, { color: colors.text }]}>{timeoutsPerSet}</Text>
+                                            <TouchableOpacity onPress={() => setTimeoutsPerSet(timeoutsPerSet + 1)}>
+                                                <Plus size={16} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                    <View style={[styles.ruleItem, { borderBottomColor: colors.border }]}>
+                                        <Text style={[styles.ruleLabel, { color: colors.text }]}>Subs</Text>
+                                        <View style={[styles.stepper, { backgroundColor: colors.buttonSecondary }]}>
+                                            <TouchableOpacity onPress={() => setSubsPerSet(Math.max(0, subsPerSet - 1))}>
+                                                <Minus size={16} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                            <Text style={[styles.stepperValue, { color: colors.text }]}>{subsPerSet}</Text>
+                                            <TouchableOpacity onPress={() => setSubsPerSet(subsPerSet + 1)}>
+                                                <Plus size={16} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {/* Per-Set tabs */}
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
+                                    {setsConfig.map((_, idx) => (
+                                        <TouchableOpacity
+                                            key={idx}
+                                            style={[styles.tab, { backgroundColor: colors.bgCard, borderColor: colors.border }, activeSetTab === idx && { backgroundColor: colors.text, borderColor: colors.text }]}
+                                            onPress={() => setActiveSetTab(idx)}
+                                        >
+                                            <Text style={[styles.tabText, { color: colors.textSecondary }, activeSetTab === idx && { color: colors.bg }]}>
+                                                Set {idx + 1}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+
+                                <View style={[styles.setForm, { backgroundColor: colors.buttonSecondary }]}>
+                                    <View style={styles.formRow}>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Target Score</Text>
+                                        <TextInput
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
+                                            keyboardType="number-pad"
+                                            value={setsConfig[activeSetTab].targetScore.toString()}
+                                            onChangeText={(t) => updateSetConfig(activeSetTab, 'targetScore', parseInt(t) || 0)}
+                                        />
+                                    </View>
+                                    <View style={styles.formRow}>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Win By</Text>
+                                        <TextInput
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
+                                            keyboardType="number-pad"
+                                            value={setsConfig[activeSetTab].winBy.toString()}
+                                            onChangeText={(t) => updateSetConfig(activeSetTab, 'winBy', parseInt(t) || 0)}
+                                        />
+                                    </View>
+                                    <View style={styles.formRow}>
+                                        <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Cap</Text>
+                                        <TextInput
+                                            style={[styles.numInput, { backgroundColor: colors.bgCard, color: colors.text, borderColor: colors.border }]}
+                                            keyboardType="number-pad"
+                                            value={setsConfig[activeSetTab].cap.toString()}
+                                            onChangeText={(t) => updateSetConfig(activeSetTab, 'cap', parseInt(t) || 0)}
+                                        />
+                                    </View>
+                                    <Text style={[styles.helperText, { color: colors.textTertiary }]}>Score to win (must win by {setsConfig[activeSetTab].winBy})</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Teams */}
                     <View style={[styles.section, { backgroundColor: colors.bgCard }]}>
                         <Text style={[styles.sectionTitle, { color: colors.text }]}>Teams</Text>
+
+                        {/* Import from existing team — always visible when teams exist */}
+                        {seasonsWithRosters.length > 0 && (
+                            <View style={{ marginTop: 8, marginBottom: 12 }}>
+                                <Text style={[styles.importLabel, { color: colors.textSecondary }]}>Use existing team</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+                                    {seasonsWithRosters.map(season => (
+                                        <TouchableOpacity
+                                            key={season.id}
+                                            style={[
+                                                styles.importChip,
+                                                { backgroundColor: colors.bg, borderColor: colors.border },
+                                                importedSeasonId === season.id && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
+                                            ]}
+                                            onPress={() => importFromSeason(season.id)}
+                                        >
+                                            <Users size={14} color={importedSeasonId === season.id ? colors.primary : colors.textSecondary} />
+                                            <Text style={[styles.importChipText, { color: colors.text }]}>
+                                                {season.teamName}
+                                            </Text>
+                                            <Text style={[styles.importChipCount, { color: colors.textTertiary }]}>
+                                                ({season.roster.length})
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+
                         <View style={styles.teamNameRow}>
                             <View style={styles.teamNameCol}>
                                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Your Team</Text>
@@ -279,71 +473,23 @@ export default function QuickMatchSetup() {
                         </View>
                     </View>
 
-                    {/* Match Format */}
-                    <View style={[styles.section, { backgroundColor: colors.bgCard }]}>
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Match Format</Text>
-                        <View style={styles.formatRow}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.formatOption,
-                                    { borderColor: colors.border, borderWidth: 1 },
-                                    totalSets === 3 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
-                                ]}
-                                onPress={() => setTotalSets(3)}
-                            >
-                                <Text style={[
-                                    styles.formatText,
-                                    { color: colors.textSecondary },
-                                    totalSets === 3 && { color: colors.primary, fontWeight: '700' },
-                                ]}>Best of 3</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    styles.formatOption,
-                                    { borderColor: colors.border, borderWidth: 1 },
-                                    totalSets === 5 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
-                                ]}
-                                onPress={() => setTotalSets(5)}
-                            >
-                                <Text style={[
-                                    styles.formatText,
-                                    { color: colors.textSecondary },
-                                    totalSets === 5 && { color: colors.primary, fontWeight: '700' },
-                                ]}>Best of 5</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
                     {/* Players Section */}
                     <View style={[styles.section, { backgroundColor: colors.bgCard }]}>
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Players</Text>
-                        <Text style={[styles.sectionHint, { color: colors.textTertiary }]}>
-                            Add at least 6 players to enable rotation tracking
-                        </Text>
-
-                        {/* Import from existing team */}
-                        {seasonsWithRosters.length > 0 && players.length === 0 && (
-                            <View style={{ marginBottom: 16 }}>
-                                <Text style={[styles.importLabel, { color: colors.textSecondary }]}>Import from team</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
-                                    {seasonsWithRosters.map(season => (
-                                        <TouchableOpacity
-                                            key={season.id}
-                                            style={[styles.importChip, { backgroundColor: colors.bg, borderColor: colors.border }]}
-                                            onPress={() => importFromSeason(season.id)}
-                                        >
-                                            <Users size={14} color={colors.primary} />
-                                            <Text style={[styles.importChipText, { color: colors.text }]}>
-                                                {season.teamName}
-                                            </Text>
-                                            <Text style={[styles.importChipCount, { color: colors.textTertiary }]}>
-                                                ({season.roster.length})
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
+                        <View style={styles.sectionHeaderRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.sectionTitle, { color: colors.text }]}>Players</Text>
+                                <Text style={[styles.sectionHint, { color: colors.textTertiary }]}>
+                                    Add at least 6 players to enable rotation tracking
+                                </Text>
                             </View>
-                        )}
+                            {players.length > 1 && (
+                                <TouchableOpacity onPress={toggleRosterSort}>
+                                    <Text style={[styles.sortToggleText, { color: colors.primary }]}>
+                                        Sort by {rosterSortBy === 'name' ? 'Jersey' : 'Name'}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
 
                         {/* Bulk mode toggle */}
                         <TouchableOpacity
@@ -402,22 +548,15 @@ export default function QuickMatchSetup() {
                         {/* Player list */}
                         {players.length > 0 && (
                             <View style={styles.playerList}>
-                                {players.map((player, idx) => (
+                                {sortedPlayers.map((player) => (
                                     <View
                                         key={player.id}
                                         style={[
                                             styles.playerItem,
                                             { borderBottomColor: colors.divider },
-                                            idx < 6 && { opacity: 1 },
-                                            idx >= 6 && { opacity: 0.6 },
                                         ]}
                                     >
                                         <View style={styles.playerLeft}>
-                                            {idx < 6 && (
-                                                <View style={[styles.positionBadge, { backgroundColor: colors.primaryLight }]}>
-                                                    <Text style={[styles.positionText, { color: colors.primary }]}>P{idx + 1}</Text>
-                                                </View>
-                                            )}
                                             <Text style={[styles.playerNumber, { color: colors.primary }]}>
                                                 #{player.jerseyNumber}
                                             </Text>
@@ -531,6 +670,12 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 16,
     },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 4,
+    },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -540,6 +685,11 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '400',
         marginBottom: 16,
+    },
+    sortToggleText: {
+        fontSize: 13,
+        fontWeight: '600',
+        paddingTop: 2,
     },
     teamNameRow: {
         flexDirection: 'row',
@@ -559,7 +709,7 @@ const styles = StyleSheet.create({
     },
     input: {
         borderWidth: 1,
-        borderRadius: 8, // radius.sm — standardized
+        borderRadius: 8,
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 15,
@@ -577,13 +727,99 @@ const styles = StyleSheet.create({
     },
     formatOption: {
         flex: 1,
-        borderRadius: 8, // radius.sm — standardized
+        borderRadius: 8,
         paddingVertical: 12,
         alignItems: 'center',
     },
     formatText: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '600',
+    },
+    expandConfigBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+    },
+    expandConfigText: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginRight: 8,
+    },
+    advancedConfig: {
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        padding: 16,
+        marginTop: 16,
+    },
+    rulesRow: {
+        marginBottom: 16,
+    },
+    ruleItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+    },
+    ruleLabel: {
+        fontSize: 15,
+    },
+    stepper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 8,
+        padding: 4,
+    },
+    stepperValue: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginHorizontal: 12,
+        minWidth: 20,
+        textAlign: 'center',
+    },
+    tabsScroll: {
+        marginBottom: 16,
+    },
+    tab: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginRight: 8,
+        borderWidth: 1,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    setForm: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 8,
+    },
+    formRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    formLabel: {
+        fontSize: 14,
+    },
+    numInput: {
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 16,
+        minWidth: 60,
+        textAlign: 'center',
+        borderWidth: 1,
+    },
+    helperText: {
+        fontSize: 12,
+        fontWeight: '500',
     },
     importLabel: {
         fontSize: 12,
@@ -598,7 +834,7 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        borderRadius: 8, // radius.sm — standardized
+        borderRadius: 8,
         borderWidth: 1,
         marginRight: 10,
     },
@@ -617,7 +853,7 @@ const styles = StyleSheet.create({
     addInput: {
         flex: 1,
         borderWidth: 1,
-        borderRadius: 8, // radius.sm — standardized
+        borderRadius: 8,
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 15,
@@ -625,7 +861,7 @@ const styles = StyleSheet.create({
     addBtn: {
         width: 48,
         height: 48,
-        borderRadius: 8, // radius.sm — standardized
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -644,17 +880,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 10,
     },
-    positionBadge: {
-        width: 28,
-        height: 20,
-        borderRadius: 4,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    positionText: {
-        fontSize: 11,
-        fontWeight: '700',
-    },
     playerNumber: {
         fontSize: 15,
         fontWeight: '700',
@@ -671,7 +896,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     startBtn: {
-        borderRadius: 16, // radius.lg — standardized
+        borderRadius: 16,
         padding: 18,
         flexDirection: 'row',
         alignItems: 'center',
