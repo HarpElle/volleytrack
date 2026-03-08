@@ -569,15 +569,13 @@ export default function SpectateScreen() {
                         )}
 
                         {state.currentRotation && state.currentRotation.length > 0 && !isMatchEnded && (
-                            <View style={[styles.lineupCard, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
-                                <LineupTracker
-                                    rotation={state.currentRotation}
-                                    roster={state.myTeamRoster}
-                                    onSubstitute={noOp}
-                                    onSelectPlayer={noOp}
-                                    readOnly
-                                />
-                            </View>
+                            <LineupTracker
+                                rotation={state.currentRotation}
+                                roster={state.myTeamRoster}
+                                onSubstitute={noOp}
+                                onSelectPlayer={noOp}
+                                readOnly
+                            />
                         )}
 
                         {/* Activity / Fan Zone toggle */}
@@ -902,15 +900,6 @@ const styles = StyleSheet.create({
     streakText: {
         fontSize: 13,
         fontWeight: '800',
-    },
-    lineupCard: {
-        borderRadius: 16,
-        padding: 16,
-        marginTop: 12,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 4,
     },
     sectionTitle: {
         fontSize: 12,
