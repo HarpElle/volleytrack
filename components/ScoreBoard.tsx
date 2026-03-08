@@ -185,15 +185,15 @@ export default function ScoreBoard({
                     <Text style={[styles.teamName, { color: colors.text }]} numberOfLines={1}>{myTeamName}</Text>
                     <ScoreGesture team="myTeam">
                         {readOnly ? (
-                            <Text style={[styles.score, styles.myScore, { color: colors.primary }]}>{score.myTeam}</Text>
+                            <Text style={[styles.score, styles.myScore, { color: colors.primary }]} accessibilityLabel={`${myTeamName} score ${score.myTeam}`}>{score.myTeam}</Text>
                         ) : (
-                            <TouchableOpacity onLongPress={() => onScoreLongPress('myTeam')} activeOpacity={0.8}>
+                            <TouchableOpacity onLongPress={() => onScoreLongPress('myTeam')} activeOpacity={0.8} accessibilityLabel={`${myTeamName} score ${score.myTeam}`} accessibilityHint="Tap to increment, swipe to adjust" accessibilityRole="button">
                                 <Text style={[styles.score, styles.myScore, { color: colors.primary }]}>{score.myTeam}</Text>
                             </TouchableOpacity>
                         )}
                     </ScoreGesture>
                     {readOnly ? (
-                        <View style={styles.serveIndicator}>
+                        <View style={styles.serveIndicator} accessibilityLabel={servingTeam === 'myTeam' ? `${myTeamName} is serving` : ''}>
                             <Volleyball size={16} color={servingTeam === 'myTeam' ? colors.primary : colors.border} />
                         </View>
                     ) : (
@@ -202,6 +202,8 @@ export default function ScoreBoard({
                             disabled={servingTeam === 'myTeam'}
                             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                             style={styles.serveIndicator}
+                            accessibilityLabel={servingTeam === 'myTeam' ? `${myTeamName} is serving` : `Set ${myTeamName} as serving`}
+                            accessibilityRole="button"
                         >
                             <Volleyball size={16} color={servingTeam === 'myTeam' ? colors.primary : colors.border} />
                         </TouchableOpacity>
@@ -213,15 +215,15 @@ export default function ScoreBoard({
                     <Text style={[styles.teamName, { color: colors.text }]} numberOfLines={1}>{opponentName}</Text>
                     <ScoreGesture team="opponent">
                         {readOnly ? (
-                            <Text style={[styles.score, styles.opponentScore, { color: colors.opponent }]}>{score.opponent}</Text>
+                            <Text style={[styles.score, styles.opponentScore, { color: colors.opponent }]} accessibilityLabel={`${opponentName} score ${score.opponent}`}>{score.opponent}</Text>
                         ) : (
-                            <TouchableOpacity onLongPress={() => onScoreLongPress('opponent')} activeOpacity={0.8}>
+                            <TouchableOpacity onLongPress={() => onScoreLongPress('opponent')} activeOpacity={0.8} accessibilityLabel={`${opponentName} score ${score.opponent}`} accessibilityHint="Tap to increment, swipe to adjust" accessibilityRole="button">
                                 <Text style={[styles.score, styles.opponentScore, { color: colors.opponent }]}>{score.opponent}</Text>
                             </TouchableOpacity>
                         )}
                     </ScoreGesture>
                     {readOnly ? (
-                        <View style={styles.serveIndicator}>
+                        <View style={styles.serveIndicator} accessibilityLabel={servingTeam === 'opponent' ? `${opponentName} is serving` : ''}>
                             <Volleyball size={16} color={servingTeam === 'opponent' ? colors.opponent : colors.border} />
                         </View>
                     ) : (
@@ -230,6 +232,8 @@ export default function ScoreBoard({
                             disabled={servingTeam === 'opponent'}
                             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                             style={styles.serveIndicator}
+                            accessibilityLabel={servingTeam === 'opponent' ? `${opponentName} is serving` : `Set ${opponentName} as serving`}
+                            accessibilityRole="button"
                         >
                             <Volleyball size={16} color={servingTeam === 'opponent' ? colors.opponent : colors.border} />
                         </TouchableOpacity>
@@ -246,6 +250,8 @@ export default function ScoreBoard({
                             onPress={() => onUseTimeout('myTeam')}
                             disabled={timeoutsRemaining.myTeam === 0}
                             style={[styles.useToBtn, timeoutsRemaining.myTeam === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabled : colors.primaryLight }]}
+                            accessibilityLabel={`${myTeamName} timeout, ${timeoutsRemaining.myTeam} remaining`}
+                            accessibilityRole="button"
                         >
                             <Text style={[styles.useToText, timeoutsRemaining.myTeam === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.myTeam === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
                         </TouchableOpacity>
@@ -270,6 +276,8 @@ export default function ScoreBoard({
                             onPress={() => onUseTimeout('opponent')}
                             disabled={timeoutsRemaining.opponent === 0}
                             style={[styles.useToBtnOpp, timeoutsRemaining.opponent === 0 && styles.useToBtnDisabled, { backgroundColor: timeoutsRemaining.opponent === 0 ? colors.buttonDisabled : colors.opponentLight }]}
+                            accessibilityLabel={`${opponentName} timeout, ${timeoutsRemaining.opponent} remaining`}
+                            accessibilityRole="button"
                         >
                             <Text style={[styles.useToText, timeoutsRemaining.opponent === 0 && styles.useToTextDisabled, { color: timeoutsRemaining.opponent === 0 ? colors.buttonDisabledText : colors.text }]}>TO</Text>
                         </TouchableOpacity>
@@ -369,7 +377,7 @@ const styles = StyleSheet.create({
         minWidth: 32,
         paddingHorizontal: 6,
         height: 24,
-        borderRadius: 12,
+        borderRadius: 9999,
         justifyContent: 'center',
         alignItems: 'center',
         // backgroundColor themed inline

@@ -210,6 +210,14 @@ export const radius = {
     full: 9999,
 } as const;
 
+// ─── Button Heights ─────────────────────────────────────────────────────────
+
+export const buttonHeight = {
+    sm: 36,
+    md: 44,
+    lg: 56,
+} as const;
+
 // ─── Fonts (Platform-Specific) ───────────────────────────────────────────────
 
 export const Fonts = Platform.select({

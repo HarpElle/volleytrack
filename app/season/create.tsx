@@ -117,7 +117,7 @@ export default function CreateSeasonScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
                     <Text style={[styles.headerTitle, { color: colors.text }]}>{isEditing ? 'Edit Season' : 'New Season'}</Text>
 
@@ -129,6 +129,7 @@ export default function CreateSeasonScreen() {
                             onChangeText={setName}
                             placeholder="e.g. 2024-2025 Club"
                             placeholderTextColor={colors.textTertiary}
+                            returnKeyType="next"
                         />
 
                         <Text style={[styles.label, { color: colors.textSecondary }]}>Team Name</Text>
@@ -138,6 +139,7 @@ export default function CreateSeasonScreen() {
                             onChangeText={setTeamName}
                             placeholder="e.g. 15U National"
                             placeholderTextColor={colors.textTertiary}
+                            returnKeyType="next"
                         />
 
                         <Text style={[styles.label, { color: colors.textSecondary }]}>Level / League</Text>
@@ -147,6 +149,7 @@ export default function CreateSeasonScreen() {
                             onChangeText={setLevel}
                             placeholder="e.g. Open"
                             placeholderTextColor={colors.textTertiary}
+                            returnKeyType="done"
                         />
                     </View>
 
@@ -182,6 +185,8 @@ export default function CreateSeasonScreen() {
                             <TouchableOpacity
                                 style={[styles.addBtn, { backgroundColor: colors.primary }, editingPlayerId ? { backgroundColor: '#4CAF50' } : {}]}
                                 onPress={handleAddOrUpdatePlayer}
+                                accessibilityLabel={editingPlayerId ? 'Update player' : 'Add player'}
+                                accessibilityRole="button"
                             >
                                 {editingPlayerId ? <Check size={24} color={'#ffffff'} /> : <Plus size={24} color={'#ffffff'} />}
                             </TouchableOpacity>
@@ -202,10 +207,10 @@ export default function CreateSeasonScreen() {
                                         </TouchableOpacity>
 
                                         <View style={{ flexDirection: 'row', gap: 12 }}>
-                                            <TouchableOpacity onPress={() => handleEditPlayer(p)}>
+                                            <TouchableOpacity onPress={() => handleEditPlayer(p)} accessibilityLabel={`Edit ${p.name}`} accessibilityRole="button">
                                                 <Pencil size={18} color={colors.textSecondary} />
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => removePlayer(p.id!)}>
+                                            <TouchableOpacity onPress={() => removePlayer(p.id!)} accessibilityLabel={`Remove ${p.name}`} accessibilityRole="button">
                                                 <Trash2 size={18} color={colors.opponent} />
                                             </TouchableOpacity>
                                         </View>
@@ -297,7 +302,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#f9f9f9', // Override with colors.buttonSecondary in component
         borderWidth: 1,
         borderColor: '#eee', // Override with colors.border in component
-        borderRadius: 10,
+        borderRadius: 12,
         padding: 12,
         fontSize: 16,
         color: '#333', // Override with colors.text in component
@@ -327,7 +332,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#0066cc', // Override with colors.primary in component
         width: 44,
         height: 44,
-        borderRadius: 10,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
     },

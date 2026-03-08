@@ -13,6 +13,7 @@ import {
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 import { PRICING } from '../constants/monetization';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { useHaptics } from '../hooks/useHaptic';
 import { getOfferings, purchasePackage, restorePurchases } from '../services/revenuecat/RevenueCatService';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 
@@ -45,6 +46,7 @@ type PlanKey = 'monthly' | 'annual' | 'lifetime';
 
 export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
     const { colors, radius } = useAppTheme();
+    const haptics = useHaptics();
     const isPro = useSubscriptionStore((s) => s.isPro);
 
     const [offering, setOffering] = useState<PurchasesOffering | null>(null);
@@ -89,6 +91,7 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
         }
 
         setPurchasing(true);
+        haptics('success');
         try {
             const success = await purchasePackage(pkg);
             if (success) {
@@ -194,7 +197,10 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
                                                 borderRadius: radius.md,
                                             },
                                         ]}
-                                        onPress={() => setSelectedPlan(plan.key)}
+                                        onPress={() => { haptics('light'); setSelectedPlan(plan.key); }}
+                                        accessibilityRole="radio"
+                                        accessibilityState={{ selected: isSelected }}
+                                        accessibilityLabel={`${plan.label} plan, ${plan.price}`}
                                     >
                                         {plan.badge && (
                                             <View style={[styles.badge, { backgroundColor: colors.primary }]}>

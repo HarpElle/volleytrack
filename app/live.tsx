@@ -478,7 +478,7 @@ function LiveScreen() {
             <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
                 <Text style={[styles.headerTitle, { color: colors.text }]}>VolleyTrack</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => setShowShare(true)} style={styles.menuBtn}>
+                    <TouchableOpacity onPress={() => setShowShare(true)} style={styles.menuBtn} accessibilityLabel={isBroadcasting ? `Spectator mode, ${viewerCount} viewers` : 'Share match'} accessibilityRole="button">
                         <Radio size={22} color={isBroadcasting ? colors.success : colors.textSecondary} />
                         {isBroadcasting && viewerCount > 0 && (
                             <View style={[styles.viewerBadge, { backgroundColor: colors.success }]}>
@@ -487,7 +487,7 @@ function LiveScreen() {
                             </View>
                         )}
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.menuBtn}>
+                    <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.menuBtn} accessibilityLabel="Match menu" accessibilityRole="button">
                         <Menu size={28} color={colors.text} />
                     </TouchableOpacity>
                 </View>
@@ -946,6 +946,8 @@ function LiveScreen() {
                         onPress={handleMicPress}
                         disabled={voiceInput.phase !== 'idle'}
                         activeOpacity={0.7}
+                        accessibilityLabel={voiceInput.phase !== 'idle' ? 'Voice input active' : 'Start voice input'}
+                        accessibilityRole="button"
                     >
                         <Mic
                             size={22}
@@ -956,12 +958,12 @@ function LiveScreen() {
 
                 {/* Log Area & Undo */}
                 <View style={[styles.logContainer, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
-                    <TouchableOpacity onPress={() => { undo(); haptics('medium'); }} disabled={history.length === 0} style={[styles.undoBtn, { backgroundColor: colors.bg }]}>
+                    <TouchableOpacity onPress={() => { undo(); haptics('medium'); }} disabled={history.length === 0} style={[styles.undoBtn, { backgroundColor: colors.bg }]} accessibilityLabel="Undo last action" accessibilityRole="button">
                         <Undo2 size={20} color={colors.textSecondary} />
                         <Text style={[styles.undoText, { color: colors.textSecondary }]}>Undo</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => setShowFullLog(true)} style={styles.expandLogBtn}>
+                    <TouchableOpacity onPress={() => setShowFullLog(true)} style={styles.expandLogBtn} accessibilityLabel="View full match log" accessibilityRole="button">
                         <Maximize2 size={16} color={colors.textTertiary} />
                     </TouchableOpacity>
 

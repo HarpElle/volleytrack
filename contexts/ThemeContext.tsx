@@ -22,6 +22,7 @@ import {
     fontWeight,
     spacing,
     radius,
+    buttonHeight,
     brand,
     gray,
     semantic,
@@ -56,6 +57,8 @@ export interface AppTheme {
     spacing: typeof spacing;
     /** Border radius scale */
     radius: typeof radius;
+    /** Button height scale */
+    buttonHeight: typeof buttonHeight;
     /** Platform-specific font families */
     fonts: typeof Fonts;
     /** Update the theme preference */
@@ -112,6 +115,7 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
         fontWeight,
         spacing,
         radius,
+        buttonHeight,
         fonts: Fonts,
         setPreference,
     };

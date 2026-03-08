@@ -21,7 +21,7 @@ export default function StatsModal({ visible, onClose, logs, roster }: StatsModa
             <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
                 <View style={[styles.header, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
                     <Text style={[styles.title, { color: colors.text }]}>Match Statistics</Text>
-                    <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close" accessibilityRole="button">
                         <X size={24} color={colors.text} />
                     </TouchableOpacity>
                 </View>
