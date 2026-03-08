@@ -6,11 +6,14 @@ import {
     Cloud,
     CloudOff,
     Crown,
+    FileText,
     LogIn,
     LogOut,
+    Mail,
     Monitor,
     Moon,
     RotateCcw,
+    Shield,
     Sun,
     Trash2,
     User,
@@ -411,6 +414,34 @@ export default function SettingsScreen() {
                         <View style={styles.rowLeft}>
                             <Crown size={20} color={colors.primary} />
                             <Text style={themed.rowText}>Feature Tour</Text>
+                        </View>
+                        <ChevronRight size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                    <View style={themed.separator} />
+                    <TouchableOpacity style={styles.row} onPress={() => Linking.openURL('mailto:support@harpelle.com')}>
+                        <View style={styles.rowLeft}>
+                            <Mail size={20} color={colors.textSecondary} />
+                            <Text style={themed.rowText}>Contact Support</Text>
+                        </View>
+                        <ChevronRight size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Legal Section */}
+                <Text style={themed.sectionLabel}>Legal</Text>
+                <View style={themed.card}>
+                    <TouchableOpacity style={styles.row} onPress={() => Linking.openURL('https://harpelle.com/volleytrack/privacy.html')}>
+                        <View style={styles.rowLeft}>
+                            <Shield size={20} color={colors.textSecondary} />
+                            <Text style={themed.rowText}>Privacy Policy</Text>
+                        </View>
+                        <ChevronRight size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                    <View style={themed.separator} />
+                    <TouchableOpacity style={styles.row} onPress={() => Linking.openURL('https://harpelle.com/volleytrack/terms.html')}>
+                        <View style={styles.rowLeft}>
+                            <FileText size={20} color={colors.textSecondary} />
+                            <Text style={themed.rowText}>Terms of Service</Text>
                         </View>
                         <ChevronRight size={18} color={colors.textTertiary} />
                     </TouchableOpacity>

@@ -306,7 +306,7 @@ export default function DashboardScreen() {
                     <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
                 </TouchableOpacity>
 
-                {/* Watch Live Match */}
+                {/* Secondary Action: Watch Live Match */}
                 <TouchableOpacity
                     style={[styles.watchLiveBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
                     onPress={() => router.push('/spectate/join')}
@@ -316,43 +316,22 @@ export default function DashboardScreen() {
                     <ChevronRight size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
 
-                {/* Feature Tour */}
+                {/* Tertiary: Feature Tour — text link style, visually quieter */}
                 <TouchableOpacity
-                    style={[styles.watchLiveBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                    style={styles.featureTourLink}
                     onPress={() => router.push('/tour' as any)}
                 >
-                    <Crown size={20} color={colors.primary} />
-                    <Text style={[styles.watchLiveText, { color: colors.text }]}>Feature Tour: See what you can do</Text>
-                    <ChevronRight size={18} color={colors.textTertiary} />
+                    <Crown size={16} color={colors.textSecondary} />
+                    <Text style={[styles.featureTourText, { color: colors.textSecondary }]}>Feature Tour: See what you can do</Text>
+                    <ChevronRight size={14} color={colors.textTertiary} />
                 </TouchableOpacity>
-
-                {/* Pro Upgrade CTA — shown only for free users */}
-                {!isPro && (
-                    <TouchableOpacity
-                        style={[styles.proCta, { backgroundColor: colors.bgCard, borderColor: colors.primary }]}
-                        onPress={() => setShowPaywall(true)}
-                        activeOpacity={0.7}
-                    >
-                        <Sparkles size={18} color={colors.primary} />
-                        <View style={styles.proCtaText}>
-                            <Text style={[styles.proCtaTitle, { color: colors.text }]}>Upgrade to Pro</Text>
-                            <Text style={[styles.proCtaSub, { color: colors.textSecondary }]}>
-                                Ad-free, unlimited AI summaries, seasons & exports
-                            </Text>
-                        </View>
-                        <ChevronRight size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                )}
 
                 {/* Seasons Section (MRU) */}
                 <View style={styles.sectionHeader}>
                     <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>My Seasons & Teams</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        {seasons.length > 0 && <TouchableOpacity><Text style={[styles.seeAll, themedStyles.seeAll]}>See All</Text></TouchableOpacity>}
-                        <TouchableOpacity onPress={handleNewSeason}>
-                            <Text style={[styles.seeAll, themedStyles.seeAll]}>+ New</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={handleNewSeason}>
+                        <Text style={[styles.seeAll, themedStyles.seeAll]}>+ New</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {seasons.length === 0 ? (
@@ -376,6 +355,21 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+                )}
+
+                {/* Pro Upgrade CTA — repositioned below Seasons for better hierarchy */}
+                {!isPro && (
+                    <TouchableOpacity
+                        style={[styles.proCta, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                        onPress={() => setShowPaywall(true)}
+                    >
+                        <Crown size={20} color={colors.primary} />
+                        <View style={styles.proCtaText}>
+                            <Text style={[styles.proCtaTitle, { color: colors.text }]}>Unlock VolleyTrack Pro</Text>
+                            <Text style={[styles.proCtaSub, { color: colors.textSecondary }]}>Unlimited seasons, AI recaps & more</Text>
+                        </View>
+                        <ChevronRight size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
                 )}
 
                 {/* Upcoming Matches */}
@@ -457,7 +451,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 12,
         borderWidth: 1,
-        marginBottom: 24,
+        marginBottom: 12,
     },
     watchLiveText: {
         flex: 1,
@@ -474,7 +468,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 16,
         elevation: 8,
-        marginBottom: 24,
+        marginBottom: 16,
     },
     quickMatchContent: {
         flexDirection: 'row',
@@ -518,6 +512,18 @@ const styles = StyleSheet.create({
     actionLabel: {
         fontSize: 14,
         fontWeight: '600',
+    },
+    featureTourLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        marginBottom: 12,
+    },
+    featureTourText: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: '500',
     },
     sectionHeader: {
         flexDirection: 'row',
