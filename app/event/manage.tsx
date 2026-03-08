@@ -123,7 +123,7 @@ export default function ManageEventScreen() {
                                 style={[styles.input, { backgroundColor: colors.buttonSecondary, color: colors.text, borderColor: colors.border }]}
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="e.g. Windy City Qualifier"
+                                placeholder="e.g. Seven Gardens Classic"
                                 placeholderTextColor={colors.textTertiary}
                             />
                         </View>
@@ -136,7 +136,7 @@ export default function ManageEventScreen() {
                                     style={[{ flex: 1, fontSize: 16, color: colors.text }]}
                                     value={location}
                                     onChangeText={setLocation}
-                                    placeholder="e.g. Chicago, IL"
+                                    placeholder="e.g. GC Arena"
                                     placeholderTextColor={colors.textTertiary}
                                 />
                             </View>

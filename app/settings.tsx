@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
+        paddingVertical: 18,
         borderWidth: 1.5,
     },
 });

@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronDown, ChevronRight, ChevronUp, Minus, Plus, Settings2, Trash2, User } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Minus, Plus, Settings2, Trash2, User } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
@@ -116,6 +116,13 @@ export default function MatchSetupScreen() {
     useEffect(() => {
         if (!selectedSeasonId && targetSeasonId) setSelectedSeasonId(targetSeasonId);
     }, [targetSeasonId]);
+
+    // Auto-select single season: If only one season exists and none is selected, pick it automatically
+    useEffect(() => {
+        if (!selectedSeasonId && seasons.length === 1) {
+            setSelectedSeasonId(seasons[0].id);
+        }
+    }, [seasons]);
 
     // Derived Context Objects
     const resolvedSeason = selectedSeasonId ? seasons.find(s => s.id === selectedSeasonId) : null;
@@ -398,8 +405,8 @@ export default function MatchSetupScreen() {
                 <ScrollView contentContainerStyle={styles.scrollContent}>
 
                     <View style={[styles.headerRow, { backgroundColor: colors.bgCard }]}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
-                            <Text style={[styles.cancelBtnText, { color: colors.opponent }]}>Cancel</Text>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn} hitSlop={8}>
+                            <ArrowLeft size={24} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={[styles.headerTitle, { color: colors.text }]}>{params.matchId ? 'Edit Match' : 'New Match'}</Text>
 
@@ -892,7 +899,7 @@ export default function MatchSetupScreen() {
                             </TouchableOpacity>
                         </View>
                         <FlatList
-                            data={[{ id: 'clear', name: 'No Event', seasonId: '' } as any, ...validEvents]}
+                            data={[{ id: 'clear', name: 'No Event', seasonId: '' } as any, ...validEvents, { id: 'new', name: '+ New Event', seasonId: '' } as any]}
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => {
                                 if (item.id === 'clear') {
@@ -903,6 +910,22 @@ export default function MatchSetupScreen() {
                                         >
                                             <Text style={[styles.rosterName, { color: colors.textSecondary, fontStyle: 'italic' }]}>None / Practice Match</Text>
                                             {!selectedEventId && <ChevronRight size={20} color={colors.primary} />}
+                                        </TouchableOpacity>
+                                    );
+                                }
+                                if (item.id === 'new') {
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.pickerItem, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}
+                                            onPress={() => {
+                                                setShowEventPicker(false);
+                                                router.push({ pathname: '/event/manage', params: { seasonId: selectedSeasonId } });
+                                            }}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <Plus size={18} color={colors.primary} />
+                                                <Text style={[styles.rosterName, { color: colors.primary, fontWeight: '700' }]}>New Event</Text>
+                                            </View>
                                         </TouchableOpacity>
                                     );
                                 }

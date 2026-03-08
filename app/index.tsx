@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
-import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Flag, Play, RefreshCw, Settings, Sparkles, Trash2 } from 'lucide-react-native';
+import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Flag, Play, RefreshCw, Settings, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, ToastAndroid, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { MatchRecord } from '../types';
 
 export default function DashboardScreen() {
     const router = useRouter();
-    const { seasons, savedMatches, events, touchSeason, syncStatus } = useDataStore();
+    const { seasons, savedMatches, events, touchSeason, syncStatus, syncWithCloud } = useDataStore();
     const matchStore = useMatchStore();
     const { user } = useAuth();
     const { colors, spacing, fontSize, radius } = useAppTheme();
@@ -29,6 +29,27 @@ export default function DashboardScreen() {
 
     // Auto-sync when signed in and app is active
     useAutoSync();
+
+    // H-7: Tappable sync icon with toast/alert feedback
+    const handleSyncTap = () => {
+        if (syncStatus === 'syncing') return;
+        if (syncStatus === 'synced') {
+            if (Platform.OS === 'android') {
+                ToastAndroid.show('Data synced', ToastAndroid.SHORT);
+            } else {
+                Alert.alert('Sync Status', 'Your data is synced.');
+            }
+        } else if (syncStatus === 'error') {
+            Alert.alert(
+                'Sync Error',
+                'Sync failed. Would you like to retry?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Retry', onPress: () => user?.uid && syncWithCloud(user.uid) },
+                ]
+            );
+        }
+    };
 
     // Clean up any stale broadcasts left by this coach (e.g. force-quit mid-broadcast)
     useEffect(() => {
@@ -346,14 +367,15 @@ export default function DashboardScreen() {
             <View style={[styles.header, themedStyles.header]}>
                 <Text style={[styles.appName, themedStyles.appName]}>VolleyTrack</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                    {user && (
-                        syncStatus === 'syncing'
-                            ? <RefreshCw size={18} color={colors.primary} />
-                            : syncStatus === 'synced'
-                                ? <Cloud size={18} color={colors.success} />
-                                : syncStatus === 'error'
-                                    ? <CloudOff size={18} color={colors.error} />
-                                    : null
+                    {user && syncStatus && syncStatus !== 'idle' && (
+                        <TouchableOpacity onPress={handleSyncTap} hitSlop={8} disabled={syncStatus === 'syncing'}>
+                            {syncStatus === 'syncing'
+                                ? <RefreshCw size={18} color={colors.primary} />
+                                : syncStatus === 'synced'
+                                    ? <Cloud size={18} color={colors.success} />
+                                    : <CloudOff size={18} color={colors.error} />
+                            }
+                        </TouchableOpacity>
                     )}
                     <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8}>
                         <Settings size={22} color={colors.textSecondary} />
@@ -430,16 +452,6 @@ export default function DashboardScreen() {
                     <ChevronRight size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
 
-                {/* Tertiary: Feature Tour — text link style, visually quieter */}
-                <TouchableOpacity
-                    style={styles.featureTourLink}
-                    onPress={() => router.push('/tour' as any)}
-                >
-                    <Crown size={16} color={colors.textSecondary} />
-                    <Text style={[styles.featureTourText, { color: colors.textSecondary }]}>Feature Tour: See what you can do</Text>
-                    <ChevronRight size={14} color={colors.textTertiary} />
-                </TouchableOpacity>
-
                 {/* Seasons Section (MRU) */}
                 <View style={styles.sectionHeader}>
                     <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>My Seasons & Teams</Text>
@@ -499,6 +511,9 @@ export default function DashboardScreen() {
                         <Calendar size={20} color={colors.textSecondary} />
                         <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Upcoming Matches</Text>
                     </View>
+                    <TouchableOpacity onPress={handleMatchSetup}>
+                        <Text style={[styles.seeAll, themedStyles.seeAll]}>+ Schedule</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {upcomingMatches.length === 0 ? (
@@ -509,7 +524,7 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <View style={styles.list}>
+                    <View style={[styles.matchListContainer, { backgroundColor: colors.bgCard, borderRadius: 16 }]}>
                         {upcomingMatches.map(match => renderMatchItem(match, 'coach'))}
                     </View>
                 )}
@@ -661,18 +676,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
     },
-    featureTourLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        marginBottom: 12,
-    },
-    featureTourText: {
-        flex: 1,
-        fontSize: 13,
-        fontWeight: '500',
-    },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -769,6 +772,11 @@ const styles = StyleSheet.create({
     },
     list: {
         gap: 12,
+    },
+    matchListContainer: {
+        padding: 16,
+        gap: 12,
+        marginBottom: 24,
     },
     matchCard: {
         padding: 16,

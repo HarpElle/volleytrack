@@ -622,17 +622,29 @@ function LiveScreen() {
                 <View style={styles.subsRow}>
                     <View style={styles.subsContainer}>
                         <Text style={[styles.subsLabel, { color: colors.textSecondary }]}>Subs</Text>
-                        <View style={styles.subsDots}>
-                            {[...Array(config.subsPerSet || 12)].map((_, i) => {
-                                const isAvailable = i < subsRemaining.myTeam;
-                                return (
-                                    <View
-                                        key={i}
-                                        style={[styles.subDot, { backgroundColor: isAvailable ? colors.primary : colors.momentumBase }]}
-                                    />
-                                );
-                            })}
-                        </View>
+                        {(() => {
+                            const totalSubs = config.subsPerSet || 12;
+                            const MAX_DOTS = 12;
+                            const showDots = Math.min(totalSubs, MAX_DOTS);
+                            return (
+                                <View style={styles.subsDots}>
+                                    {[...Array(showDots)].map((_, i) => {
+                                        const isAvailable = i < subsRemaining.myTeam;
+                                        return (
+                                            <View
+                                                key={i}
+                                                style={[styles.subDot, { backgroundColor: isAvailable ? colors.primary : colors.momentumBase }]}
+                                            />
+                                        );
+                                    })}
+                                    {totalSubs > MAX_DOTS && (
+                                        <Text style={[styles.subsOverflowBadge, { color: colors.textSecondary }]}>
+                                            {subsRemaining.myTeam}
+                                        </Text>
+                                    )}
+                                </View>
+                            );
+                        })()}
                     </View>
 
                     <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
@@ -1358,11 +1370,18 @@ const styles = StyleSheet.create({
     subsDots: {
         flexDirection: 'row',
         gap: 3,
+        flexShrink: 1,
+        alignItems: 'center',
     },
     subDot: {
         width: 8,
         height: 8,
         borderRadius: 4,
+    },
+    subsOverflowBadge: {
+        fontSize: 11,
+        fontWeight: '700',
+        marginLeft: 2,
     },
     rotateInlineControls: {
         flexDirection: 'row',

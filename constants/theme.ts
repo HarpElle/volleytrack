@@ -170,6 +170,7 @@ export const darkColors: AppThemeColors = {
 export const fontSize = {
     xs: 11,
     sm: 13,
+    smd: 14,    // Small-medium: player labels, subtitles, secondary actions
     base: 15,
     md: 16,
     lg: 18,

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -203,8 +203,8 @@ export default function QuickMatchSetup() {
             >
                 {/* Header */}
                 <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
-                    <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
-                        <Text style={{ color: colors.link, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8}>
+                        <ArrowLeft size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: colors.text }]}>Quick Match</Text>
                     <View style={{ width: 50 }} />
@@ -274,8 +274,8 @@ export default function QuickMatchSetup() {
                             <TouchableOpacity
                                 style={[
                                     styles.formatOption,
-                                    { borderColor: colors.border },
-                                    totalSets === 3 && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                                    { borderColor: colors.border, borderWidth: 1 },
+                                    totalSets === 3 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
                                 ]}
                                 onPress={() => setTotalSets(3)}
                             >
@@ -288,8 +288,8 @@ export default function QuickMatchSetup() {
                             <TouchableOpacity
                                 style={[
                                     styles.formatOption,
-                                    { borderColor: colors.border },
-                                    totalSets === 5 && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                                    { borderColor: colors.border, borderWidth: 1 },
+                                    totalSets === 5 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
                                 ]}
                                 onPress={() => setTotalSets(5)}
                             >
@@ -566,7 +566,6 @@ const styles = StyleSheet.create({
     formatOption: {
         flex: 1,
         borderRadius: 8, // radius.sm — standardized
-        borderWidth: 2,
         paddingVertical: 12,
         alignItems: 'center',
     },
