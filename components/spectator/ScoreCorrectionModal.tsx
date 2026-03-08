@@ -48,6 +48,7 @@ export function ScoreCorrectionModal({
 }: ScoreCorrectionModalProps) {
     const { colors, radius, spacing } = useAppTheme();
     const slideAnim = useRef(new Animated.Value(400)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
 
     const [myTeamScore, setMyTeamScore] = useState('');
     const [oppScore, setOppScore] = useState('');
@@ -59,15 +60,24 @@ export function ScoreCorrectionModal({
             setMyTeamScore('');
             setOppScore('');
             setNote('');
-            slideAnim.setValue(400);
             setTimeout(() => {
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    tension: 80,
-                    friction: 12,
-                }).start();
+                Animated.parallel([
+                    Animated.spring(slideAnim, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 80,
+                        friction: 12,
+                    }),
+                    Animated.timing(opacityAnim, {
+                        toValue: 1,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
             }, 120);
+        } else {
+            slideAnim.setValue(400);
+            opacityAnim.setValue(0);
         }
     }, [visible]);
 
@@ -96,20 +106,20 @@ export function ScoreCorrectionModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="fade">
+        <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
             <TouchableOpacity
-                style={styles.overlay}
+                style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}
                 activeOpacity={1}
                 onPress={() => { Keyboard.dismiss(); onClose(); }}
-            >
-                <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
+            />
+            <Animated.View style={[styles.animatedContainer, { transform: [{ translateY: slideAnim }], opacity: opacityAnim }]} pointerEvents="box-none">
+                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.xl, shadowColor: colors.shadow }]}>
                         {/* Header */}
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: colors.text }]}>
                                 Score Doesn&apos;t Match?
                             </Text>
-                            <TouchableOpacity onPress={onClose} hitSlop={12}>
+                            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                                 <X size={22} color={colors.textSecondary} />
                             </TouchableOpacity>
                         </View>
@@ -226,22 +236,23 @@ export function ScoreCorrectionModal({
                                 onPress={handleSubmit}
                                 disabled={!hasInput || !canSendAlert}
                             >
-                                <Text style={[styles.submitText, { color: hasInput && canSendAlert ? '#fff' : colors.textTertiary }]}>
+                                <Text style={[styles.submitText, { color: hasInput && canSendAlert ? colors.buttonPrimaryText : colors.textTertiary }]}>
                                     Send to Coach
                                 </Text>
                             </TouchableOpacity>
                         </View>
                     </TouchableOpacity>
-                </Animated.View>
-                </TouchableOpacity>
+            </Animated.View>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
     overlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    animatedContainer: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         padding: 24,
     },

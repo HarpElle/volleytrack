@@ -318,7 +318,7 @@ export default function FullLogModal({ visible, onClose, history, roster, lineup
                 </Animated.View>
 
                 {/* Floating Footer */}
-                <View style={[styles.footer, { backgroundColor: colors.bgCard, borderTopColor: colors.border }]}>
+                <View style={[styles.footer, { backgroundColor: colors.bgCard, borderTopColor: colors.border, shadowColor: colors.shadow }]}>
                     <TouchableOpacity style={[styles.closeMainBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onClose}>
                         <Text style={[styles.closeMainText, { color: colors.text }]}>Close Log</Text>
                     </TouchableOpacity>

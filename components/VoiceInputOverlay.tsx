@@ -94,8 +94,9 @@ export function VoiceInputOverlay({
             statusBarTranslucent
             onRequestClose={onCancel}
         >
-            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay || 'rgba(0,0,0,0.6)' }]}>
-                <View style={[styles.card, { backgroundColor: colors.bg, borderRadius: radius.lg || 24 }]}>
+            <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onCancel}>
+                <TouchableOpacity activeOpacity={1}>
+                <View style={[styles.card, { backgroundColor: colors.bg, borderRadius: radius.xl, shadowColor: colors.shadow }]}>
 
                     {/* ── Recording Phase ─────────────────────── */}
                     {phase === 'recording' && (
@@ -106,7 +107,7 @@ export function VoiceInputOverlay({
                                 { backgroundColor: VOICE_COLORS.recording + '20', transform: [{ scale: pulseAnim }] }
                             ]}>
                                 <View style={[styles.micInner, { backgroundColor: VOICE_COLORS.recording }]}>
-                                    <Mic size={36} color="#ffffff" />
+                                    <Mic size={36} color={colors.buttonPrimaryText} />
                                 </View>
                             </Animated.View>
 
@@ -138,18 +139,18 @@ export function VoiceInputOverlay({
                             {/* Buttons */}
                             <View style={styles.buttonRow}>
                                 <TouchableOpacity
-                                    style={[styles.secondaryBtn, { backgroundColor: colors.bgCard }]}
+                                    style={[styles.secondaryBtn, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}
                                     onPress={onCancel}
                                 >
                                     <X size={18} color={colors.textSecondary} />
                                     <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.primaryBtn, { backgroundColor: VOICE_COLORS.recording }]}
+                                    style={[styles.primaryBtn, { backgroundColor: VOICE_COLORS.recording, borderRadius: radius.lg }]}
                                     onPress={onStopAndParse}
                                 >
-                                    <MicOff size={18} color="#ffffff" />
-                                    <Text style={styles.primaryBtnText}>Done</Text>
+                                    <MicOff size={18} color={colors.buttonPrimaryText} />
+                                    <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Done</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -230,7 +231,7 @@ export function VoiceInputOverlay({
                             {/* Buttons */}
                             <View style={styles.buttonRow}>
                                 <TouchableOpacity
-                                    style={[styles.secondaryBtn, { backgroundColor: colors.bgCard }]}
+                                    style={[styles.secondaryBtn, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}
                                     onPress={onRetry}
                                 >
                                     <RefreshCw size={16} color={colors.textSecondary} />
@@ -239,17 +240,17 @@ export function VoiceInputOverlay({
                                 <TouchableOpacity
                                     style={[
                                         styles.primaryBtn,
-                                        { backgroundColor: VOICE_COLORS.success, opacity: (parsedActions.length === 0 || isCommitting) ? 0.5 : 1 }
+                                        { backgroundColor: VOICE_COLORS.success, opacity: (parsedActions.length === 0 || isCommitting) ? 0.5 : 1, borderRadius: radius.lg }
                                     ]}
                                     onPress={handleCommit}
                                     disabled={parsedActions.length === 0 || isCommitting}
                                 >
                                     {isCommitting ? (
-                                        <ActivityIndicator size="small" color="#ffffff" />
+                                        <ActivityIndicator size="small" color={colors.buttonPrimaryText} />
                                     ) : (
                                         <>
-                                            <Check size={18} color="#ffffff" />
-                                            <Text style={styles.primaryBtnText}>
+                                            <Check size={18} color={colors.buttonPrimaryText} />
+                                            <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>
                                                 Confirm ({parsedActions.length})
                                             </Text>
                                         </>
@@ -265,7 +266,8 @@ export function VoiceInputOverlay({
                     )}
 
                 </View>
-            </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
         </Modal>
     );
 }

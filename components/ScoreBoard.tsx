@@ -1,3 +1,4 @@
+import { Volleyball } from 'lucide-react-native';
 import { StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -192,22 +193,18 @@ export default function ScoreBoard({
                         )}
                     </ScoreGesture>
                     {readOnly ? (
-                        <View
-                            style={[
-                                styles.serveIndicator,
-                                servingTeam === 'myTeam' ? [styles.serveIndicatorActiveMy, { backgroundColor: colors.primary }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
-                            ]}
-                        />
+                        <View style={styles.serveIndicator}>
+                            <Volleyball size={16} color={servingTeam === 'myTeam' ? colors.primary : colors.border} />
+                        </View>
                     ) : (
                         <TouchableOpacity
                             onPress={() => servingTeam !== 'myTeam' && onToggleServe()}
                             disabled={servingTeam === 'myTeam'}
                             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                            style={[
-                                styles.serveIndicator,
-                                servingTeam === 'myTeam' ? [styles.serveIndicatorActiveMy, { backgroundColor: colors.primary }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
-                            ]}
-                        />
+                            style={styles.serveIndicator}
+                        >
+                            <Volleyball size={16} color={servingTeam === 'myTeam' ? colors.primary : colors.border} />
+                        </TouchableOpacity>
                     )}
                 </View>
 
@@ -224,22 +221,18 @@ export default function ScoreBoard({
                         )}
                     </ScoreGesture>
                     {readOnly ? (
-                        <View
-                            style={[
-                                styles.serveIndicator,
-                                servingTeam === 'opponent' ? [styles.serveIndicatorActiveOpp, { backgroundColor: colors.opponent }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
-                            ]}
-                        />
+                        <View style={styles.serveIndicator}>
+                            <Volleyball size={16} color={servingTeam === 'opponent' ? colors.opponent : colors.border} />
+                        </View>
                     ) : (
                         <TouchableOpacity
                             onPress={() => servingTeam !== 'opponent' && onToggleServe()}
                             disabled={servingTeam === 'opponent'}
                             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                            style={[
-                                styles.serveIndicator,
-                                servingTeam === 'opponent' ? [styles.serveIndicatorActiveOpp, { backgroundColor: colors.opponent }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
-                            ]}
-                        />
+                            style={styles.serveIndicator}
+                        >
+                            <Volleyball size={16} color={servingTeam === 'opponent' ? colors.opponent : colors.border} />
+                        </TouchableOpacity>
                     )}
                 </View>
             </View>
@@ -452,19 +445,8 @@ const styles = StyleSheet.create({
         // color themed inline
     },
     serveIndicator: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
         marginTop: 4,
-        // backgroundColor themed inline
-    },
-    serveIndicatorActiveMy: {
-        // backgroundColor themed inline
-    },
-    serveIndicatorActiveOpp: {
-        // backgroundColor themed inline
-    },
-    serveIndicatorInactive: {
-        // backgroundColor themed inline
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });

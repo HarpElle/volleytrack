@@ -94,8 +94,9 @@ export function VoiceInputTipsModal({ visible, onClose }: VoiceInputTipsModalPro
 
     return (
         <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
-            <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
-                <View style={[styles.card, { backgroundColor: colors.bg, borderRadius: radius.lg || 24 }]}>
+            <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose}>
+                <TouchableOpacity activeOpacity={1}>
+                <View style={[styles.card, { backgroundColor: colors.bg, borderRadius: radius.xl, shadowColor: colors.shadow }]}>
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={[styles.headerTitle, { color: colors.primary }]}>Voice Input Tips</Text>
@@ -170,15 +171,16 @@ export function VoiceInputTipsModal({ visible, onClose }: VoiceInputTipsModalPro
                                 style={[styles.nextBtn, { backgroundColor: colors.buttonPrimary || colors.primary }]}
                                 onPress={handleNext}
                             >
-                                <Text style={[styles.nextBtnText, { color: colors.buttonPrimaryText || '#fff' }]}>
+                                <Text style={[styles.nextBtnText, { color: colors.buttonPrimaryText }]}>
                                     {isLastSlide ? 'Got It!' : 'Next'}
                                 </Text>
-                                {!isLastSlide && <ChevronRight size={16} color={colors.buttonPrimaryText || '#fff'} />}
+                                {!isLastSlide && <ChevronRight size={16} color={colors.buttonPrimaryText} />}
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
-            </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
         </Modal>
     );
 }

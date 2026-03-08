@@ -147,7 +147,7 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
                 <View style={[styles.header, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
                     <View style={{ width: 32 }} />
                     <Text style={[styles.headerTitle, { color: colors.text }]}>VolleyTrack Pro</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={8}>
+                    <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                         <X size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
@@ -198,7 +198,7 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
                                     >
                                         {plan.badge && (
                                             <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                                                <Text style={styles.badgeText}>{plan.badge}</Text>
+                                                <Text style={[styles.badgeText, { color: colors.buttonPrimaryText }]}>{plan.badge}</Text>
                                             </View>
                                         )}
                                         <Text
@@ -236,11 +236,11 @@ export function PaywallModal({ visible, onClose, trigger }: PaywallModalProps) {
                         disabled={purchasing || loadingOfferings}
                     >
                         {purchasing ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={colors.buttonPrimaryText} />
                         ) : (
                             <>
-                                <Zap size={20} color="#fff" fill="#fff" />
-                                <Text style={styles.purchaseBtnText}>Subscribe Now</Text>
+                                <Zap size={20} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
+                                <Text style={[styles.purchaseBtnText, { color: colors.buttonPrimaryText }]}>Subscribe Now</Text>
                             </>
                         )}
                     </TouchableOpacity>

@@ -14,7 +14,7 @@ interface EditLogEntryModalProps {
 }
 
 export default function EditLogEntryModal({ visible, onClose, entry, roster, activePlayerIds, onSave }: EditLogEntryModalProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const [selectedType, setSelectedType] = useState<string>('');
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [selectedAssistId, setSelectedAssistId] = useState<string | null>(null);
@@ -85,11 +85,12 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 
     return (
         <Modal visible={visible} animationType="fade" transparent>
-            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
-                <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+            <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose}>
+                <TouchableOpacity activeOpacity={1}>
+                <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <View style={[styles.header, { borderBottomColor: colors.border }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Edit Log Entry</Text>
-                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                             <X size={24} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
@@ -145,7 +146,7 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                                         onPress={() => setSelectedPlayerId(p.id)}
                                     >
                                         <View style={[styles.avatar, { backgroundColor: colors.buttonSecondary }, selectedPlayerId === p.id && { backgroundColor: colors.primary, borderColor: colors.primaryLight }]}>
-                                            <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedPlayerId === p.id && { color: '#ffffff' }]}>
+                                            <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedPlayerId === p.id && { color: colors.buttonPrimaryText }]}>
                                                 {p.jerseyNumber}
                                             </Text>
                                         </View>
@@ -176,7 +177,7 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
                                             onPress={() => setSelectedAssistId(p.id)}
                                         >
                                             <View style={[styles.avatar, { backgroundColor: colors.buttonSecondary }, selectedAssistId === p.id && { backgroundColor: colors.primary, borderColor: colors.primaryLight }]}>
-                                                <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedAssistId === p.id && { color: '#ffffff' }]}>
+                                                <Text style={[styles.avatarText, { color: colors.textSecondary }, selectedAssistId === p.id && { color: colors.buttonPrimaryText }]}>
                                                     {p.jerseyNumber}
                                                 </Text>
                                             </View>
@@ -191,12 +192,13 @@ export default function EditLogEntryModal({ visible, onClose, entry, roster, act
 
                     <View style={[styles.footer, { borderTopColor: colors.border }]}>
                         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-                            <Save size={20} color="#ffffff" />
-                            <Text style={[styles.saveText, { color: '#ffffff' }]}>Save Changes</Text>
+                            <Save size={20} color={colors.buttonPrimaryText} />
+                            <Text style={[styles.saveText, { color: colors.buttonPrimaryText }]}>Save Changes</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
-            </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
         </Modal>
     );
 }

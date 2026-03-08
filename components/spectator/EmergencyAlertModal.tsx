@@ -58,6 +58,7 @@ export function EmergencyAlertModal({
 }: EmergencyAlertModalProps) {
     const { colors, radius, spacing } = useAppTheme();
     const slideAnim = useRef(new Animated.Value(400)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
 
     const [selectedCategory, setSelectedCategory] = useState<EmergencyCategory | null>(null);
     const [details, setDetails] = useState('');
@@ -67,15 +68,24 @@ export function EmergencyAlertModal({
         if (visible) {
             setSelectedCategory(null);
             setDetails('');
-            slideAnim.setValue(400);
             setTimeout(() => {
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    tension: 80,
-                    friction: 12,
-                }).start();
+                Animated.parallel([
+                    Animated.spring(slideAnim, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 80,
+                        friction: 12,
+                    }),
+                    Animated.timing(opacityAnim, {
+                        toValue: 1,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
             }, 120);
+        } else {
+            slideAnim.setValue(400);
+            opacityAnim.setValue(0);
         }
     }, [visible]);
 
@@ -102,136 +112,137 @@ export function EmergencyAlertModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="fade">
+        <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
             <TouchableOpacity
-                style={styles.overlay}
+                style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}
                 activeOpacity={1}
                 onPress={() => { Keyboard.dismiss(); onClose(); }}
-            >
-                <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
-                        {/* Header */}
-                        <View style={styles.header}>
-                            <View style={styles.headerLeft}>
-                                <AlertOctagon size={22} color={colors.error} />
-                                <Text style={[styles.title, { color: colors.error }]}>
-                                    EMERGENCY STOP
-                                </Text>
-                            </View>
-                            <TouchableOpacity onPress={onClose} hitSlop={12}>
-                                <X size={22} color={colors.textSecondary} />
-                            </TouchableOpacity>
+            />
+            <Animated.View style={[styles.animatedContainer, { transform: [{ translateY: slideAnim }], opacity: opacityAnim }]} pointerEvents="box-none">
+                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.xl, shadowColor: colors.shadow }]}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <View style={styles.headerLeft}>
+                            <AlertOctagon size={22} color={colors.error} />
+                            <Text style={[styles.title, { color: colors.error }]}>
+                                EMERGENCY STOP
+                            </Text>
                         </View>
+                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
+                            <X size={22} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
 
-                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                            This will immediately alert the coach to stop play.
-                        </Text>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                        This will immediately alert the coach to stop play.
+                    </Text>
 
-                        {/* Category chips */}
-                        <Text style={[styles.label, { color: colors.textSecondary }]}>
-                            What's happening?
-                        </Text>
-                        <View style={styles.chipGrid}>
-                            {CATEGORIES.map((cat) => {
-                                const isSelected = selectedCategory === cat.key;
-                                return (
-                                    <TouchableOpacity
-                                        key={cat.key}
+                    {/* Category chips */}
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        What's happening?
+                    </Text>
+                    <View style={styles.chipGrid}>
+                        {CATEGORIES.map((cat) => {
+                            const isSelected = selectedCategory === cat.key;
+                            return (
+                                <TouchableOpacity
+                                    key={cat.key}
+                                    style={[
+                                        styles.chip,
+                                        {
+                                            backgroundColor: isSelected ? `${colors.error}18` : colors.bg,
+                                            borderColor: isSelected ? colors.error : colors.border,
+                                            borderRadius: radius.md,
+                                        },
+                                    ]}
+                                    onPress={() => setSelectedCategory(cat.key)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.chipEmoji}>{cat.emoji}</Text>
+                                    <Text
                                         style={[
-                                            styles.chip,
-                                            {
-                                                backgroundColor: isSelected ? `${colors.error}18` : colors.bg,
-                                                borderColor: isSelected ? colors.error : colors.border,
-                                                borderRadius: radius.md,
-                                            },
+                                            styles.chipLabel,
+                                            { color: isSelected ? colors.error : colors.text },
                                         ]}
-                                        onPress={() => setSelectedCategory(cat.key)}
-                                        activeOpacity={0.7}
                                     >
-                                        <Text style={styles.chipEmoji}>{cat.emoji}</Text>
-                                        <Text
-                                            style={[
-                                                styles.chipLabel,
-                                                { color: isSelected ? colors.error : colors.text },
-                                            ]}
-                                        >
-                                            {cat.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
+                                        {cat.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
 
-                        {/* Details (optional) */}
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
-                            Details (optional):
+                    {/* Details (optional) */}
+                    <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
+                        Details (optional):
+                    </Text>
+                    <TextInput
+                        style={[
+                            styles.detailsInput,
+                            {
+                                color: colors.text,
+                                borderColor: colors.border,
+                                backgroundColor: colors.bg,
+                                borderRadius: radius.md,
+                            },
+                        ]}
+                        value={details}
+                        onChangeText={setDetails}
+                        placeholder='e.g. "#7 is limping on back row"'
+                        placeholderTextColor={colors.textTertiary}
+                        maxLength={100}
+                        multiline={false}
+                    />
+
+                    {/* Cooldown warning */}
+                    {!canSendAlert && cooldownSeconds > 0 && (
+                        <Text style={[styles.cooldownText, { color: colors.warning }]}>
+                            Wait {cooldownSeconds}s before sending another alert
                         </Text>
-                        <TextInput
+                    )}
+
+                    {/* Buttons */}
+                    <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={[styles.cancelBtn, { borderColor: colors.border, borderRadius: radius.md }]}
+                            onPress={onClose}
+                        >
+                            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                             style={[
-                                styles.detailsInput,
+                                styles.submitBtn,
                                 {
-                                    color: colors.text,
-                                    borderColor: colors.border,
-                                    backgroundColor: colors.bg,
+                                    backgroundColor: selectedCategory && canSendAlert ? colors.error : colors.border,
                                     borderRadius: radius.md,
                                 },
                             ]}
-                            value={details}
-                            onChangeText={setDetails}
-                            placeholder='e.g. "#7 is limping on back row"'
-                            placeholderTextColor={colors.textTertiary}
-                            maxLength={100}
-                            multiline={false}
-                        />
-
-                        {/* Cooldown warning */}
-                        {!canSendAlert && cooldownSeconds > 0 && (
-                            <Text style={[styles.cooldownText, { color: colors.warning }]}>
-                                Wait {cooldownSeconds}s before sending another alert
+                            onPress={handleSubmit}
+                            disabled={!selectedCategory || !canSendAlert}
+                        >
+                            <Text style={[styles.submitText, { color: selectedCategory && canSendAlert ? colors.buttonPrimaryText : colors.textTertiary }]}>
+                                SEND ALERT
                             </Text>
-                        )}
+                        </TouchableOpacity>
+                    </View>
 
-                        {/* Buttons */}
-                        <View style={styles.buttonRow}>
-                            <TouchableOpacity
-                                style={[styles.cancelBtn, { borderColor: colors.border, borderRadius: radius.md }]}
-                                onPress={onClose}
-                            >
-                                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.submitBtn,
-                                    {
-                                        backgroundColor: selectedCategory && canSendAlert ? colors.error : colors.border,
-                                        borderRadius: radius.md,
-                                    },
-                                ]}
-                                onPress={handleSubmit}
-                                disabled={!selectedCategory || !canSendAlert}
-                            >
-                                <Text style={[styles.submitText, { color: selectedCategory && canSendAlert ? '#fff' : colors.textTertiary }]}>
-                                    SEND ALERT
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Safety note */}
-                        <Text style={[styles.safetyNote, { color: colors.textTertiary }]}>
-                            Use only for genuine emergencies
-                        </Text>
-                    </TouchableOpacity>
-                </Animated.View>
+                    {/* Safety note */}
+                    <Text style={[styles.safetyNote, { color: colors.textTertiary }]}>
+                        Use only for genuine emergencies
+                    </Text>
                 </TouchableOpacity>
+            </Animated.View>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
     overlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    animatedContainer: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         padding: 24,
     },

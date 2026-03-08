@@ -1,7 +1,6 @@
-import { BlurView } from 'expo-blur';
 import { X } from 'lucide-react-native';
-import React from 'react';
-import { FlatList, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { SpectatorAvatar } from './spectator/SpectatorAvatar';
 import { Player, SpectatorViewer } from '../types';
@@ -16,7 +15,32 @@ interface SpectatorLobbyModalProps {
 }
 
 export function SpectatorLobbyModal({ visible, onClose, viewers, roster, currentViewerId, onShare }: SpectatorLobbyModalProps) {
-    const { colors, isDark } = useAppTheme();
+    const { colors, radius } = useAppTheme();
+    const slideAnim = useRef(new Animated.Value(400)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            setTimeout(() => {
+                Animated.parallel([
+                    Animated.spring(slideAnim, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 80,
+                        friction: 12,
+                    }),
+                    Animated.timing(opacityAnim, {
+                        toValue: 1,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
+            }, 120);
+        } else {
+            slideAnim.setValue(400);
+            opacityAnim.setValue(0);
+        }
+    }, [visible]);
 
     const getCheeringText = (playerIds?: string[]) => {
         if (!playerIds || playerIds.length === 0) return 'Just watching';
@@ -57,20 +81,17 @@ export function SpectatorLobbyModal({ visible, onClose, viewers, roster, current
         <Modal
             visible={visible}
             transparent
-            animationType="slide"
+            animationType="fade"
+            statusBarTranslucent
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
-                {Platform.OS === 'ios' && (
-                    <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                )}
-
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
-                <View style={[styles.modalContent, { backgroundColor: colors.bgCard }]}>
+                <Animated.View style={[styles.modalContent, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, transform: [{ translateY: slideAnim }], opacity: opacityAnim }]}>
                     <View style={[styles.header, { borderBottomColor: colors.border }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Spectator Lobby</Text>
-                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                             <X size={24} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
@@ -99,7 +120,7 @@ export function SpectatorLobbyModal({ visible, onClose, viewers, roster, current
                             </TouchableOpacity>
                         ) : null}
                     />
-                </View>
+                </Animated.View>
             </View>
         </Modal>
     );
@@ -109,7 +130,6 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,

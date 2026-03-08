@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { Check, Sparkles, User } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -32,7 +31,7 @@ export function SpectatorOnboardingModal({
     initialName = '',
     initialCheeringFor = []
 }: SpectatorOnboardingModalProps) {
-    const { colors, isDark } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const [step, setStep] = useState<1 | 2>(1);
     const [name, setName] = useState(initialName);
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>(initialCheeringFor);
@@ -113,7 +112,7 @@ export function SpectatorOnboardingModal({
                             ]}>
                                 <Text style={[
                                     styles.jerseyNumber,
-                                    { color: isSelected ? '#fff' : colors.text }
+                                    { color: isSelected ? colors.buttonPrimaryText : colors.text }
                                 ]}>
                                     {player.jerseyNumber}
                                 </Text>
@@ -144,7 +143,7 @@ export function SpectatorOnboardingModal({
                 style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
                 onPress={handleNext}
             >
-                <Text style={styles.primaryBtnText}>
+                <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>
                     {selectedPlayerIds.length > 0 ? 'Next' : "I'm Just Watching"}
                 </Text>
             </TouchableOpacity>
@@ -230,7 +229,7 @@ export function SpectatorOnboardingModal({
                         style={[styles.primaryBtn, { flex: 1, backgroundColor: colors.primary }]}
                         onPress={handleFinish}
                     >
-                        <Text style={styles.primaryBtnText}>Let's Go!</Text>
+                        <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Let's Go!</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -244,15 +243,12 @@ export function SpectatorOnboardingModal({
             animationType="fade"
             statusBarTranslucent
         >
-            <View style={styles.overlay}>
-                {Platform.OS === 'ios' && (
-                    <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                )}
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.keyboardView}
                 >
-                    <View style={[styles.card, { backgroundColor: colors.bg, shadowColor: colors.shadow }]}>
+                    <View style={[styles.card, { backgroundColor: colors.bg, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                         {step === 1 ? renderStep1() : renderStep2()}
                     </View>
                 </KeyboardAvoidingView>
@@ -264,7 +260,6 @@ export function SpectatorOnboardingModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         padding: 16,
     },

@@ -130,7 +130,7 @@ export function SuperFanRecapModal({ visible, onClose, match, onShowPaywall }: S
                         <Star size={18} color={colors.primary} fill={colors.primary} />
                         <Text style={[styles.headerTitle, { color: colors.text }]}>Super Fan Recap</Text>
                     </View>
-                    <TouchableOpacity onPress={handleClose} hitSlop={8}>
+                    <TouchableOpacity onPress={handleClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                         <X size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
@@ -156,8 +156,8 @@ export function SuperFanRecapModal({ visible, onClose, match, onShowPaywall }: S
                                 style={[styles.shareBtn, { backgroundColor: colors.primary }]}
                                 onPress={handleShare}
                             >
-                                <Share2 size={18} color="#ffffff" />
-                                <Text style={styles.shareBtnText}>Share Recap</Text>
+                                <Share2 size={18} color={colors.buttonPrimaryText} />
+                                <Text style={[styles.shareBtnText, { color: colors.buttonPrimaryText }]}>Share Recap</Text>
                             </TouchableOpacity>
 
                             {/* Generate another */}
@@ -237,7 +237,7 @@ export function SuperFanRecapModal({ visible, onClose, match, onShowPaywall }: S
                                             </Text>
                                             {isSelected && (
                                                 <View style={[styles.checkBadge, { backgroundColor: colors.primary }]}>
-                                                    <Star size={10} color="#ffffff" fill="#ffffff" />
+                                                    <Star size={10} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
                                                 </View>
                                             )}
                                         </TouchableOpacity>
@@ -264,15 +264,15 @@ export function SuperFanRecapModal({ visible, onClose, match, onShowPaywall }: S
                             >
                                 {isGenerating ? (
                                     <View style={styles.generatingRow}>
-                                        <ActivityIndicator color="#ffffff" size="small" />
-                                        <Text style={styles.generateBtnText}>Creating your recap...</Text>
+                                        <ActivityIndicator color={colors.buttonPrimaryText} size="small" />
+                                        <Text style={[styles.generateBtnText, { color: colors.buttonPrimaryText }]}>Creating your recap...</Text>
                                     </View>
                                 ) : (
                                     <View style={styles.generatingRow}>
-                                        <Sparkles size={18} color={selectedPlayerIds.length > 0 ? '#ffffff' : colors.buttonDisabledText} />
+                                        <Sparkles size={18} color={selectedPlayerIds.length > 0 ? colors.buttonPrimaryText : colors.buttonDisabledText} />
                                         <Text style={[
                                             styles.generateBtnText,
-                                            { color: selectedPlayerIds.length > 0 ? '#ffffff' : colors.buttonDisabledText }
+                                            { color: selectedPlayerIds.length > 0 ? colors.buttonPrimaryText : colors.buttonDisabledText }
                                         ]}>
                                             Generate Fan Recap
                                         </Text>

@@ -13,7 +13,7 @@ interface ScoreEditModalProps {
 
 export default function ScoreEditModal({ visible, teamName, currentScore, onClose, onSave }: ScoreEditModalProps) {
     const [tempScore, setTempScore] = useState('');
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
 
     useEffect(() => {
         if (visible) {
@@ -55,8 +55,9 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
-                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+            <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose}>
+                <TouchableOpacity activeOpacity={1}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <Text style={[styles.title, { color: colors.textSecondary }]}>Edit Score</Text>
                     <Text style={[styles.teamName, { color: colors.text }]}>{teamName}</Text>
 
@@ -94,11 +95,12 @@ export default function ScoreEditModal({ visible, teamName, currentScore, onClos
                             <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.actionBtn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-                            <Text style={styles.saveText}>Save</Text>
+                            <Text style={[styles.saveText, { color: colors.buttonPrimaryText }]}>Save</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
-            </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
         </Modal>
     );
 }

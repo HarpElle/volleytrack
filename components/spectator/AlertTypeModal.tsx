@@ -8,8 +8,7 @@
 
 import { AlertOctagon, BarChart3, X } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../../contexts/ThemeContext';
 
 interface AlertTypeModalProps {
@@ -33,20 +32,30 @@ export function AlertTypeModal({
     cooldownSeconds,
     recentAlertInfo,
 }: AlertTypeModalProps) {
-    const { colors, isDark } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const slideAnim = useRef(new Animated.Value(400)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (visible) {
-            slideAnim.setValue(400);
             setTimeout(() => {
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    tension: 80,
-                    friction: 12,
-                }).start();
+                Animated.parallel([
+                    Animated.spring(slideAnim, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 80,
+                        friction: 12,
+                    }),
+                    Animated.timing(opacityAnim, {
+                        toValue: 1,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
             }, 120);
+        } else {
+            slideAnim.setValue(400);
+            opacityAnim.setValue(0);
         }
     }, [visible]);
 
@@ -68,114 +77,108 @@ export function AlertTypeModal({
             statusBarTranslucent
             onRequestClose={onClose}
         >
-            <TouchableOpacity
-                style={styles.overlay}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                {Platform.OS === 'ios' && (
-                    <BlurView intensity={15} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                )}
-            </TouchableOpacity>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
-            <Animated.View style={[styles.sheet, { backgroundColor: colors.bgCard, transform: [{ translateY: slideAnim }] }]}>
-                {/* Handle bar */}
-                <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
+                <Animated.View style={[styles.sheet, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, transform: [{ translateY: slideAnim }], opacity: opacityAnim }]}>
+                    {/* Handle bar */}
+                    <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
 
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={[styles.headerTitle, { color: colors.text }]}>Alert the Coach</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={12}>
-                        <X size={22} color={colors.textSecondary} />
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Text style={[styles.headerTitle, { color: colors.text }]}>Alert the Coach</Text>
+                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
+                            <X size={22} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Alerts disabled by coach */}
+                    {!alertsAllowed && (
+                        <View style={[styles.disabledBanner, { backgroundColor: colors.bg }]}>
+                            <Text style={[styles.disabledText, { color: colors.textSecondary }]}>
+                                Alerts are turned off by the coach for this match.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Cooldown warning */}
+                    {alertsAllowed && !canSendAlert && cooldownSeconds > 0 && (
+                        <View style={[styles.cooldownBanner, { backgroundColor: `${colors.warning}15` }]}>
+                            <Text style={[styles.cooldownText, { color: colors.warning }]}>
+                                Please wait {cooldownSeconds}s before sending another alert.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Recent alert info */}
+                    {recentAlertInfo && (
+                        <View style={[styles.recentBanner, { backgroundColor: colors.primaryLight }]}>
+                            <Text style={[styles.recentText, { color: colors.textSecondary }]}>
+                                {recentAlertInfo.senderName} sent a {recentAlertInfo.type === 'score_correction' ? 'score check' : 'alert'} {recentAlertInfo.secondsAgo}s ago
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Score Check option */}
+                    <TouchableOpacity
+                        style={[
+                            styles.optionCard,
+                            {
+                                backgroundColor: colors.bg,
+                                borderColor: colors.border,
+                                opacity: (alertsAllowed && canSendAlert) ? 1 : 0.5,
+                            },
+                        ]}
+                        onPress={handleScoreCheck}
+                        disabled={!alertsAllowed || !canSendAlert}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.optionIcon, { backgroundColor: `${colors.primary}15` }]}>
+                            <BarChart3 size={24} color={colors.primary} />
+                        </View>
+                        <View style={styles.optionContent}>
+                            <Text style={[styles.optionTitle, { color: colors.text }]}>Score Check</Text>
+                            <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
+                                I think the score might be wrong
+                            </Text>
+                        </View>
                     </TouchableOpacity>
-                </View>
 
-                {/* Alerts disabled by coach */}
-                {!alertsAllowed && (
-                    <View style={[styles.disabledBanner, { backgroundColor: colors.bg }]}>
-                        <Text style={[styles.disabledText, { color: colors.textSecondary }]}>
-                            Alerts are turned off by the coach for this match.
-                        </Text>
-                    </View>
-                )}
+                    {/* Emergency Stop option */}
+                    <TouchableOpacity
+                        style={[
+                            styles.optionCard,
+                            {
+                                backgroundColor: colors.bg,
+                                borderColor: colors.border,
+                                opacity: (alertsAllowed && canSendAlert) ? 1 : 0.5,
+                            },
+                        ]}
+                        onPress={handleEmergencyStop}
+                        disabled={!alertsAllowed || !canSendAlert}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.optionIcon, { backgroundColor: `${colors.error}15` }]}>
+                            <AlertOctagon size={24} color={colors.error} />
+                        </View>
+                        <View style={styles.optionContent}>
+                            <Text style={[styles.optionTitle, { color: colors.text }]}>Emergency Stop</Text>
+                            <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
+                                Something unsafe — alert the coach now
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
 
-                {/* Cooldown warning */}
-                {alertsAllowed && !canSendAlert && cooldownSeconds > 0 && (
-                    <View style={[styles.cooldownBanner, { backgroundColor: `${colors.warning}15` }]}>
-                        <Text style={[styles.cooldownText, { color: colors.warning }]}>
-                            Please wait {cooldownSeconds}s before sending another alert.
-                        </Text>
-                    </View>
-                )}
-
-                {/* Recent alert info */}
-                {recentAlertInfo && (
-                    <View style={[styles.recentBanner, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.recentText, { color: colors.textSecondary }]}>
-                            {recentAlertInfo.senderName} sent a {recentAlertInfo.type === 'score_correction' ? 'score check' : 'alert'} {recentAlertInfo.secondsAgo}s ago
-                        </Text>
-                    </View>
-                )}
-
-                {/* Score Check option */}
-                <TouchableOpacity
-                    style={[
-                        styles.optionCard,
-                        {
-                            backgroundColor: colors.bg,
-                            borderColor: colors.border,
-                            opacity: (alertsAllowed && canSendAlert) ? 1 : 0.5,
-                        },
-                    ]}
-                    onPress={handleScoreCheck}
-                    disabled={!alertsAllowed || !canSendAlert}
-                    activeOpacity={0.7}
-                >
-                    <View style={[styles.optionIcon, { backgroundColor: `${colors.primary}15` }]}>
-                        <BarChart3 size={24} color={colors.primary} />
-                    </View>
-                    <View style={styles.optionContent}>
-                        <Text style={[styles.optionTitle, { color: colors.text }]}>Score Check</Text>
-                        <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-                            I think the score might be wrong
-                        </Text>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Emergency Stop option */}
-                <TouchableOpacity
-                    style={[
-                        styles.optionCard,
-                        {
-                            backgroundColor: colors.bg,
-                            borderColor: colors.border,
-                            opacity: (alertsAllowed && canSendAlert) ? 1 : 0.5,
-                        },
-                    ]}
-                    onPress={handleEmergencyStop}
-                    disabled={!alertsAllowed || !canSendAlert}
-                    activeOpacity={0.7}
-                >
-                    <View style={[styles.optionIcon, { backgroundColor: `${colors.error}15` }]}>
-                        <AlertOctagon size={24} color={colors.error} />
-                    </View>
-                    <View style={styles.optionContent}>
-                        <Text style={[styles.optionTitle, { color: colors.text }]}>Emergency Stop</Text>
-                        <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-                            Something unsafe — alert the coach now
-                        </Text>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Cancel button */}
-                <TouchableOpacity
-                    style={[styles.cancelBtn, { borderColor: colors.border }]}
-                    onPress={onClose}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-            </Animated.View>
+                    {/* Cancel button */}
+                    <TouchableOpacity
+                        style={[styles.cancelBtn, { borderColor: colors.border }]}
+                        onPress={onClose}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            </View>
         </Modal>
     );
 }
@@ -183,7 +186,10 @@ export function AlertTypeModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'flex-end',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
     },
     sheet: {
         borderTopLeftRadius: 24,

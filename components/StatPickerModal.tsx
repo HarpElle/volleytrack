@@ -27,7 +27,7 @@ export default function StatPickerModal({
     onSelect,
     onClose,
 }: StatPickerModalProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
 
     return (
         <Modal
@@ -41,7 +41,7 @@ export default function StatPickerModal({
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
 
                     {attribution && (
@@ -58,12 +58,12 @@ export default function StatPickerModal({
                         {options.map((option) => (
                             <TouchableOpacity
                                 key={option.value}
-                                style={[styles.optionBtn, option.color ? { backgroundColor: option.color } : { backgroundColor: colors.buttonSecondary }]}
+                                style={[styles.optionBtn, option.color ? { backgroundColor: option.color } : { backgroundColor: colors.buttonSecondary }, { shadowColor: colors.shadow }]}
                                 onPress={() => onSelect(option.value)}
                             >
-                                <Text style={styles.optionLabel}>{option.label}</Text>
+                                <Text style={[styles.optionLabel, { color: colors.buttonPrimaryText }]}>{option.label}</Text>
                                 {option.subLabel && (
-                                    <Text style={styles.optionSub}>{option.subLabel}</Text>
+                                    <Text style={[styles.optionSub, { color: colors.buttonPrimaryText }]}>{option.subLabel}</Text>
                                 )}
                             </TouchableOpacity>
                         ))}

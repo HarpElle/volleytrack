@@ -22,14 +22,14 @@ export default function ServeChoiceModal({
     suggestedServer,
     onChoose,
 }: ServeChoiceModalProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
 
     const isDecidingSet = currentSet === totalSets;
 
     return (
         <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-            <View style={styles.overlay}>
-                <View style={[styles.card, { backgroundColor: colors.bgCard }]}>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <Text style={[styles.title, { color: colors.text }]}>
                         Who Serves First?
                     </Text>
@@ -126,7 +126,6 @@ export default function ServeChoiceModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         padding: 24,
     },

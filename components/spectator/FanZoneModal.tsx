@@ -7,8 +7,9 @@
  */
 
 import { MessageCircle, Send, X } from 'lucide-react-native';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    Animated,
     FlatList,
     Keyboard,
     KeyboardAvoidingView,
@@ -57,6 +58,21 @@ export function FanZoneModal({
     const { colors, radius, spacing } = useAppTheme();
     const [inputText, setInputText] = useState('');
     const flatListRef = useRef<FlatList>(null);
+    const slideAnim = useRef(new Animated.Value(400)).current;
+
+    useEffect(() => {
+        if (visible) {
+            slideAnim.setValue(400);
+            setTimeout(() => {
+                Animated.spring(slideAnim, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    tension: 80,
+                    friction: 12,
+                }).start();
+            }, 120);
+        }
+    }, [visible]);
 
     const handleSend = async () => {
         const text = inputText.trim();
@@ -104,105 +120,107 @@ export function FanZoneModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide">
+        <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
             <KeyboardAvoidingView
                 style={styles.overlay}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 {/* Tap backdrop to close */}
-                <TouchableOpacity style={styles.backdropArea} activeOpacity={1} onPress={onClose} />
+                <TouchableOpacity style={[styles.backdropArea, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose} />
 
-                <View style={[styles.sheet, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <View style={styles.headerLeft}>
-                            <MessageCircle size={18} color={colors.primary} />
-                            <Text style={[styles.headerTitle, { color: colors.text }]}>Fan Zone</Text>
-                            <Text style={[styles.viewerBadge, { color: colors.textTertiary }]}>
-                                {viewerCount} {viewerCount === 1 ? 'fan' : 'fans'}
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose} hitSlop={12}>
-                            <X size={20} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Message list */}
-                    <FlatList
-                        ref={flatListRef}
-                        data={messages}
-                        keyExtractor={(item) => item.id}
-                        renderItem={renderMessage}
-                        style={styles.messageList}
-                        contentContainerStyle={styles.messageListContent}
-                        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                        ListEmptyComponent={
-                            <View style={styles.emptyState}>
-                                <Text style={[styles.emptyEmoji]}>🏐</Text>
-                                <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-                                    No messages yet — be the first to cheer!
+                <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+                    <View style={[styles.sheet, { backgroundColor: colors.bgCard, borderRadius: radius.xl, shadowColor: colors.shadow }]}>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <View style={styles.headerLeft}>
+                                <MessageCircle size={18} color={colors.primary} />
+                                <Text style={[styles.headerTitle, { color: colors.text }]}>Fan Zone</Text>
+                                <Text style={[styles.viewerBadge, { color: colors.textTertiary }]}>
+                                    {viewerCount} {viewerCount === 1 ? 'fan' : 'fans'}
                                 </Text>
                             </View>
-                        }
-                    />
+                            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
+                                <X size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* Quick-send chips */}
-                    <View style={[styles.quickRow, { borderTopColor: colors.border }]}>
-                        {QUICK_REACTIONS.map((r) => (
-                            <TouchableOpacity
-                                key={r.key}
+                        {/* Message list */}
+                        <FlatList
+                            ref={flatListRef}
+                            data={messages}
+                            keyExtractor={(item) => item.id}
+                            renderItem={renderMessage}
+                            style={styles.messageList}
+                            contentContainerStyle={styles.messageListContent}
+                            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                            ListEmptyComponent={
+                                <View style={styles.emptyState}>
+                                    <Text style={[styles.emptyEmoji]}>🏐</Text>
+                                    <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+                                        No messages yet — be the first to cheer!
+                                    </Text>
+                                </View>
+                            }
+                        />
+
+                        {/* Quick-send chips */}
+                        <View style={[styles.quickRow, { borderTopColor: colors.border }]}>
+                            {QUICK_REACTIONS.map((r) => (
+                                <TouchableOpacity
+                                    key={r.key}
+                                    style={[
+                                        styles.quickChip,
+                                        {
+                                            backgroundColor: colors.bg,
+                                            borderRadius: radius.sm,
+                                            opacity: canSend ? 1 : 0.5,
+                                        },
+                                    ]}
+                                    onPress={() => onSendQuickReaction(r.key)}
+                                    disabled={!canSend}
+                                    activeOpacity={0.6}
+                                >
+                                    <Text style={styles.quickEmoji}>{r.emoji}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Input row */}
+                        <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
+                            <TextInput
                                 style={[
-                                    styles.quickChip,
+                                    styles.input,
                                     {
+                                        color: colors.text,
                                         backgroundColor: colors.bg,
-                                        borderRadius: radius.sm,
-                                        opacity: canSend ? 1 : 0.5,
+                                        borderRadius: radius.md,
                                     },
                                 ]}
-                                onPress={() => onSendQuickReaction(r.key)}
-                                disabled={!canSend}
-                                activeOpacity={0.6}
+                                value={inputText}
+                                onChangeText={setInputText}
+                                placeholder="Say something..."
+                                placeholderTextColor={colors.textTertiary}
+                                maxLength={200}
+                                returnKeyType="send"
+                                onSubmitEditing={handleSend}
+                            />
+                            <TouchableOpacity
+                                style={[
+                                    styles.sendBtn,
+                                    {
+                                        backgroundColor: inputText.trim() && canSend ? colors.primary : colors.border,
+                                        borderRadius: radius.md,
+                                    },
+                                ]}
+                                onPress={handleSend}
+                                disabled={!inputText.trim() || !canSend}
+                                activeOpacity={0.7}
                             >
-                                <Text style={styles.quickEmoji}>{r.emoji}</Text>
+                                <Send size={18} color={inputText.trim() && canSend ? colors.buttonPrimaryText : colors.textTertiary} />
                             </TouchableOpacity>
-                        ))}
+                        </View>
                     </View>
-
-                    {/* Input row */}
-                    <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
-                        <TextInput
-                            style={[
-                                styles.input,
-                                {
-                                    color: colors.text,
-                                    backgroundColor: colors.bg,
-                                    borderRadius: radius.md,
-                                },
-                            ]}
-                            value={inputText}
-                            onChangeText={setInputText}
-                            placeholder="Say something..."
-                            placeholderTextColor={colors.textTertiary}
-                            maxLength={200}
-                            returnKeyType="send"
-                            onSubmitEditing={handleSend}
-                        />
-                        <TouchableOpacity
-                            style={[
-                                styles.sendBtn,
-                                {
-                                    backgroundColor: inputText.trim() && canSend ? colors.primary : colors.border,
-                                    borderRadius: radius.md,
-                                },
-                            ]}
-                            onPress={handleSend}
-                            disabled={!inputText.trim() || !canSend}
-                            activeOpacity={0.7}
-                        >
-                            <Send size={18} color={inputText.trim() && canSend ? '#fff' : colors.textTertiary} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                </Animated.View>
             </KeyboardAvoidingView>
         </Modal>
     );
@@ -215,7 +233,6 @@ const styles = StyleSheet.create({
     },
     backdropArea: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
     },
     sheet: {
         maxHeight: '70%',

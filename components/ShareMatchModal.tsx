@@ -40,7 +40,7 @@ export default function ShareMatchModal({
     broadcastSettings,
     onToggleAlerts,
 }: ShareMatchModalProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const [copied, setCopied] = useState<'code' | 'link' | null>(null);
 
     const deepLink = matchCode ? `volleytrack://spectate/${matchCode}` : '';
@@ -71,15 +71,16 @@ export default function ShareMatchModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
-                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <TouchableOpacity style={[styles.overlay, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose}>
+                <TouchableOpacity activeOpacity={1}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={[styles.title, { color: colors.text }]}>
                             {isBroadcasting ? 'Sharing Live' : 'Share This Match'}
                         </Text>
-                        <TouchableOpacity onPress={onClose} hitSlop={12}>
+                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }} accessibilityLabel="Close">
                             <X size={22} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
@@ -96,7 +97,7 @@ export default function ShareMatchModal({
                         <View style={styles.content}>
                             {/* Live indicator */}
                             <View style={styles.liveRow}>
-                                <View style={styles.liveDot} />
+                                <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
                                 <Text style={[styles.liveText, { color: colors.success }]}>Broadcasting</Text>
                             </View>
 
@@ -177,8 +178,8 @@ export default function ShareMatchModal({
                                     style={[styles.shareBtn, { backgroundColor: colors.primary }]}
                                     onPress={handleNativeShare}
                                 >
-                                    <Share2 size={18} color="#ffffff" style={{ marginRight: 8 }} />
-                                    <Text style={styles.shareBtnText}>Share</Text>
+                                    <Share2 size={18} color={colors.buttonPrimaryText} style={{ marginRight: 8 }} />
+                                    <Text style={[styles.shareBtnText, { color: colors.buttonPrimaryText }]}>Share</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -228,11 +229,11 @@ export default function ShareMatchModal({
                                 disabled={isStarting}
                             >
                                 {isStarting ? (
-                                    <ActivityIndicator color="#ffffff" size="small" />
+                                    <ActivityIndicator color={colors.buttonPrimaryText} size="small" />
                                 ) : (
                                     <>
-                                        <Radio size={20} color="#ffffff" style={{ marginRight: 8 }} />
-                                        <Text style={styles.startBtnText}>Start Sharing</Text>
+                                        <Radio size={20} color={colors.buttonPrimaryText} style={{ marginRight: 8 }} />
+                                        <Text style={[styles.startBtnText, { color: colors.buttonPrimaryText }]}>Start Sharing</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -243,7 +244,8 @@ export default function ShareMatchModal({
                         </View>
                     )}
                 </View>
-            </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
         </Modal>
     );
 }
