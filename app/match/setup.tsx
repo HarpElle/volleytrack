@@ -402,10 +402,10 @@ export default function MatchSetupScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+                <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
                     <View style={[styles.headerRow, { backgroundColor: colors.bgCard }]}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn} hitSlop={8}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn} hitSlop={8} accessibilityLabel="Go back" accessibilityRole="button">
                             <ArrowLeft size={24} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={[styles.headerTitle, { color: colors.text }]}>{params.matchId ? 'Edit Match' : 'New Match'}</Text>

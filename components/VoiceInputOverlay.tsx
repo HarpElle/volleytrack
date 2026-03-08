@@ -141,6 +141,8 @@ export function VoiceInputOverlay({
                                 <TouchableOpacity
                                     style={[styles.secondaryBtn, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}
                                     onPress={onCancel}
+                                    accessibilityLabel="Cancel recording"
+                                    accessibilityRole="button"
                                 >
                                     <X size={18} color={colors.textSecondary} />
                                     <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
@@ -148,6 +150,8 @@ export function VoiceInputOverlay({
                                 <TouchableOpacity
                                     style={[styles.primaryBtn, { backgroundColor: VOICE_COLORS.recording, borderRadius: radius.lg }]}
                                     onPress={onStopAndParse}
+                                    accessibilityLabel="Done recording"
+                                    accessibilityRole="button"
                                 >
                                     <MicOff size={18} color={colors.buttonPrimaryText} />
                                     <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Done</Text>
@@ -233,6 +237,8 @@ export function VoiceInputOverlay({
                                 <TouchableOpacity
                                     style={[styles.secondaryBtn, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}
                                     onPress={onRetry}
+                                    accessibilityLabel="Record again"
+                                    accessibilityRole="button"
                                 >
                                     <RefreshCw size={16} color={colors.textSecondary} />
                                     <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>Record Again</Text>
@@ -244,6 +250,8 @@ export function VoiceInputOverlay({
                                     ]}
                                     onPress={handleCommit}
                                     disabled={parsedActions.length === 0 || isCommitting}
+                                    accessibilityLabel={`Confirm ${parsedActions.length} actions`}
+                                    accessibilityRole="button"
                                 >
                                     {isCommitting ? (
                                         <ActivityIndicator size="small" color={colors.buttonPrimaryText} />
@@ -400,8 +408,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingVertical: 14,
-        borderRadius: 14,
+        height: 56,
+        borderRadius: 16,
     },
     primaryBtnText: {
         color: '#ffffff',
@@ -414,8 +422,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        paddingVertical: 14,
-        borderRadius: 14,
+        height: 44,
+        borderRadius: 16,
     },
     secondaryBtnText: {
         fontSize: 15,

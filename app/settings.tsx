@@ -37,6 +37,7 @@ import { FREE_AI_NARRATIVE_LIMIT, FREE_EXPORT_LIMIT } from '../constants/monetiz
 import { useAppTheme, type ThemePreference } from '../contexts/ThemeContext';
 import { useAuth } from '../services/firebase';
 import { presentCustomerCenter, restorePurchases } from '../services/revenuecat/RevenueCatService';
+import { useHaptics } from '../hooks/useHaptic';
 import { useDataStore } from '../store/useDataStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useSkipAuth } from './_layout';
@@ -53,6 +54,7 @@ export default function SettingsScreen() {
     const { setSkipAuth } = useSkipAuth();
     const { syncStatus, lastSyncedAt, syncError, syncWithCloud } = useDataStore();
     const { colors, spacing, fontSize, radius, preference, setPreference } = useAppTheme();
+    const haptics = useHaptics();
 
     // Subscription state
     const isPro = useSubscriptionStore((s) => s.isPro);
@@ -108,6 +110,7 @@ export default function SettingsScreen() {
     };
 
     const handleSignOut = () => {
+        haptics('warning');
         Alert.alert(
             'Sign Out',
             'Your local data will remain on this device. Sign back in to sync again.',
@@ -177,7 +180,7 @@ export default function SettingsScreen() {
         },
         card: {
             backgroundColor: colors.bgCard,
-            borderRadius: radius.md,
+            borderRadius: radius.lg,
             overflow: 'hidden' as const,
             shadowColor: colors.shadow,
             shadowOffset: { width: 0, height: 1 },
@@ -204,7 +207,7 @@ export default function SettingsScreen() {
         <SafeAreaView style={themed.container}>
             {/* Header */}
             <View style={themed.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back" accessibilityRole="button">
                     <ArrowLeft size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={themed.headerTitle}>Settings</Text>
@@ -230,7 +233,10 @@ export default function SettingsScreen() {
                                             borderRadius: radius.sm,
                                         },
                                     ]}
-                                    onPress={() => setPreference(opt.value)}
+                                    onPress={() => { haptics('medium'); setPreference(opt.value); }}
+                                    accessibilityRole="radio"
+                                    accessibilityState={{ selected: isActive }}
+                                    accessibilityLabel={`${opt.label} theme`}
                                 >
                                     <Icon
                                         size={20}

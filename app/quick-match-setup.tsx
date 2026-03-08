@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { useHaptics } from '../hooks/useHaptic';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
 import { LineupPosition, MatchConfig, Player } from '../types';
@@ -21,6 +22,7 @@ import { LineupPosition, MatchConfig, Player } from '../types';
 export default function QuickMatchSetup() {
     const router = useRouter();
     const { colors, spacing, radius } = useAppTheme();
+    const haptics = useHaptics();
     const { seasons } = useDataStore();
     const { setSetup } = useMatchStore();
 
@@ -102,6 +104,7 @@ export default function QuickMatchSetup() {
 
         setPlayers(prev => [...prev, newPlayer]);
         setPlayerInput('');
+        haptics('light');
     };
 
     // Batch add: parse multiple lines into players
@@ -161,6 +164,7 @@ export default function QuickMatchSetup() {
     };
 
     const handleStartMatch = () => {
+        haptics('success');
         // Create empty lineup positions — players assign themselves in the match UI
         const emptyLineup: LineupPosition[] = ([1, 2, 3, 4, 5, 6] as const).map(pos => ({
             position: pos,
@@ -188,6 +192,7 @@ export default function QuickMatchSetup() {
     };
 
     const handleJustPlay = () => {
+        haptics('success');
         setSetup(myTeamName, opponentName, config);
         router.push('/live');
     };
@@ -203,7 +208,7 @@ export default function QuickMatchSetup() {
             >
                 {/* Header */}
                 <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8}>
+                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8} accessibilityLabel="Go back" accessibilityRole="button">
                         <ArrowLeft size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: colors.text }]}>Quick Match</Text>
@@ -278,6 +283,9 @@ export default function QuickMatchSetup() {
                                     totalSets === 3 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
                                 ]}
                                 onPress={() => setTotalSets(3)}
+                                accessibilityRole="radio"
+                                accessibilityState={{ selected: totalSets === 3 }}
+                                accessibilityLabel="Best of 3"
                             >
                                 <Text style={[
                                     styles.formatText,
@@ -292,6 +300,9 @@ export default function QuickMatchSetup() {
                                     totalSets === 5 && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryLight },
                                 ]}
                                 onPress={() => setTotalSets(5)}
+                                accessibilityRole="radio"
+                                accessibilityState={{ selected: totalSets === 5 }}
+                                accessibilityLabel="Best of 5"
                             >
                                 <Text style={[
                                     styles.formatText,
@@ -381,6 +392,8 @@ export default function QuickMatchSetup() {
                                 style={[styles.addBtn, { backgroundColor: colors.primary }]}
                                 onPress={addPlayer}
                                 disabled={!playerInput.trim()}
+                                accessibilityLabel="Add player"
+                                accessibilityRole="button"
                             >
                                 <Plus size={20} color="#ffffff" />
                             </TouchableOpacity>
@@ -417,6 +430,8 @@ export default function QuickMatchSetup() {
                                             onPress={() => removePlayer(player.id)}
                                             hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                                             style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+                                            accessibilityLabel={`Remove player ${player.name || player.jerseyNumber}`}
+                                            accessibilityRole="button"
                                         >
                                             <Trash2 size={16} color={colors.textTertiary} />
                                         </TouchableOpacity>

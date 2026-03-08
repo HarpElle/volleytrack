@@ -11,6 +11,7 @@ import { useAppTheme } from '../contexts/ThemeContext';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { useAuth } from '../services/firebase';
 import { cleanupStaleBroadcasts } from '../services/firebase/liveMatchService';
+import { useHaptics } from '../hooks/useHaptic';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
@@ -23,6 +24,7 @@ export default function DashboardScreen() {
     const { user } = useAuth();
     const { colors, spacing, fontSize, radius } = useAppTheme();
 
+    const haptics = useHaptics();
     const isPro = useSubscriptionStore((s) => s.isPro);
     const canCreateSeason = useSubscriptionStore((s) => s.canCreateSeason);
     const [showPaywall, setShowPaywall] = useState(false);
@@ -147,6 +149,7 @@ export default function DashboardScreen() {
     });
 
     const handleQuickMatch = () => {
+        haptics('light');
         router.push('/quick-match-setup');
     };
 
@@ -163,6 +166,7 @@ export default function DashboardScreen() {
     };
 
     const handleSeasonPress = (id: string) => {
+        haptics('light');
         touchSeason(id);
         router.push({ pathname: '/season/[id]', params: { id } });
     };
@@ -252,6 +256,7 @@ export default function DashboardScreen() {
     })();
 
     const handleResumeMatch = () => {
+        haptics('light');
         router.push('/live');
     };
 
@@ -368,7 +373,13 @@ export default function DashboardScreen() {
                 <Text style={[styles.appName, themedStyles.appName]}>VolleyTrack</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                     {user && syncStatus && syncStatus !== 'idle' && (
-                        <TouchableOpacity onPress={handleSyncTap} hitSlop={8} disabled={syncStatus === 'syncing'}>
+                        <TouchableOpacity
+                            onPress={handleSyncTap}
+                            hitSlop={8}
+                            disabled={syncStatus === 'syncing'}
+                            accessibilityLabel={syncStatus === 'syncing' ? 'Syncing data' : syncStatus === 'synced' ? 'Data synced' : 'Sync error'}
+                            accessibilityRole="button"
+                        >
                             {syncStatus === 'syncing'
                                 ? <RefreshCw size={18} color={colors.primary} />
                                 : syncStatus === 'synced'
@@ -377,7 +388,12 @@ export default function DashboardScreen() {
                             }
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8}>
+                    <TouchableOpacity
+                        onPress={() => router.push('/settings')}
+                        hitSlop={8}
+                        accessibilityLabel="Settings"
+                        accessibilityRole="button"
+                    >
                         <Settings size={22} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
@@ -395,6 +411,9 @@ export default function DashboardScreen() {
                                         style={[styles.resumeMatchCard, { backgroundColor: colors.success }]}
                                         onPress={handleResumeMatch}
                                         activeOpacity={0.8}
+                                        accessibilityLabel={`Resume match: ${myTeamName} vs ${opponentName}`}
+                                        accessibilityHint="Swipe left for more options"
+                                        accessibilityRole="button"
                                     >
                                         <View style={styles.quickMatchContent}>
                                             <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />

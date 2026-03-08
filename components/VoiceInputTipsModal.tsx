@@ -100,7 +100,7 @@ export function VoiceInputTipsModal({ visible, onClose }: VoiceInputTipsModalPro
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={[styles.headerTitle, { color: colors.primary }]}>Voice Input Tips</Text>
-                        <TouchableOpacity onPress={onClose} hitSlop={8}>
+                        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Skip tips" accessibilityRole="button">
                             <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
                         </TouchableOpacity>
                     </View>

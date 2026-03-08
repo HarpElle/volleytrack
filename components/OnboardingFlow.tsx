@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { useHaptics } from '../hooks/useHaptic';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ONBOARDING_KEY = 'volleytrack-onboarding-seen';
@@ -42,6 +43,7 @@ interface Slide {
 
 export function OnboardingFlow({ onComplete }: OnboardingProps) {
     const { colors, spacing, radius, brand } = useAppTheme();
+    const haptics = useHaptics();
     const scrollRef = useRef<ScrollView>(null);
     const [activeIndex, setActiveIndex] = useState(0);
 
@@ -76,8 +78,9 @@ export function OnboardingFlow({ onComplete }: OnboardingProps) {
 
     const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+        if (index !== activeIndex) haptics('light');
         setActiveIndex(index);
-    }, []);
+    }, [activeIndex]);
 
     const handleNext = () => {
         if (isLastSlide) {
@@ -92,6 +95,7 @@ export function OnboardingFlow({ onComplete }: OnboardingProps) {
     };
 
     const markComplete = async () => {
+        haptics('success');
         await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
         onComplete();
     };
@@ -145,7 +149,7 @@ export function OnboardingFlow({ onComplete }: OnboardingProps) {
                 {/* Buttons */}
                 <View style={styles.buttonRow}>
                     {!isLastSlide && (
-                        <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
+                        <TouchableOpacity onPress={handleSkip} style={styles.skipBtn} accessibilityRole="button">
                             <Text style={[styles.skipText, { color: colors.textTertiary }]}>Skip</Text>
                         </TouchableOpacity>
                     )}
@@ -155,11 +159,13 @@ export function OnboardingFlow({ onComplete }: OnboardingProps) {
                             styles.nextBtn,
                             {
                                 backgroundColor: colors.buttonPrimary,
-                                borderRadius: radius.md,
+                                borderRadius: radius.lg,
                                 flex: isLastSlide ? 1 : undefined,
                             },
                         ]}
                         onPress={handleNext}
+                        accessibilityRole="button"
+                        accessibilityLabel={isLastSlide ? "Get Started" : "Next slide"}
                     >
                         <Text style={[styles.nextText, { color: colors.buttonPrimaryText }]}>
                             {isLastSlide ? "Get Started" : "Next"}

@@ -145,6 +145,8 @@ export default function SignInScreen() {
                             <TouchableOpacity
                                 style={styles.eyeBtn}
                                 onPress={() => setShowPassword(!showPassword)}
+                                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                                accessibilityRole="button"
                             >
                                 {showPassword
                                     ? <EyeOff size={20} color={colors.textTertiary} />
@@ -165,6 +167,8 @@ export default function SignInScreen() {
                         style={[themedStyles.primaryBtn, isDisabled && styles.primaryBtnDisabled]}
                         onPress={handleSignIn}
                         disabled={isDisabled}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sign in"
                     >
                         {loading ? (
                             <ActivityIndicator color={'#ffffff'} />
@@ -221,7 +225,7 @@ const styles = StyleSheet.create({
     },
     errorBanner: {
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 16,
         padding: 12,
         marginBottom: 16,
     },
@@ -265,8 +269,8 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     primaryBtn: {
-        borderRadius: 12,
-        paddingVertical: 16,
+        borderRadius: 16,
+        height: 56,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 8,
