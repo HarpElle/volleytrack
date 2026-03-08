@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Play, RefreshCw, Settings, Sparkles } from 'lucide-react-native';
+import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Flag, Play, RefreshCw, Settings, Sparkles, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../components/AdBanner';
 import { PaywallModal } from '../components/PaywallModal';
@@ -203,6 +205,58 @@ export default function DashboardScreen() {
         router.push('/live');
     };
 
+    // Swipe-to-reveal actions for Resume Match card
+    const SWIPE_ACTION_WIDTH = 160; // 2 buttons × 80px each
+    const swipeTranslateX = useSharedValue(0);
+
+    const handleEndMatch = () => {
+        swipeTranslateX.value = withSpring(0);
+        matchStore.finalizeMatch();
+        router.replace('/summary');
+    };
+
+    const handleDiscardMatch = () => {
+        swipeTranslateX.value = withSpring(0);
+        Alert.alert(
+            'Discard Match?',
+            'This will permanently discard all match data. This cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Discard',
+                    style: 'destructive',
+                    onPress: () => matchStore.resetMatch(),
+                },
+            ]
+        );
+    };
+
+    const resumePanGesture = Gesture.Pan()
+        .activeOffsetX([-10, 10])
+        .failOffsetY([-5, 5])
+        .onUpdate((e) => {
+            // Only allow swiping left (negative translationX), clamp to action width
+            swipeTranslateX.value = Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, e.translationX));
+        })
+        .onEnd((e) => {
+            // If swiped past halfway, snap open; otherwise snap closed
+            if (swipeTranslateX.value < -SWIPE_ACTION_WIDTH / 2) {
+                swipeTranslateX.value = withSpring(-SWIPE_ACTION_WIDTH, { damping: 20, stiffness: 200 });
+            } else {
+                swipeTranslateX.value = withSpring(0, { damping: 20, stiffness: 200 });
+            }
+        });
+
+    const resumeCardAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: swipeTranslateX.value }],
+    }));
+
+    const resumeActionsAnimatedStyle = useAnimatedStyle(() => ({
+        // Actions stay positioned at right edge, revealed as card slides left
+        width: -swipeTranslateX.value,
+        opacity: swipeTranslateX.value < -5 ? 1 : 0,
+    }));
+
     const themedStyles = {
         container: {
             backgroundColor: colors.bg,
@@ -280,18 +334,46 @@ export default function DashboardScreen() {
 
             <ScrollView contentContainerStyle={styles.content}>
 
-                {/* Resume Active Match - Priority 0 */}
+                {/* Resume Active Match - Priority 0, swipeable to End or Discard */}
                 {isMatchActive && (
-                    <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.resumeBtn, { marginBottom: 16 }]} onPress={handleResumeMatch}>
-                        <View style={styles.quickMatchContent}>
-                            <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
-                            <View>
-                                <Text style={[styles.quickMatchTitle, { color: colors.buttonPrimaryText }]}>Resume Match</Text>
-                                <Text style={[styles.quickMatchSub, { color: colors.buttonPrimaryText }]}>{myTeamName} vs {opponentName}</Text>
-                            </View>
-                        </View>
-                        <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
-                    </TouchableOpacity>
+                    <View style={{ marginBottom: 16, borderRadius: 16, overflow: 'hidden' }}>
+                        <GestureDetector gesture={resumePanGesture}>
+                            <Animated.View style={{ flexDirection: 'row' }}>
+                                <Animated.View style={[{ flex: 1 }, resumeCardAnimatedStyle]}>
+                                    <TouchableOpacity
+                                        style={[styles.resumeMatchCard, { backgroundColor: colors.success }]}
+                                        onPress={handleResumeMatch}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={styles.quickMatchContent}>
+                                            <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
+                                            <View>
+                                                <Text style={[styles.quickMatchTitle, { color: colors.buttonPrimaryText }]}>Resume Match</Text>
+                                                <Text style={[styles.quickMatchSub, { color: colors.buttonPrimaryText }]}>{myTeamName} vs {opponentName}</Text>
+                                            </View>
+                                        </View>
+                                        <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
+                                    </TouchableOpacity>
+                                </Animated.View>
+                                <Animated.View style={[styles.swipeActionsRow, { position: 'absolute', right: 0, top: 0, bottom: 0, overflow: 'hidden' }, resumeActionsAnimatedStyle]}>
+                                    <TouchableOpacity
+                                        style={[styles.swipeAction, { backgroundColor: colors.textSecondary }]}
+                                        onPress={handleEndMatch}
+                                    >
+                                        <Flag size={18} color="#fff" />
+                                        <Text style={styles.swipeActionText}>End</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.swipeAction, { backgroundColor: colors.error }]}
+                                        onPress={handleDiscardMatch}
+                                    >
+                                        <Trash2 size={18} color="#fff" />
+                                        <Text style={styles.swipeActionText}>Discard</Text>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            </Animated.View>
+                        </GestureDetector>
+                    </View>
                 )}
 
                 {/* Hero Action: Quick Match */}
@@ -511,6 +593,27 @@ const styles = StyleSheet.create({
     },
     actionLabel: {
         fontSize: 14,
+        fontWeight: '600',
+    },
+    resumeMatchCard: {
+        padding: 24,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    swipeActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'stretch',
+    },
+    swipeAction: {
+        width: 80,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 4,
+    },
+    swipeActionText: {
+        color: '#fff',
+        fontSize: 12,
         fontWeight: '600',
     },
     featureTourLink: {
