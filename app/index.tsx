@@ -295,13 +295,16 @@ export default function DashboardScreen() {
         opacity: swipeTranslateX.value < -5 ? 1 : 0,
     }));
 
-    // Pull-to-refresh handler
+    // Pull-to-refresh handler — minimum 600ms so the spinner is always visible
     const [refreshing, setRefreshing] = useState(false);
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
+        const minDelay = new Promise(resolve => setTimeout(resolve, 600));
         try {
             if (user?.uid) {
-                await syncWithCloud(user.uid);
+                await Promise.all([syncWithCloud(user.uid), minDelay]);
+            } else {
+                await minDelay;
             }
         } finally {
             setRefreshing(false);
