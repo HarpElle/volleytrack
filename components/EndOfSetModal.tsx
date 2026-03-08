@@ -27,7 +27,7 @@ export default function EndOfSetModal({
     onCorrectScore,
 }: EndOfSetModalProps) {
     const haptics = useHaptics();
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     const myScore = score.myTeam;
     const oppScore = score.opponent;
     const iWon = myScore > oppScore;
@@ -39,6 +39,8 @@ export default function EndOfSetModal({
     const setsToWin = Math.ceil(totalSets / 2);
     const isMatchFinished = myTotalWins >= setsToWin || oppTotalWins >= setsToWin;
 
+    const primaryLabel = isMatchFinished ? 'Finish Match' : 'Start Next Set';
+
     return (
         <Modal
             visible={visible}
@@ -47,7 +49,7 @@ export default function EndOfSetModal({
             statusBarTranslucent
         >
             <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
-                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <Text style={[styles.title, { color: colors.text }]}>Set {setNumber} Finished</Text>
 
                     <View style={styles.resultContainer}>
@@ -56,8 +58,8 @@ export default function EndOfSetModal({
                             <Text style={[styles.score, iWon && styles.winnerScore, { color: iWon ? colors.primary : colors.textSecondary }]}>{myScore}</Text>
                         </View>
                         <View style={styles.teamRow}>
-                            <Text style={[styles.teamName, !iWon && styles.winner, { color: !iWon ? colors.primary : colors.textSecondary }]}>{opponentName}</Text>
-                            <Text style={[styles.score, !iWon && styles.winnerScore, { color: !iWon ? colors.primary : colors.textSecondary }]}>{oppScore}</Text>
+                            <Text style={[styles.teamName, !iWon && styles.winner, { color: !iWon ? colors.opponent : colors.textSecondary }]}>{opponentName}</Text>
+                            <Text style={[styles.score, !iWon && styles.winnerScore, { color: !iWon ? colors.opponent : colors.textSecondary }]}>{oppScore}</Text>
                         </View>
                     </View>
 
@@ -67,20 +69,32 @@ export default function EndOfSetModal({
 
                     <View style={styles.actions}>
                         {/* Primary Flow Actions */}
-                        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.text }]} onPress={() => { onNextSet(); haptics('success'); }}>
-                            <Text style={[styles.primaryBtnText, { color: colors.bg }]}>
-                                {isMatchFinished ? 'Finish Match' : 'Start Next Set'}
+                        <TouchableOpacity
+                            style={[styles.primaryBtn, { backgroundColor: colors.primary, borderRadius: radius.md }]}
+                            onPress={() => { onNextSet(); haptics('success'); }}
+                            accessibilityLabel={primaryLabel}
+                        >
+                            <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>
+                                {primaryLabel}
                             </Text>
                         </TouchableOpacity>
 
                         {/* Secondary Corrections */}
                         <View style={styles.secondaryActions}>
-                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary }]} onPress={() => { onCorrectScore(); haptics('medium'); }}>
-                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Wait, Correct Score</Text>
+                            <TouchableOpacity
+                                style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary, borderRadius: radius.sm }]}
+                                onPress={() => { onCorrectScore(); haptics('medium'); }}
+                                accessibilityLabel="Correct Score"
+                            >
+                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Correct Score</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary }]} onPress={onNextSet}>
-                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Continue Set</Text>
+                            <TouchableOpacity
+                                style={[styles.smallBtn, { backgroundColor: colors.buttonSecondary, borderRadius: radius.sm }]}
+                                onPress={onNextSet}
+                                accessibilityLabel="Keep Playing"
+                            >
+                                <Text style={[styles.smallBtnText, { color: colors.textSecondary }]}>Keep Playing</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -93,16 +107,12 @@ export default function EndOfSetModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)', // Semi-transparent black
         justifyContent: 'center',
         padding: 24,
     },
     card: {
-        backgroundColor: '#fff',
-        borderRadius: 24,
         padding: 24,
         alignItems: 'center',
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 12,
@@ -111,7 +121,6 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#333',
         marginBottom: 24,
     },
     resultContainer: {
@@ -128,24 +137,18 @@ const styles = StyleSheet.create({
     teamName: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#666',
     },
     score: {
         fontSize: 28,
         fontWeight: '800',
-        color: '#666',
         fontVariant: ['tabular-nums'],
     },
     winner: {
-        color: '#0066cc',
         fontWeight: '800',
     },
-    winnerScore: {
-        color: '#0066cc',
-    },
+    winnerScore: {},
     winnerLabel: {
         fontSize: 16,
-        color: '#333',
         fontWeight: '600',
         marginBottom: 32,
     },
@@ -154,13 +157,10 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     primaryBtn: {
-        backgroundColor: '#333',
         paddingVertical: 16,
-        borderRadius: 12,
         alignItems: 'center',
     },
     primaryBtnText: {
-        color: '#fff',
         fontSize: 18,
         fontWeight: '700',
     },
@@ -172,11 +172,8 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 8,
     },
     smallBtnText: {
-        color: '#666',
         fontSize: 14,
         fontWeight: '600',
     },
