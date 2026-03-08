@@ -41,7 +41,7 @@ interface Slide {
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingProps) {
-    const { colors, spacing, radius, brand } = useAppTheme();
+    const { colors, spacing, radius, brand, shadows, isDark } = useAppTheme();
     const scrollRef = useRef<ScrollView>(null);
     const [activeIndex, setActiveIndex] = useState(0);
 
@@ -158,6 +158,7 @@ export function OnboardingFlow({ onComplete }: OnboardingProps) {
                                 borderRadius: radius.md,
                                 flex: isLastSlide ? 1 : undefined,
                             },
+                            shadows.md(isDark),
                         ]}
                         onPress={handleNext}
                     >
@@ -242,10 +243,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 32,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 4,
     },
     nextText: {
         fontSize: 16,

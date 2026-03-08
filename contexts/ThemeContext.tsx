@@ -25,6 +25,8 @@ import {
     brand,
     gray,
     semantic,
+    shadows,
+    buttonHeight,
     Fonts,
 } from '../constants/theme';
 
@@ -56,6 +58,10 @@ export interface AppTheme {
     spacing: typeof spacing;
     /** Border radius scale */
     radius: typeof radius;
+    /** Dark-mode adaptive shadow presets */
+    shadows: typeof shadows;
+    /** Standard button height tokens */
+    buttonHeight: typeof buttonHeight;
     /** Platform-specific font families */
     fonts: typeof Fonts;
     /** Update the theme preference */
@@ -112,6 +118,8 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
         fontWeight,
         spacing,
         radius,
+        shadows,
+        buttonHeight,
         fonts: Fonts,
         setPreference,
     };

@@ -37,7 +37,7 @@ function calculateStats(history: any[]) {
 export default function SummaryScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ matchId?: string; source?: 'spectator' | 'saved' }>();
-    const { colors, spacing, fontSize: themeFontSize, radius } = useAppTheme();
+    const { colors, spacing, fontSize: themeFontSize, radius, shadows, isDark } = useAppTheme();
     const { savedSpectatorMatches, savedMatches } = useDataStore();
 
     // Determine where data comes from (Store or Saved Record)
@@ -288,7 +288,7 @@ export default function SummaryScreen() {
             shadowColor: colors.ai,
         },
         socialBtnText: {
-            color: '#fff',
+            color: colors.textInverse,
         },
         modalContainer: {
             backgroundColor: colors.bg,
@@ -325,7 +325,7 @@ export default function SummaryScreen() {
                 <Text style={[styles.header, themedStyles.header]}>Match Summary</Text>
 
                 {/* Score Card */}
-                <View style={[styles.card, themedStyles.card]}>
+                <View style={[styles.card, themedStyles.card, shadows.md(isDark)]}>
                     <Text style={[styles.vsText, themedStyles.vsText]}>{myTeamName} vs {opponentName}</Text>
                     <View style={styles.scoreRow}>
                         <Text style={[styles.bigScore, wonMatch ? themedStyles.winnerScore : themedStyles.loserScore]}>
@@ -382,8 +382,8 @@ export default function SummaryScreen() {
                 />
 
                 {aiNarrative && (
-                    <TouchableOpacity style={[styles.socialBtn, themedStyles.socialBtn]} onPress={() => setShowShareModal(true)}>
-                        <Sparkles color="#fff" size={20} />
+                    <TouchableOpacity style={[styles.socialBtn, themedStyles.socialBtn, shadows.md(isDark)]} onPress={() => setShowShareModal(true)}>
+                        <Sparkles color={colors.textInverse} size={20} />
                         <Text style={[styles.socialBtnText, themedStyles.socialBtnText]}>Create Social Post</Text>
                     </TouchableOpacity>
                 )}
@@ -424,7 +424,7 @@ export default function SummaryScreen() {
                         style={[styles.actionBtn, themedStyles.successBtn]}
                         onPress={() => setShowStats(true)}
                     >
-                        <Text style={[styles.actionText, { color: '#fff' }]}>View Match Stats</Text>
+                        <Text style={[styles.actionText, { color: colors.textInverse }]}>View Match Stats</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn, themedStyles.secondaryBtn]} onPress={handleNewMatch}>
@@ -523,10 +523,6 @@ const styles = StyleSheet.create({
         borderRadius: 16, // radius.lg — standardized
         alignItems: 'center',
         marginBottom: 32,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 4,
     },
     vsText: {
         fontSize: 16,
@@ -636,9 +632,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 10,
         marginBottom: 24,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
     },
     socialBtnText: {
         fontSize: 16,

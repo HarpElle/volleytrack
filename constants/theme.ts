@@ -57,7 +57,7 @@ export const lightColors = {
     // Text
     text: '#111827',           // gray.900
     textSecondary: '#4b5563',  // gray.600
-    textTertiary: '#9ca3af',   // gray.400
+    textTertiary: '#6b7280',   // gray.500 — WCAG AA 4.5:1 on #f5f7fa
     textInverse: '#ffffff',
 
     // Borders & Dividers
@@ -200,7 +200,49 @@ export const spacing = {
     '3xl': 48,
 } as const;
 
+// ─── Shadows (dark-mode adaptive) ───────────────────────────────────────────
+
+export const shadows = {
+    sm: (isDark: boolean) => ({
+        shadowColor: isDark ? '#ffffff' : '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDark ? 0.06 : 0.03,
+        shadowRadius: 4,
+        elevation: isDark ? 2 : 1,
+    }),
+    md: (isDark: boolean) => ({
+        shadowColor: isDark ? '#ffffff' : '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: isDark ? 0.12 : 0.08,
+        shadowRadius: 12,
+        elevation: isDark ? 4 : 3,
+    }),
+    lg: (isDark: boolean) => ({
+        shadowColor: isDark ? '#ffffff' : '#000000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: isDark ? 0.16 : 0.12,
+        shadowRadius: 24,
+        elevation: isDark ? 8 : 6,
+    }),
+};
+
+// ─── Button Heights ─────────────────────────────────────────────────────────
+
+export const buttonHeight = {
+    sm: 36,
+    md: 44,
+    lg: 56,
+} as const;
+
 // ─── Border Radius ───────────────────────────────────────────────────────────
+//
+// Convention guide:
+//   Cards, modals, sheets:       radius.xl  (24)
+//   Inputs, secondary buttons:   radius.md  (12)
+//   Primary action buttons:      radius.lg  (16)
+//   Pills, badges, tags:         radius.full (9999)
+//   Small chips, controls:       radius.sm  (8)
+//
 
 export const radius = {
     sm: 8,

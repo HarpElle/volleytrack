@@ -76,7 +76,7 @@ export default function SignInScreen() {
         },
         primaryBtnText: {
             ...styles.primaryBtnText,
-            color: '#ffffff',
+            color: colors.buttonPrimaryText,
         },
         footerText: {
             ...styles.footerText,
@@ -167,10 +167,10 @@ export default function SignInScreen() {
                         disabled={isDisabled}
                     >
                         {loading ? (
-                            <ActivityIndicator color={'#ffffff'} />
+                            <ActivityIndicator color={colors.buttonPrimaryText} />
                         ) : (
                             <View style={styles.btnContent}>
-                                <LogIn size={20} color={'#ffffff'} />
+                                <LogIn size={20} color={colors.buttonPrimaryText} />
                                 <Text style={themedStyles.primaryBtnText}>Sign In</Text>
                             </View>
                         )}

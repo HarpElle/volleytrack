@@ -46,7 +46,7 @@ export default function ScoreBoard({
     onDecrement,
     readOnly = false
 }: ScoreBoardProps) {
-    const { colors } = useAppTheme();
+    const { colors, isDark, shadows } = useAppTheme();
     // Determine game state status
     let statusText = '';
     const myScore = score.myTeam;
@@ -126,7 +126,7 @@ export default function ScoreBoard({
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
+        <View style={[styles.container, { backgroundColor: colors.bgCard }, shadows.md(isDark)]}>
             {/* Set Pills Header */}
             <View style={styles.header}>
                 <View style={styles.pillsContainer}>
@@ -147,10 +147,10 @@ export default function ScoreBoard({
                         } else if (isCompleted && historyItem) {
                             if (historyItem.winner === 'myTeam') {
                                 pillStyle = [styles.pill, styles.pillWonMy, { backgroundColor: colors.primary }];
-                                textStyle = [styles.pillText, styles.pillTextActive, { color: '#ffffff' }];
+                                textStyle = [styles.pillText, styles.pillTextActive, { color: colors.textInverse }];
                             } else {
                                 pillStyle = [styles.pill, styles.pillWonOpp, { backgroundColor: colors.opponent }];
-                                textStyle = [styles.pillText, styles.pillTextActive, { color: '#ffffff' }];
+                                textStyle = [styles.pillText, styles.pillTextActive, { color: colors.textInverse }];
                             }
                         } else if (setNum > currentSet) {
                             pillStyle = [styles.pill, styles.pillFuture, { backgroundColor: colors.bg, borderColor: colors.border }];
@@ -295,10 +295,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 16,
         marginBottom: 16,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 4,
     },
     header: {
         alignItems: 'center',
