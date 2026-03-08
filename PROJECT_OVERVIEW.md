@@ -491,7 +491,7 @@ VolleyTrack/
 │   ├── SubstituteModalContent.tsx
 │   ├── ShareMatchModal.tsx     # Export/share match
 │   ├── ServeChoiceModal.tsx    # Pre-match serve selection
-│   ├── MatchSettingsModal.tsx
+│   ├── MatchMenuModal.tsx
 │   ├── ScoreEditModal.tsx      # Manual score adjustment
 │   ├── EditLogEntryModal.tsx   # Edit past stat
 │   ├── FullLogModal.tsx        # Complete match history
