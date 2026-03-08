@@ -21,7 +21,7 @@ export default function DashboardScreen() {
     const { seasons, savedMatches, events, touchSeason, syncStatus, syncWithCloud } = useDataStore();
     const matchStore = useMatchStore();
     const { user } = useAuth();
-    const { colors, spacing, fontSize, radius } = useAppTheme();
+    const { colors, spacing, fontSize, radius, shadows, isDark } = useAppTheme();
 
     const isPro = useSubscriptionStore((s) => s.isPro);
     const canCreateSeason = useSubscriptionStore((s) => s.canCreateSeason);
@@ -209,7 +209,7 @@ export default function DashboardScreen() {
         return (
             <TouchableOpacity
                 key={match.id}
-                style={[styles.matchCard, { backgroundColor: colors.bgCard }]}
+                style={[styles.matchCard, { backgroundColor: colors.bgCard }, shadows.sm(isDark)]}
                 onPress={handlePress}
             >
                 <View style={styles.matchLeft}>
@@ -406,7 +406,7 @@ export default function DashboardScreen() {
                                                 ) : null}
                                             </View>
                                         </View>
-                                        <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
+                                        <ChevronRight size={24} color={colors.textInverse + '99'} />
                                     </TouchableOpacity>
                                 </Animated.View>
                                 <Animated.View style={[styles.swipeActionsRow, { position: 'absolute', right: 0, top: 0, bottom: 0, overflow: 'hidden' }, resumeActionsAnimatedStyle]}>
@@ -414,15 +414,15 @@ export default function DashboardScreen() {
                                         style={[styles.swipeAction, { backgroundColor: colors.textSecondary }]}
                                         onPress={handleEndMatch}
                                     >
-                                        <Flag size={18} color="#fff" />
-                                        <Text style={styles.swipeActionText}>End</Text>
+                                        <Flag size={18} color={colors.textInverse} />
+                                        <Text style={[styles.swipeActionText, { color: colors.textInverse }]}>End</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.swipeAction, { backgroundColor: colors.error }]}
                                         onPress={handleDiscardMatch}
                                     >
-                                        <Trash2 size={18} color="#fff" />
-                                        <Text style={styles.swipeActionText}>Discard</Text>
+                                        <Trash2 size={18} color={colors.textInverse} />
+                                        <Text style={[styles.swipeActionText, { color: colors.textInverse }]}>Discard</Text>
                                     </TouchableOpacity>
                                 </Animated.View>
                             </Animated.View>
@@ -431,7 +431,7 @@ export default function DashboardScreen() {
                 )}
 
                 {/* Hero Action: Quick Match */}
-                <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.quickMatchBtn]} onPress={handleQuickMatch}>
+                <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.quickMatchBtn, shadows.lg(isDark)]} onPress={handleQuickMatch}>
                     <View style={styles.quickMatchContent}>
                         <Play size={32} color={colors.buttonPrimaryText} fill={colors.buttonPrimaryText} />
                         <View>
@@ -439,7 +439,7 @@ export default function DashboardScreen() {
                             <Text style={[styles.quickMatchSub, themedStyles.quickMatchSub]}>Score only or full lineup</Text>
                         </View>
                     </View>
-                    <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
+                    <ChevronRight size={24} color={colors.textInverse + '99'} />
                 </TouchableOpacity>
 
                 {/* Secondary Action: Watch Live Match */}
@@ -472,7 +472,7 @@ export default function DashboardScreen() {
                         {sortedSeasons.map(season => (
                             <TouchableOpacity
                                 key={season.id}
-                                style={[styles.seasonCard, themedStyles.seasonCard]}
+                                style={[styles.seasonCard, themedStyles.seasonCard, shadows.sm(isDark)]}
                                 onPress={() => handleSeasonPress(season.id)}
                             >
                                 <Text style={[styles.seasonName, themedStyles.seasonName]}>{season.name}</Text>
@@ -600,10 +600,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 16,
-        elevation: 8,
         marginBottom: 16,
     },
     quickMatchContent: {
@@ -631,11 +627,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 8,
-        elevation: 2,
     },
     iconBox: {
         width: 48,
@@ -672,7 +663,6 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     swipeActionText: {
-        color: '#fff',
         fontSize: 12,
         fontWeight: '600',
     },
@@ -718,11 +708,6 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 12,
         marginRight: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
         borderLeftWidth: 4,
     },
     seasonName: {
@@ -784,11 +769,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-        elevation: 1,
     },
     matchLeft: {
         gap: 4,
@@ -815,7 +795,6 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     resultText: {
-        color: '#fff',
         fontSize: 10,
         fontWeight: '800',
         textTransform: 'uppercase',

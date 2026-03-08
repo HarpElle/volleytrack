@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
+import { ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -13,6 +13,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
@@ -20,7 +21,7 @@ import { LineupPosition, MatchConfig, Player } from '../types';
 
 export default function QuickMatchSetup() {
     const router = useRouter();
-    const { colors, spacing, radius } = useAppTheme();
+    const { colors, spacing, radius, shadows, isDark } = useAppTheme();
     const { seasons } = useDataStore();
     const { setSetup } = useMatchStore();
 
@@ -202,13 +203,7 @@ export default function QuickMatchSetup() {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 {/* Header */}
-                <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8}>
-                        <ArrowLeft size={24} color={colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: colors.text }]}>Quick Match</Text>
-                    <View style={{ width: 50 }} />
-                </View>
+                <ScreenHeader title="Quick Match" onBack={() => router.back()} />
 
                 <ScrollView
                     contentContainerStyle={styles.content}
@@ -216,7 +211,7 @@ export default function QuickMatchSetup() {
                 >
                     {/* Just Score Button */}
                     <TouchableOpacity
-                        style={[styles.justPlayBtn, { backgroundColor: colors.buttonPrimary }]}
+                        style={[styles.justPlayBtn, { backgroundColor: colors.buttonPrimary }, shadows.md(isDark)]}
                         onPress={handleJustPlay}
                         activeOpacity={0.8}
                     >
@@ -360,8 +355,8 @@ export default function QuickMatchSetup() {
                                     onPress={() => addPlayersFromText(bulkInput)}
                                     disabled={!bulkInput.trim()}
                                 >
-                                    <Plus size={18} color="#ffffff" />
-                                    <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 15 }}>Add All</Text>
+                                    <Plus size={18} color={colors.buttonPrimaryText} />
+                                    <Text style={{ color: colors.buttonPrimaryText, fontWeight: '700', fontSize: 15 }}>Add All</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
@@ -382,7 +377,7 @@ export default function QuickMatchSetup() {
                                 onPress={addPlayer}
                                 disabled={!playerInput.trim()}
                             >
-                                <Plus size={20} color="#ffffff" />
+                                <Plus size={20} color={colors.buttonPrimaryText} />
                             </TouchableOpacity>
                         </View>
                         )}
@@ -439,7 +434,7 @@ export default function QuickMatchSetup() {
                     {/* Start Match (with roster) */}
                     {players.length > 0 && (
                         <TouchableOpacity
-                            style={[styles.startBtn, { backgroundColor: colors.buttonPrimary }]}
+                            style={[styles.startBtn, { backgroundColor: colors.buttonPrimary }, shadows.md(isDark)]}
                             onPress={handleStartMatch}
                             activeOpacity={0.8}
                         >
@@ -461,18 +456,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-    },
     content: {
         padding: 20,
     },
@@ -482,10 +465,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
     },
     justPlayContent: {
         flexDirection: 'row',
@@ -665,10 +644,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
     },
     startBtnText: {
         fontSize: 18,

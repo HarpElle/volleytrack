@@ -497,6 +497,7 @@ VolleyTrack/
 │   ├── FullLogModal.tsx        # Complete match history
 │   ├── EndOfSetModal.tsx       # Set completion confirmation
 │   ├── OnboardingFlow.tsx      # First-launch tutorial
+│   ├── ScreenHeader.tsx        # Reusable screen header (back/close + title)
 │   ├── VoiceInputOverlay.tsx   # Voice recording/confirmation modal
 │   ├── VoiceActionCard.tsx     # Parsed voice action card (confirmation list)
 │   ├── VoiceInputTipsModal.tsx # First-use voice tips/guidance

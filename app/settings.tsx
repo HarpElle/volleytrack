@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import {
-    ArrowLeft,
     ChevronRight,
     Cloud,
     CloudOff,
@@ -33,6 +32,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PaywallModal } from '../components/PaywallModal';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { FREE_AI_NARRATIVE_LIMIT, FREE_EXPORT_LIMIT } from '../constants/monetization';
 import { useAppTheme, type ThemePreference } from '../contexts/ThemeContext';
 import { useAuth } from '../services/firebase';
@@ -150,21 +150,6 @@ export default function SettingsScreen() {
     // Dynamic styles based on theme
     const themed = {
         container: { flex: 1, backgroundColor: colors.bg } as const,
-        header: {
-            flexDirection: 'row' as const,
-            alignItems: 'center' as const,
-            justifyContent: 'space-between' as const,
-            paddingHorizontal: spacing.base,
-            paddingVertical: spacing.md,
-            backgroundColor: colors.headerBg,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.headerBorder,
-        },
-        headerTitle: {
-            fontSize: fontSize.lg,
-            fontWeight: '700' as const,
-            color: colors.text,
-        },
         sectionLabel: {
             fontSize: fontSize.sm,
             fontWeight: '600' as const,
@@ -203,13 +188,7 @@ export default function SettingsScreen() {
     return (
         <SafeAreaView style={themed.container}>
             {/* Header */}
-            <View style={themed.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <ArrowLeft size={24} color={colors.text} />
-                </TouchableOpacity>
-                <Text style={themed.headerTitle}>Settings</Text>
-                <View style={{ width: 40 }} />
-            </View>
+            <ScreenHeader title="Settings" onBack={() => router.back()} />
 
             <ScrollView style={{ flex: 1, padding: spacing.lg }}>
                 {/* Appearance Section */}
@@ -472,9 +451,6 @@ export default function SettingsScreen() {
 
 // Static styles (layout-only, no colors)
 const styles = StyleSheet.create({
-    backBtn: {
-        padding: 8,
-    },
     profileRow: {
         flexDirection: 'row',
         alignItems: 'center',
