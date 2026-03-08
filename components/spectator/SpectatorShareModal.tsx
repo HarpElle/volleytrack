@@ -8,8 +8,9 @@
 
 import * as Clipboard from 'expo-clipboard';
 import { Copy, Share2, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    Animated,
     Modal,
     Share,
     StyleSheet,
@@ -35,6 +36,21 @@ export function SpectatorShareModal({
 }: SpectatorShareModalProps) {
     const { colors, radius, spacing, isDark } = useAppTheme();
     const [copied, setCopied] = useState(false);
+    const slideAnim = useRef(new Animated.Value(400)).current;
+
+    useEffect(() => {
+        if (visible) {
+            slideAnim.setValue(400);
+            setTimeout(() => {
+                Animated.spring(slideAnim, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    tension: 80,
+                    friction: 12,
+                }).start();
+            }, 120);
+        }
+    }, [visible]);
 
     const deepLink = `volleytrack://spectate/${matchCode}`;
 
@@ -63,9 +79,14 @@ export function SpectatorShareModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide">
-            <View style={styles.overlay}>
-                <View style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
+        <Modal visible={visible} transparent animationType="fade">
+            <TouchableOpacity
+                style={styles.overlay}
+                activeOpacity={1}
+                onPress={onClose}
+            >
+                <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={[styles.title, { color: colors.text }]}>
@@ -142,8 +163,9 @@ export function SpectatorShareModal({
                             Copy Invite Message
                         </Text>
                     </TouchableOpacity>
-                </View>
-            </View>
+                </TouchableOpacity>
+                </Animated.View>
+            </TouchableOpacity>
         </Modal>
     );
 }
@@ -151,7 +173,7 @@ export function SpectatorShareModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'flex-end',
     },
     modal: {

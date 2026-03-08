@@ -202,6 +202,7 @@ export default function ScoreBoard({
                         <TouchableOpacity
                             onPress={() => servingTeam !== 'myTeam' && onToggleServe()}
                             disabled={servingTeam === 'myTeam'}
+                            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                             style={[
                                 styles.serveIndicator,
                                 servingTeam === 'myTeam' ? [styles.serveIndicatorActiveMy, { backgroundColor: colors.primary }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
@@ -233,6 +234,7 @@ export default function ScoreBoard({
                         <TouchableOpacity
                             onPress={() => servingTeam !== 'opponent' && onToggleServe()}
                             disabled={servingTeam === 'opponent'}
+                            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                             style={[
                                 styles.serveIndicator,
                                 servingTeam === 'opponent' ? [styles.serveIndicatorActiveOpp, { backgroundColor: colors.opponent }] : [styles.serveIndicatorInactive, { backgroundColor: colors.border }]
@@ -347,21 +349,29 @@ const styles = StyleSheet.create({
     },
     useToBtn: {
         backgroundColor: '#e6f0ff',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        minWidth: 44,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     useToBtnOpp: {
         backgroundColor: '#ffe6ea',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        minWidth: 44,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     useToBtnDisabled: {
         backgroundColor: '#f5f5f5',
     },
     useToText: {
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: '700',
         color: '#333',
     },

@@ -10,13 +10,15 @@ import LineupTracker from '../../components/LineupTracker';
 import { PaywallModal } from '../../components/PaywallModal';
 import { ReactionFloater } from '../../components/ReactionFloater';
 import ScoreBoard from '../../components/ScoreBoard';
-import CheerMeter from '../../components/spectator/CheerMeter';
+import { ActivityFanZoneToggle, ContentTab } from '../../components/spectator/ActivityFanZoneToggle';
+import { AlertTypeModal } from '../../components/spectator/AlertTypeModal';
 import { EmergencyAlertModal } from '../../components/spectator/EmergencyAlertModal';
-import { FanZoneModal } from '../../components/spectator/FanZoneModal';
+import { FanZoneInline } from '../../components/spectator/FanZoneInline';
 import { PlayerSetSummary } from '../../components/spectator/PlayerSetSummary';
 import { ProudMomentCard } from '../../components/spectator/ProudMomentCard';
 import { ReactionDrawer } from '../../components/spectator/ReactionDrawer';
 import { ScoreCorrectionModal } from '../../components/spectator/ScoreCorrectionModal';
+import { SpectatorQuickGuide } from '../../components/spectator/SpectatorQuickGuide';
 import { SpectatorShareModal } from '../../components/spectator/SpectatorShareModal';
 // Phase 3 components (Enhancements 6 & 9)
 import { BetweenSetsView } from '../../components/spectator/BetweenSetsView';
@@ -124,16 +126,17 @@ export default function SpectateScreen() {
     const [showFullLog, setShowFullLog] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
     const [showLobby, setShowLobby] = useState(false);
-    const [showMeter, setShowMeter] = useState(false);
 
     // Phase 1 modal states
+    const [showAlertTypeModal, setShowAlertTypeModal] = useState(false);
     const [showScoreCorrection, setShowScoreCorrection] = useState(false);
     const [showEmergencyAlert, setShowEmergencyAlert] = useState(false);
     const [showShare, setShowShare] = useState(false);
 
     // Phase 2 states
     const [showReactionDrawer, setShowReactionDrawer] = useState(false);
-    const [showFanZone, setShowFanZone] = useState(false);
+    const [activeContentTab, setActiveContentTab] = useState<ContentTab>('activity');
+    const [showQuickGuide, setShowQuickGuide] = useState(false);
 
     // Proud Moment Card state (Enhancement 7)
     const [proudMoment, setProudMoment] = useState<{
@@ -326,13 +329,25 @@ export default function SpectateScreen() {
         setShowScoreCorrection(true);
     };
 
+    // Alert feedback state
+    const [alertFeedback, setAlertFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const alertFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showAlertFeedback = (type: 'success' | 'error', message: string) => {
+        if (alertFeedbackTimerRef.current) clearTimeout(alertFeedbackTimerRef.current);
+        setAlertFeedback({ type, message });
+        alertFeedbackTimerRef.current = setTimeout(() => setAlertFeedback(null), 3000);
+    };
+
     const handleScoreCorrectionSubmit = async (suggestedScore: Score, message?: string) => {
         const success = await interactions.sendAlert('score_correction', {
             suggestedScore,
             message,
         });
         if (success) {
-            Alert.alert('Sent', 'The coach has been notified with the score details.');
+            showAlertFeedback('success', 'Score check sent to coach');
+        } else {
+            showAlertFeedback('error', 'Couldn\'t send alert. Try again.');
         }
     };
 
@@ -343,7 +358,9 @@ export default function SpectateScreen() {
     const handleEmergencySubmit = async (message: string) => {
         const success = await interactions.sendAlert('emergency', { message });
         if (success) {
-            Alert.alert('Alert Sent', 'The coach has been notified urgently.');
+            showAlertFeedback('success', 'Emergency alert sent to coach');
+        } else {
+            showAlertFeedback('error', 'Couldn\'t send alert. Try again.');
         }
     };
 
@@ -471,7 +488,7 @@ export default function SpectateScreen() {
             </View>
 
             <FlatList
-                data={recentEvents}
+                data={activeContentTab === 'activity' ? recentEvents : []}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.scrollContent}
                 ListHeaderComponent={
@@ -542,24 +559,17 @@ export default function SpectateScreen() {
                             />
                         )}
 
-                        <View style={styles.setContext}>
-                            <Text style={[styles.setContextText, { color: colors.textTertiary }]}>
-                                Set {state.currentSet} of {state.config.totalSets}
-                                {state.servingTeam === 'myTeam' ? ` · ${state.myTeamName} serving` : ` · ${state.opponentName} serving`}
-                            </Text>
-                            {/* Point streak indicator (Enhancement 6) — inline to avoid pushing layout */}
-                            {showStreak && !isMatchEnded && !isBetweenSets && (
-                                <View style={[styles.streakBadge, { backgroundColor: `${streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent}15` }]}>
-                                    <Text style={[styles.streakText, { color: streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent }]}>
-                                        {streak.team === 'myTeam' ? '🔥' : '⚡'} {streak.count} straight!
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
+                        {/* Point streak indicator (Enhancement 6) */}
+                        {showStreak && !isMatchEnded && !isBetweenSets && (
+                            <View style={[styles.streakBadge, { backgroundColor: `${streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent}15` }]}>
+                                <Text style={[styles.streakText, { color: streak.team === 'myTeam' ? colors.momentumPositive : colors.opponent }]}>
+                                    {streak.team === 'myTeam' ? '🔥' : '⚡'} {streak.count} straight!
+                                </Text>
+                            </View>
+                        )}
 
                         {state.currentRotation && state.currentRotation.length > 0 && !isMatchEnded && (
                             <View style={[styles.lineupCard, { backgroundColor: colors.bgCard, shadowColor: colors.shadow }]}>
-                                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Lineup</Text>
                                 <LineupTracker
                                     rotation={state.currentRotation}
                                     roster={state.myTeamRoster}
@@ -570,10 +580,30 @@ export default function SpectateScreen() {
                             </View>
                         )}
 
-                        {recentEvents.length > 0 && (
-                            <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 16, marginBottom: 8 }]}>
-                                Recent Activity
-                            </Text>
+                        {/* Activity / Fan Zone toggle */}
+                        <ActivityFanZoneToggle
+                            activeTab={activeContentTab}
+                            onTabChange={(tab) => {
+                                setActiveContentTab(tab);
+                                if (tab === 'fan-zone') {
+                                    fanChat.setIsOpen(true);
+                                } else {
+                                    fanChat.setIsOpen(false);
+                                }
+                            }}
+                            unreadCount={activeContentTab === 'activity' ? fanChat.unreadCount : 0}
+                        />
+
+                        {/* Fan Zone inline (replaces modal) */}
+                        {activeContentTab === 'fan-zone' && (
+                            <FanZoneInline
+                                messages={fanChat.messages}
+                                viewerCount={interactions.viewerCount}
+                                canSend={fanChat.canSend}
+                                currentDeviceId={interactions.deviceId}
+                                onSendMessage={fanChat.sendMessage}
+                                onSendQuickReaction={fanChat.sendQuickReaction}
+                            />
                         )}
                     </>
                 }
@@ -637,25 +667,6 @@ export default function SpectateScreen() {
             <AdBanner />
             <ReactionFloater reactions={incomingReactions} />
 
-            {showMeter && (
-                <TouchableOpacity
-                    style={styles.meterBackdrop}
-                    activeOpacity={1}
-                    onPress={() => setShowMeter(false)}
-                >
-                    <View style={styles.meterOverlay}>
-                        <TouchableOpacity
-                            style={[styles.meterCloseBtn, { backgroundColor: colors.bgCard }]}
-                            onPress={() => setShowMeter(false)}
-                            hitSlop={12}
-                        >
-                            <Text style={[styles.meterCloseText, { color: colors.textSecondary }]}>✕</Text>
-                        </TouchableOpacity>
-                        <CheerMeter onCheerPulse={interactions.sendCheerLevel} />
-                    </View>
-                </TouchableOpacity>
-            )}
-
             {/* Proud Moment Card (Enhancement 7) */}
             {proudMoment && state && (
                 <ProudMomentCard
@@ -680,6 +691,25 @@ export default function SpectateScreen() {
                 }}
             />
 
+            {/* First-time quick guide */}
+            <SpectatorQuickGuide
+                onboardingComplete={interactions.isProfileSet}
+                forceShow={showQuickGuide}
+                onDismiss={() => setShowQuickGuide(false)}
+            />
+
+            {/* Alert feedback banner */}
+            {alertFeedback && (
+                <View style={[
+                    styles.alertFeedback,
+                    { backgroundColor: alertFeedback.type === 'success' ? '#16a34a' : '#dc2626' }
+                ]}>
+                    <Text style={styles.alertFeedbackText}>
+                        {alertFeedback.type === 'success' ? '✓ ' : '✕ '}{alertFeedback.message}
+                    </Text>
+                </View>
+            )}
+
             {/* Spectator Reaction Bar */}
             <SpectatorReactionBar
                 viewerCount={interactions.viewerCount}
@@ -688,27 +718,35 @@ export default function SpectateScreen() {
                 canSendCheer={interactions.canSendCheer}
                 canSendAlert={interactions.canSendAlert}
                 alertCooldownRemaining={interactions.alertCooldownRemaining}
-                matchCode={code || ''}
-                chatUnreadCount={fanChat.unreadCount}
+                isMatchEnded={isMatchEnded}
                 onCheer={handleCheer}
-                onReaction={interactions.sendReaction}
-                onScoreAlert={handleScoreAlert}
-                onEmergencyAlert={handleEmergencyAlert}
-                onFanRecap={() => setShowFanRecap(true)}
                 onOpenLobby={() => setShowLobby(true)}
-                onOpenShare={() => setShowShare(true)}
-                onOpenFanZone={() => {
-                    fanChat.setIsOpen(true);
-                    setShowFanZone(true);
-                }}
                 onOpenReactionDrawer={() => setShowReactionDrawer(!showReactionDrawer)}
-                onToggleMeter={() => setShowMeter(!showMeter)}
-                isMeterVisible={showMeter}
+                onOpenAlertModal={() => setShowAlertTypeModal(true)}
+                onFanRecap={() => {
+                    if (!isMatchEnded && !isBetweenSets) {
+                        showAlertFeedback('success', 'Recaps available when the match ends!');
+                        return;
+                    }
+                    setShowFanRecap(true);
+                }}
+                onOpenQuickGuide={() => setShowQuickGuide(true)}
                 alertsAllowed={interactions.alertsAllowed}
                 recentAlertInfo={interactions.recentAlertInfo}
             />
 
             {/* Modals */}
+            <AlertTypeModal
+                visible={showAlertTypeModal}
+                onClose={() => setShowAlertTypeModal(false)}
+                onScoreCheck={() => setShowScoreCorrection(true)}
+                onEmergencyStop={() => setShowEmergencyAlert(true)}
+                alertsAllowed={interactions.alertsAllowed}
+                canSendAlert={interactions.canSendAlert}
+                cooldownSeconds={Math.ceil(interactions.alertCooldownRemaining / 1000)}
+                recentAlertInfo={interactions.recentAlertInfo}
+            />
+
             <ScoreCorrectionModal
                 visible={showScoreCorrection}
                 onClose={() => setShowScoreCorrection(false)}
@@ -736,20 +774,6 @@ export default function SpectateScreen() {
                 teamName={state.myTeamName}
             />
 
-            <FanZoneModal
-                visible={showFanZone}
-                onClose={() => {
-                    setShowFanZone(false);
-                    fanChat.setIsOpen(false);
-                }}
-                messages={fanChat.messages}
-                viewerCount={interactions.viewerCount}
-                canSend={fanChat.canSend}
-                currentDeviceId={interactions.deviceId}
-                onSendMessage={fanChat.sendMessage}
-                onSendQuickReaction={fanChat.sendQuickReaction}
-            />
-
             {summaryPlayer && setForSummary && (
                 <PlayerSetSummary
                     visible={!!summaryPlayer}
@@ -771,6 +795,7 @@ export default function SpectateScreen() {
                 viewers={interactions.viewers}
                 roster={state.myTeamRoster}
                 currentViewerId={interactions.deviceId}
+                onShare={() => setShowShare(true)}
             />
 
             <SuperFanRecapModal
@@ -878,14 +903,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '800',
     },
-    setContext: {
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    setContextText: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
     lineupCard: {
         borderRadius: 16,
         padding: 16,
@@ -947,38 +964,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    meterBackdrop: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        zIndex: 99,
-        justifyContent: 'flex-end',
-        paddingBottom: 80,
+    alertFeedback: {
+        alignSelf: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        marginBottom: 4,
     },
-    meterOverlay: {
-        marginHorizontal: 16,
-        alignItems: 'center',
-        zIndex: 100,
-    },
-    meterCloseBtn: {
-        alignSelf: 'flex-end',
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    meterCloseText: {
-        fontSize: 16,
+    alertFeedbackText: {
+        color: '#ffffff',
+        fontSize: 13,
         fontWeight: '700',
-    }
+    },
 });

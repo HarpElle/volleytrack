@@ -1,8 +1,9 @@
 import { BlurView } from 'expo-blur';
-import { User, X } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import React from 'react';
 import { FlatList, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { SpectatorAvatar } from './spectator/SpectatorAvatar';
 import { Player, SpectatorViewer } from '../types';
 
 interface SpectatorLobbyModalProps {
@@ -11,9 +12,10 @@ interface SpectatorLobbyModalProps {
     viewers: SpectatorViewer[];
     roster: Player[];
     currentViewerId: string;
+    onShare?: () => void;
 }
 
-export function SpectatorLobbyModal({ visible, onClose, viewers, roster, currentViewerId }: SpectatorLobbyModalProps) {
+export function SpectatorLobbyModal({ visible, onClose, viewers, roster, currentViewerId, onShare }: SpectatorLobbyModalProps) {
     const { colors, isDark } = useAppTheme();
 
     const getCheeringText = (playerIds?: string[]) => {
@@ -32,9 +34,12 @@ export function SpectatorLobbyModal({ visible, onClose, viewers, roster, current
 
         return (
             <View style={[styles.viewerRow, { borderBottomColor: colors.border }]}>
-                <View style={[styles.avatar, { backgroundColor: isMe ? colors.primary : colors.border }]}>
-                    <User size={20} color={isMe ? '#fff' : colors.textSecondary} />
-                </View>
+                <SpectatorAvatar
+                    name={item.name}
+                    size="md"
+                    highlight={isMe}
+                    highlightColor={colors.primary}
+                />
                 <View style={styles.viewerInfo}>
                     <Text style={[styles.viewerName, { color: colors.text }]}>
                         {item.name} {isMe && '(You)'}
@@ -79,6 +84,20 @@ export function SpectatorLobbyModal({ visible, onClose, viewers, roster, current
                         keyExtractor={item => item.deviceId}
                         renderItem={renderItem}
                         contentContainerStyle={styles.listContent}
+                        ListFooterComponent={onShare ? (
+                            <TouchableOpacity
+                                style={[styles.shareCta, { borderColor: colors.border }]}
+                                onPress={() => {
+                                    onClose();
+                                    onShare();
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.shareCtaText, { color: colors.primary }]}>
+                                    👋 Invite more fans to watch
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
                     />
                 </View>
             </View>
@@ -142,13 +161,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: StyleSheet.hairlineWidth,
         gap: 12,
     },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    /* avatar sizing handled by SpectatorAvatar component */
     viewerInfo: {
         flex: 1,
     },
@@ -159,5 +172,16 @@ const styles = StyleSheet.create({
     },
     cheeringText: {
         fontSize: 13,
+    },
+    shareCta: {
+        marginTop: 16,
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    shareCtaText: {
+        fontSize: 15,
+        fontWeight: '600',
     },
 });

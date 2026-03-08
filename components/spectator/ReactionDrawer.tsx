@@ -3,7 +3,9 @@
  *
  * Slides up from the bottom bar with two grouped sections:
  * "Volleyball" (sport-specific) and "Hype" (generic celebratory).
- * Auto-closes after 4s of no interaction.
+ *
+ * Backdrop fades in first, then the drawer slides up (staggered).
+ * Auto-closes after 10s of no interaction.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -44,26 +46,55 @@ interface ReactionDrawerProps {
 
 export function ReactionDrawer({ visible, onClose, onReaction }: ReactionDrawerProps) {
     const { colors, radius } = useAppTheme();
+    const backdropAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(0)).current;
     const autoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [sentKey, setSentKey] = useState<string | null>(null);
+    const [shouldRender, setShouldRender] = useState(false);
 
-    // Slide animation
+    // Staggered animation: backdrop fades first, then drawer slides
     useEffect(() => {
-        Animated.spring(slideAnim, {
-            toValue: visible ? 1 : 0,
-            useNativeDriver: true,
-            tension: 120,
-            friction: 14,
-        }).start();
+        if (visible) {
+            setShouldRender(true);
+            // Backdrop fades in
+            Animated.timing(backdropAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start(() => {
+                // Then drawer slides up
+                Animated.spring(slideAnim, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                    tension: 120,
+                    friction: 14,
+                }).start();
+            });
+        } else {
+            // Drawer slides down first
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+            }).start(() => {
+                // Then backdrop fades out
+                Animated.timing(backdropAnim, {
+                    toValue: 0,
+                    duration: 120,
+                    useNativeDriver: true,
+                }).start(() => {
+                    setShouldRender(false);
+                });
+            });
+        }
     }, [visible]);
 
-    // Auto-close after 4s of no interaction
+    // Auto-close after 10s of no interaction
     const resetAutoClose = useCallback(() => {
         if (autoCloseTimer.current) clearTimeout(autoCloseTimer.current);
         autoCloseTimer.current = setTimeout(() => {
             onClose();
-        }, 4000);
+        }, 10000);
     }, [onClose]);
 
     useEffect(() => {
@@ -89,12 +120,7 @@ export function ReactionDrawer({ visible, onClose, onReaction }: ReactionDrawerP
         outputRange: [250, 0],
     });
 
-    const opacity = slideAnim.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [0, 0.5, 1],
-    });
-
-    if (!visible) return null;
+    if (!shouldRender) return null;
 
     const renderReactionGrid = (reactions: ReactionOption[]) => (
         <View style={styles.grid}>
@@ -121,11 +147,16 @@ export function ReactionDrawer({ visible, onClose, onReaction }: ReactionDrawerP
     return (
         <>
             {/* Backdrop */}
-            <TouchableOpacity
-                style={styles.backdrop}
-                activeOpacity={1}
-                onPress={onClose}
-            />
+            <Animated.View
+                style={[styles.backdrop, { opacity: backdropAnim }]}
+                pointerEvents={visible ? 'auto' : 'none'}
+            >
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={onClose}
+                />
+            </Animated.View>
 
             <Animated.View
                 style={[
@@ -135,7 +166,6 @@ export function ReactionDrawer({ visible, onClose, onReaction }: ReactionDrawerP
                         borderColor: colors.border,
                         borderRadius: radius.lg,
                         transform: [{ translateY }],
-                        opacity,
                     },
                 ]}
             >
@@ -154,6 +184,7 @@ export function ReactionDrawer({ visible, onClose, onReaction }: ReactionDrawerP
 const styles = StyleSheet.create({
     backdrop: {
         ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.4)',
         zIndex: 900,
     },
     drawer: {

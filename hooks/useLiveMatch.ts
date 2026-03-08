@@ -122,22 +122,21 @@ export function useLiveMatch() {
      * Subscribe to the interactions subdoc for spectator alerts & viewer count.
      * This is a SEPARATE document from the match state, so spectator writes
      * (presence, cheers, alerts) don't contend with the coach's state pushes.
+     *
+     * IMPORTANT: Alerts are processed IMMEDIATELY on every snapshot (no throttle)
+     * because coaches need to see them fast. Viewer count is throttled to reduce
+     * unnecessary re-renders during high-activity moments.
      */
     useEffect(() => {
         if (!isBroadcasting || !matchCode) return;
 
-        // Throttle processing of interactions updates (coach doesn't need real-time)
-        let lastProcessed = 0;
-        const INTERACTIONS_THROTTLE_MS = 5000; // Process at most once every 5 seconds
-        let pendingData: any = null;
-        let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+        // Throttle only viewer count updates (not alerts)
+        let lastViewerUpdate = 0;
+        const VIEWER_THROTTLE_MS = 5000;
+        let pendingViewerCount: number | null = null;
+        let viewerTimer: ReturnType<typeof setTimeout> | null = null;
 
-        const processInteractions = (data: any) => {
-            // Always update viewer count
-            const spectators = data.spectators || {};
-            setViewerCount(Object.keys(spectators).length);
-
-            // Only process alerts if coach has them enabled
+        const processAlerts = (data: any) => {
             if (!broadcastSettingsRef.current.allowSpectatorAlerts) return;
 
             const alerts = data.spectatorAlerts || [];
@@ -146,32 +145,42 @@ export function useLiveMatch() {
             );
 
             if (newAlerts.length > 0) {
+                logger.info('[LiveMatch] New spectator alerts received:', newAlerts.length);
                 setPendingAlerts(prev => [...prev, ...newAlerts]);
                 newAlerts.forEach((a: SpectatorAlert) => seenAlertIdsRef.current.add(a.id));
+            }
+        };
+
+        const processViewerCount = (data: any) => {
+            const spectators = data.spectators || {};
+            const count = Object.keys(spectators).length;
+            const now = Date.now();
+
+            if (now - lastViewerUpdate >= VIEWER_THROTTLE_MS) {
+                lastViewerUpdate = now;
+                setViewerCount(count);
+            } else {
+                pendingViewerCount = count;
+                if (!viewerTimer) {
+                    viewerTimer = setTimeout(() => {
+                        viewerTimer = null;
+                        if (pendingViewerCount !== null) {
+                            lastViewerUpdate = Date.now();
+                            setViewerCount(pendingViewerCount);
+                            pendingViewerCount = null;
+                        }
+                    }, VIEWER_THROTTLE_MS - (now - lastViewerUpdate));
+                }
             }
         };
 
         const unsubscribe = subscribeInteractions(
             matchCode,
             (data) => {
-                const now = Date.now();
-                if (now - lastProcessed >= INTERACTIONS_THROTTLE_MS) {
-                    lastProcessed = now;
-                    processInteractions(data);
-                } else {
-                    // Defer processing
-                    pendingData = data;
-                    if (!throttleTimer) {
-                        throttleTimer = setTimeout(() => {
-                            throttleTimer = null;
-                            if (pendingData) {
-                                lastProcessed = Date.now();
-                                processInteractions(pendingData);
-                                pendingData = null;
-                            }
-                        }, INTERACTIONS_THROTTLE_MS - (now - lastProcessed));
-                    }
-                }
+                // Always process alerts immediately — no throttle
+                processAlerts(data);
+                // Throttle viewer count updates
+                processViewerCount(data);
             },
             (_err) => {
                 // Silently handle — coach is still writing, so connection should be fine
@@ -180,7 +189,7 @@ export function useLiveMatch() {
 
         return () => {
             unsubscribe();
-            if (throttleTimer) clearTimeout(throttleTimer);
+            if (viewerTimer) clearTimeout(viewerTimer);
         };
     }, [isBroadcasting, matchCode]);
 

@@ -234,6 +234,13 @@ export interface MatchState {
   // Serve Tracking
   firstServerPerSet?: Record<number, Team>; // Who served first in each set (for alternating suggestions)
 
+  // Lineup Carryover (set by startNextSet, consumed by UI prompt)
+  lineupCarryover?: {
+    sourceSet: number;
+    wasRotated: boolean;
+    rotationDirection?: 'forward' | 'backward';
+  } | null;
+
   // Actions
   setSetup: (myTeam: string, opponent: string, config: MatchConfig, seasonId?: string, eventId?: string, matchId?: string, lineups?: Record<number, LineupPosition[]>, roster?: Player[]) => void;
   updateMatchSettings: (matchId: string, myTeam: string, opponent: string, config: MatchConfig, lineups?: Record<number, LineupPosition[]>) => void;
@@ -257,6 +264,7 @@ export interface MatchState {
   // Rotation Actions
   rotate: (direction?: 'forward' | 'backward', roster?: Player[]) => void;
   substitute: (position: number, player: Player, isLibero?: boolean) => void;
+  clearRotation: () => void;
 
   // Analysis Helpers
   getRotationStats: () => void; // Placeholder or helper getter

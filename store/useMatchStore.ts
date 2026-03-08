@@ -398,59 +398,74 @@ export const useMatchStore = create<MatchState>()(
                     const nextSetVal = state.currentSet + 1;
                     let nextRotation = state.lineups?.[nextSetVal];
 
-                    // Cascade Lineup Lookup: Try current set, then look back
+                    // Cascade Lineup Lookup: Try formal lineups first, then fall back to live rotation
+                    let carryoverSource: 'lineup' | 'rotation' | null = null;
                     if (!nextRotation) {
+                        // 1. Check formal lineups (set during match setup)
                         for (let i = nextSetVal - 1; i >= 1; i--) {
                             if (state.lineups?.[i]) {
-                                // Clone the previous lineup to avoid reference issues
                                 nextRotation = [...state.lineups[i]];
-
-                                // INTELLIGENT AUTO-ROTATE
-                                // Check who served first in the PREVIOUS set (the one just finished)
-                                const prevFirstServer = state.firstServerPerSet?.[state.currentSet];
-
-                                if (prevFirstServer) {
-                                    // If we served first last time, we are likely RECEIVING first now.
-                                    // Standard practice: Rotate BACKWARD one spot so P1 moves to P2, 
-                                    // ready to rotate into serving position after the first side-out.
-                                    if (prevFirstServer === 'myTeam') {
-                                        nextRotation = nextRotation.map(slot => {
-                                            let newPos = slot.position;
-                                            // Backward: 1->2, 2->3, 3->4, 4->5, 5->6, 6->1
-                                            if (slot.position === 6) newPos = 1;
-                                            else if (slot.position === 5) newPos = 6;
-                                            else if (slot.position === 4) newPos = 5;
-                                            else if (slot.position === 3) newPos = 4;
-                                            else if (slot.position === 2) newPos = 3;
-                                            else if (slot.position === 1) newPos = 2;
-                                            return { ...slot, position: newPos as any };
-                                        });
-                                    }
-                                    // If opponent served first last time, we are likely SERVING first now.
-                                    // Standard practice: Rotate FORWARD one spot (restore serving lineup).
-                                    else if (prevFirstServer === 'opponent') {
-                                        nextRotation = nextRotation.map(slot => {
-                                            let newPos = slot.position;
-                                            // Forward: 1->6, 6->5, 5->4, 4->3, 3->2, 2->1
-                                            if (slot.position === 1) newPos = 6;
-                                            else if (slot.position === 6) newPos = 5;
-                                            else if (slot.position === 5) newPos = 4;
-                                            else if (slot.position === 4) newPos = 3;
-                                            else if (slot.position === 3) newPos = 2;
-                                            else if (slot.position === 2) newPos = 1;
-                                            return { ...slot, position: newPos as any };
-                                        });
-                                    }
-                                }
+                                carryoverSource = 'lineup';
                                 break;
+                            }
+                        }
+
+                        // 2. Fall back to the live currentRotation (Quick Match or
+                        //    when lineups were never formally set but players were
+                        //    assigned during the set via the court grid)
+                        if (!nextRotation && state.currentRotation && state.currentRotation.some(p => p.playerId)) {
+                            nextRotation = state.currentRotation.map(slot => ({ ...slot }));
+                            carryoverSource = 'rotation';
+                        }
+
+                        // INTELLIGENT AUTO-ROTATE (applies to any carried-over lineup)
+                        if (nextRotation) {
+                            const prevFirstServer = state.firstServerPerSet?.[state.currentSet];
+
+                            if (prevFirstServer) {
+                                // If we served first last time, we are likely RECEIVING first now.
+                                // Rotate BACKWARD one spot so P1 moves to P2.
+                                if (prevFirstServer === 'myTeam') {
+                                    nextRotation = nextRotation.map(slot => {
+                                        let newPos = slot.position;
+                                        if (slot.position === 6) newPos = 1;
+                                        else if (slot.position === 5) newPos = 6;
+                                        else if (slot.position === 4) newPos = 5;
+                                        else if (slot.position === 3) newPos = 4;
+                                        else if (slot.position === 2) newPos = 3;
+                                        else if (slot.position === 1) newPos = 2;
+                                        return { ...slot, position: newPos as any };
+                                    });
+                                }
+                                // If opponent served first last time, we are likely SERVING first now.
+                                // Rotate FORWARD one spot.
+                                else if (prevFirstServer === 'opponent') {
+                                    nextRotation = nextRotation.map(slot => {
+                                        let newPos = slot.position;
+                                        if (slot.position === 1) newPos = 6;
+                                        else if (slot.position === 6) newPos = 5;
+                                        else if (slot.position === 5) newPos = 4;
+                                        else if (slot.position === 4) newPos = 3;
+                                        else if (slot.position === 3) newPos = 2;
+                                        else if (slot.position === 2) newPos = 1;
+                                        return { ...slot, position: newPos as any };
+                                    });
+                                }
                             }
                         }
                     }
                     const finalRotation = nextRotation || [];
 
+                    // Track carryover metadata so the UI can show a confirmation prompt
+                    const wasCarriedOver = carryoverSource !== null && !!nextRotation && nextRotation.some(p => p.playerId);
+                    const carryoverSourceSet = wasCarriedOver ? state.currentSet : null;
+
                     // Predict next server (alternating pattern)
                     const prevServer = state.firstServerPerSet?.[state.currentSet];
                     const likelyNextServer = prevServer === 'myTeam' ? 'opponent' : 'myTeam';
+
+                    // Determine rotation direction for carryover info
+                    const rotationDir = prevServer === 'myTeam' ? 'backward' : prevServer === 'opponent' ? 'forward' : undefined;
 
                     return {
                         currentSet: nextSetVal,
@@ -478,7 +493,13 @@ export const useMatchStore = create<MatchState>()(
                         firstServerPerSet: {
                             ...state.firstServerPerSet,
                             [nextSetVal]: likelyNextServer
-                        }
+                        },
+                        // Lineup carryover metadata (consumed by UI for confirmation prompt)
+                        lineupCarryover: wasCarriedOver ? {
+                            sourceSet: carryoverSourceSet ?? state.currentSet,
+                            wasRotated: !!rotationDir,
+                            rotationDirection: rotationDir,
+                        } : null,
                     };
                 });
             },
@@ -803,9 +824,20 @@ export const useMatchStore = create<MatchState>()(
                         newSubPairs[player.id] = playerOutId;
                     }
 
-                    // Decrement sub count unless Libero OR if filling empty slot (no playerOutId)
+                    // Pre-score check: if no points have been scored this set,
+                    // treat any sub as a lineup adjustment (no sub consumed).
+                    const setIdx = state.currentSet - 1;
+                    const currentScore = state.scores[setIdx];
+                    const isPreScore = currentScore
+                        ? currentScore.myTeam === 0 && currentScore.opponent === 0
+                        : true;
+
+                    // Decrement sub count unless:
+                    // - Libero swap
+                    // - Filling empty slot (no playerOutId)
+                    // - Pre-score lineup adjustment (0-0)
                     let newSubsRemaining = { ...state.subsRemaining };
-                    if (!isLiberoSwap && playerOutId) {
+                    if (!isLiberoSwap && playerOutId && !isPreScore) {
                         const teamKey = isMyTeam ? 'myTeam' : 'opponent';
                         newSubsRemaining[teamKey] = Math.max(0, newSubsRemaining[teamKey] - 1);
                     }
@@ -814,13 +846,16 @@ export const useMatchStore = create<MatchState>()(
                     const subMetadata: any = {
                         subIn: player.id,
                         subOut: playerOutId,
-                        subConsumed: (!isLiberoSwap && !!playerOutId && playerOutId !== player.id)
+                        subConsumed: (!isLiberoSwap && !!playerOutId && playerOutId !== player.id && !isPreScore)
                     };
 
-                    // If filling an empty slot, mark as assignment (not a real substitution)
+                    // If filling an empty slot or pre-score adjustment, mark as assignment
                     if (!playerOutId) {
                         subMetadata.isAssignment = true;
                         subMetadata.notes = `Assigned #${player.jerseyNumber} ${player.name} to P${position}`;
+                    } else if (isPreScore) {
+                        subMetadata.isAssignment = true;
+                        subMetadata.notes = `Pre-score lineup change: swapped in #${player.jerseyNumber} ${player.name} at P${position}`;
                     }
 
                     get().recordStat('substitution', isMyTeam ? 'myTeam' : 'opponent', undefined, subMetadata);
@@ -831,6 +866,22 @@ export const useMatchStore = create<MatchState>()(
                         subPairs: newSubPairs,
                         subsRemaining: newSubsRemaining
                     };
+                });
+            },
+
+            clearRotation: () => {
+                set({
+                    currentRotation: [
+                        { position: 1, playerId: null, isLibero: false },
+                        { position: 2, playerId: null, isLibero: false },
+                        { position: 3, playerId: null, isLibero: false },
+                        { position: 4, playerId: null, isLibero: false },
+                        { position: 5, playerId: null, isLibero: false },
+                        { position: 6, playerId: null, isLibero: false },
+                    ],
+                    liberoIds: [],
+                    nonLiberoDesignations: [],
+                    subPairs: {},
                 });
             },
 

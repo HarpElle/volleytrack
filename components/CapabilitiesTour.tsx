@@ -54,7 +54,7 @@ export function CapabilitiesTour({ onClose }: CapabilitiesTourProps) {
             iconColor: '#22c55e', // Success Green
             title: 'Level Up: Game Management',
             description: 'Track rotations, substitutions, and timeouts to keep your team organized.',
-            proTip: 'Tap "Subs" to quickly swap players or assign a Libero tracker.',
+            proTip: 'Long-press any player on the court to substitute them or assign a Libero.',
         },
         {
             icon: Zap,
@@ -75,7 +75,7 @@ export function CapabilitiesTour({ onClose }: CapabilitiesTourProps) {
             iconColor: '#f59e0b', // Amber
             title: 'Voice Input: Hands-Free Tracking',
             description: 'Tap the mic and speak your rally actions. Say "number 3 with the kill" and VolleyTrack logs it for you.',
-            proTip: 'Speak clearly, use jersey numbers, and keep recordings to 1-3 actions for best results. Pro feature with 3 free matches to try!',
+            proTip: 'Use jersey numbers for best accuracy (e.g. "number 12 ace"). Names work too, but watch out if two players share a name! Pro feature with 3 free matches to try.',
         },
     ];
 

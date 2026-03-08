@@ -112,7 +112,7 @@ export const darkColors: AppThemeColors = {
     // Text
     text: '#e6edf3',
     textSecondary: '#8b949e',
-    textTertiary: '#484f58',
+    textTertiary: '#6e7681',
     textInverse: '#0d1117',
 
     // Borders & Dividers
@@ -134,7 +134,7 @@ export const darkColors: AppThemeColors = {
     buttonSecondary: '#21262d',
     buttonSecondaryText: '#e6edf3',
     buttonDisabled: '#21262d',
-    buttonDisabledText: '#484f58',
+    buttonDisabledText: '#6e7681',
 
     // Status
     ...semantic,
@@ -152,7 +152,7 @@ export const darkColors: AppThemeColors = {
     inputBg: '#0d1117',
     inputBorder: '#30363d',
     shadow: '#000000',
-    placeholder: '#484f58',
+    placeholder: '#6e7681',
     link: '#6dd5ff',
     tabBar: '#161b22',
 };

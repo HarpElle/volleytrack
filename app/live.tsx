@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../components/AdBanner';
 import { CoachAlertToast } from '../components/CoachAlertToast';
 import EndOfSetModal from '../components/EndOfSetModal';
+import LineupCarryoverModal from '../components/LineupCarryoverModal';
 import FullLogModal from '../components/FullLogModal';
 import LineupTracker from '../components/LineupTracker';
 import { MatchErrorBoundary } from '../components/MatchErrorBoundary';
@@ -95,10 +96,10 @@ function LiveScreen() {
         timeoutsRemaining, subsRemaining,
         useTimeout: callTimeout, useSub, startNextSet, finalizeMatch, config,
         history, setHistory, servingTeam, setServingTeam, rallyState,
-        currentRotation, rotate, substitute, activeSeasonId,
+        currentRotation, rotate, substitute, clearRotation, activeSeasonId,
         subPairs, nonLiberoDesignations, designateNonLibero,
         firstServerPerSet, setFirstServer, adjustStartingRotation,
-        myTeamRoster,
+        myTeamRoster, lineupCarryover,
     } = useMatchStore();
 
     // Get Roster — use season roster if available, otherwise fall back to Quick Match roster
@@ -273,6 +274,9 @@ function LiveScreen() {
     // Serve Choice Modal
     const [showServeChoice, setShowServeChoice] = useState(false);
 
+    // Lineup Carryover Modal
+    const [showLineupCarryover, setShowLineupCarryover] = useState(false);
+
     // Show serve choice modal at the start of each set (when no events exist for that set)
     useEffect(() => {
         const hasFirstServer = firstServerPerSet?.[currentSet];
@@ -282,6 +286,13 @@ function LiveScreen() {
             setShowServeChoice(true);
         }
     }, [currentSet]);
+
+    // Show lineup carryover modal when a set starts with a carried-over lineup
+    useEffect(() => {
+        if (lineupCarryover && currentSet > 1) {
+            setShowLineupCarryover(true);
+        }
+    }, [lineupCarryover, currentSet]);
 
     // Determine suggested server for non-deciding sets (alternating pattern)
     const getSuggestedServer = (): 'myTeam' | 'opponent' | null => {
@@ -626,14 +637,22 @@ function LiveScreen() {
 
                     <View style={[styles.rotateInlineControls, { backgroundColor: colors.primaryLight }]}>
                         {/* Rotate Back */}
-                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => { rotate('backward'); haptics('light'); }}>
+                        <TouchableOpacity
+                            style={styles.rotateInlineBtn}
+                            onPress={() => { rotate('backward'); haptics('light'); }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                        >
                             <RotateCcw size={18} color={colors.primary} />
                         </TouchableOpacity>
 
                         <Text style={[styles.rotateInlineLabel, { color: colors.primary }]}>Rotate</Text>
 
                         {/* Rotate Forward */}
-                        <TouchableOpacity style={styles.rotateInlineBtn} onPress={() => { rotate('forward'); haptics('light'); }}>
+                        <TouchableOpacity
+                            style={styles.rotateInlineBtn}
+                            onPress={() => { rotate('forward'); haptics('light'); }}
+                            hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                        >
                             <RotateCw size={18} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
@@ -690,6 +709,25 @@ function LiveScreen() {
                     totalSets={config.totalSets}
                     suggestedServer={getSuggestedServer()}
                     onChoose={handleServeChoice}
+                />
+
+                <LineupCarryoverModal
+                    visible={showLineupCarryover && !showServeChoice}
+                    setNumber={currentSet}
+                    sourceSetNumber={lineupCarryover?.sourceSet ?? currentSet - 1}
+                    wasRotated={lineupCarryover?.wasRotated ?? false}
+                    rotationDirection={lineupCarryover?.rotationDirection}
+                    rotation={currentRotation || []}
+                    roster={roster}
+                    onKeep={() => {
+                        setShowLineupCarryover(false);
+                        useMatchStore.setState({ lineupCarryover: null });
+                    }}
+                    onClear={() => {
+                        clearRotation();
+                        setShowLineupCarryover(false);
+                        useMatchStore.setState({ lineupCarryover: null });
+                    }}
                 />
 
                 <EndOfSetModal
@@ -1329,13 +1367,17 @@ const styles = StyleSheet.create({
     rotateInlineControls: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 22,
     },
     rotateInlineBtn: {
-        padding: 2,
+        padding: 6,
+        minWidth: 32,
+        minHeight: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     rotateInlineLabel: {
         fontSize: 12,

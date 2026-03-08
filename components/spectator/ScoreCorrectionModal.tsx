@@ -9,15 +9,15 @@
  */
 
 import { X } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    Animated,
     Keyboard,
     Modal,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    TouchableWithoutFeedback,
     View,
 } from 'react-native';
 import { useAppTheme } from '../../contexts/ThemeContext';
@@ -47,17 +47,27 @@ export function ScoreCorrectionModal({
     cooldownRemaining,
 }: ScoreCorrectionModalProps) {
     const { colors, radius, spacing } = useAppTheme();
+    const slideAnim = useRef(new Animated.Value(400)).current;
 
     const [myTeamScore, setMyTeamScore] = useState('');
     const [oppScore, setOppScore] = useState('');
     const [note, setNote] = useState('');
 
-    // Start with empty fields so the user enters what the table shows
+    // Start with empty fields + stagger slide animation
     useEffect(() => {
         if (visible) {
             setMyTeamScore('');
             setOppScore('');
             setNote('');
+            slideAnim.setValue(400);
+            setTimeout(() => {
+                Animated.spring(slideAnim, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    tension: 80,
+                    friction: 12,
+                }).start();
+            }, 120);
         }
     }, [visible]);
 
@@ -86,10 +96,14 @@ export function ScoreCorrectionModal({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide">
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <View style={styles.overlay}>
-                    <View style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
+        <Modal visible={visible} transparent animationType="fade">
+            <TouchableOpacity
+                style={styles.overlay}
+                activeOpacity={1}
+                onPress={() => { Keyboard.dismiss(); onClose(); }}
+            >
+                <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+                <TouchableOpacity activeOpacity={1} style={[styles.modal, { backgroundColor: colors.bgCard, borderRadius: radius.lg }]}>
                         {/* Header */}
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: colors.text }]}>
@@ -217,9 +231,9 @@ export function ScoreCorrectionModal({
                                 </Text>
                             </TouchableOpacity>
                         </View>
-                    </View>
-                </View>
-            </TouchableWithoutFeedback>
+                    </TouchableOpacity>
+                </Animated.View>
+                </TouchableOpacity>
         </Modal>
     );
 }
@@ -227,7 +241,7 @@ export function ScoreCorrectionModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         padding: 24,
     },
