@@ -13,7 +13,7 @@ import LineupCarryoverModal from '../components/LineupCarryoverModal';
 import FullLogModal from '../components/FullLogModal';
 import LineupTracker from '../components/LineupTracker';
 import { MatchErrorBoundary } from '../components/MatchErrorBoundary';
-import MatchSettingsModal from '../components/MatchSettingsModal';
+import MatchMenuModal from '../components/MatchMenuModal';
 import { PaywallModal } from '../components/PaywallModal';
 import ScoreBoard from '../components/ScoreBoard';
 import ScoreEditModal from '../components/ScoreEditModal';
@@ -671,7 +671,7 @@ function LiveScreen() {
                 </View>
 
                 {/* Modals */}
-                <MatchSettingsModal
+                <MatchMenuModal
                     visible={showSettings}
                     onClose={() => setShowSettings(false)}
                     config={config}
