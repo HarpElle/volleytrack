@@ -218,18 +218,24 @@ export const Fonts = Platform.select({
         serif: 'ui-serif',
         rounded: 'ui-rounded',
         mono: 'ui-monospace',
+        display: 'Lexend_800ExtraBold',     // Brand display font (loaded via expo-font)
+        displayBold: 'Lexend_700Bold',      // Brand display font — bold weight
     },
     default: {
         sans: 'normal',
         serif: 'serif',
         rounded: 'normal',
         mono: 'monospace',
+        display: 'Lexend_800ExtraBold',
+        displayBold: 'Lexend_700Bold',
     },
     web: {
         sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         serif: "Georgia, 'Times New Roman', serif",
         rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
         mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+        display: "'Lexend', system-ui, sans-serif",
+        displayBold: "'Lexend', system-ui, sans-serif",
     },
 });
 

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts, Lexend_700Bold, Lexend_800ExtraBold } from '@expo-google-fonts/lexend';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
@@ -113,15 +114,23 @@ function NavigationThemeBridge({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   const [skipAuth, setSkipAuthState] = useState(false);
 
+  // Load brand display fonts (Lexend)
+  const [fontsLoaded] = useFonts({
+    Lexend_700Bold,
+    Lexend_800ExtraBold,
+  });
+
   const setSkipAuth = (skip: boolean) => {
     setSkipAuthState(skip);
     AsyncStorage.setItem(SKIP_AUTH_KEY, skip ? 'true' : 'false');
   };
 
-  // Basic splash screen handling
+  // Hide splash screen once fonts are loaded
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
 
   // Initialize device UUID and RevenueCat subscription management
   useEffect(() => {
@@ -146,19 +155,19 @@ export default function RootLayout() {
                 <AuthGate>
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" />
-                    <Stack.Screen name="live" />
-                    <Stack.Screen name="summary" />
+                    <Stack.Screen name="live" options={{ animation: 'slide_from_bottom' }} />
+                    <Stack.Screen name="summary" options={{ animation: 'fade' }} />
                     <Stack.Screen name="match/setup" />
                     <Stack.Screen name="season/[id]" />
                     <Stack.Screen name="season/create" />
                     <Stack.Screen name="event/manage" options={{ presentation: 'modal' }} />
                     <Stack.Screen name="event/[id]" />
-                    <Stack.Screen name="auth/sign-in" />
+                    <Stack.Screen name="auth/sign-in" options={{ animation: 'fade' }} />
                     <Stack.Screen name="auth/sign-up" />
                     <Stack.Screen name="auth/forgot-password" />
                     <Stack.Screen name="settings" />
                     <Stack.Screen name="spectate/join" />
-                    <Stack.Screen name="spectate/[code]" />
+                    <Stack.Screen name="spectate/[code]" options={{ animation: 'slide_from_bottom' }} />
                     <Stack.Screen name="+not-found" />
                   </Stack>
                 </AuthGate>

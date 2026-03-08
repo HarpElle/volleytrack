@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Calendar, ChevronRight, Cloud, CloudOff, Crown, Eye, Flag, Play, RefreshCw, Settings, Trash2 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, ToastAndroid, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,7 @@ export default function DashboardScreen() {
     const { seasons, savedMatches, events, touchSeason, syncStatus, syncWithCloud } = useDataStore();
     const matchStore = useMatchStore();
     const { user } = useAuth();
-    const { colors, spacing, fontSize, radius } = useAppTheme();
+    const { colors, spacing, fontSize, radius, fonts } = useAppTheme();
 
     const isPro = useSubscriptionStore((s) => s.isPro);
     const canCreateSeason = useSubscriptionStore((s) => s.canCreateSeason);
@@ -194,18 +194,6 @@ export default function DashboardScreen() {
         const season = match.seasonId ? seasons.find(s => s.id === match.seasonId) : null;
         const myTeamName = season ? season.teamName : 'My Team';
 
-        const themedMatchStyles = {
-            matchEvent: {
-                color: colors.textSecondary,
-            },
-            matchOpponent: {
-                color: colors.text,
-            },
-            matchDate: {
-                color: colors.textTertiary,
-            },
-        };
-
         return (
             <TouchableOpacity
                 key={match.id}
@@ -214,14 +202,14 @@ export default function DashboardScreen() {
             >
                 <View style={styles.matchLeft}>
                     {event && (
-                        <Text style={[styles.matchEvent, themedMatchStyles.matchEvent]}>{event.name}</Text>
+                        <Text style={[styles.matchEvent, themedStyles.matchEvent]}>{event.name}</Text>
                     )}
-                    <Text style={[styles.matchOpponent, themedMatchStyles.matchOpponent]}>{myTeamName} vs {match.opponentName}</Text>
+                    <Text style={[styles.matchOpponent, themedStyles.matchOpponent]}>{myTeamName} vs {match.opponentName}</Text>
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Calendar size={12} color={colors.textTertiary} />
-                        <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>{date}</Text>
-                        {time ? <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>• {time}</Text> : null}
-                        {match.courtNumber ? <Text style={[styles.matchDate, themedMatchStyles.matchDate]}>• Ct {match.courtNumber}</Text> : null}
+                        <Text style={[styles.matchDate, themedStyles.matchDate]}>{date}</Text>
+                        {time ? <Text style={[styles.matchDate, themedStyles.matchDate]}>• {time}</Text> : null}
+                        {match.courtNumber ? <Text style={[styles.matchDate, themedStyles.matchDate]}>• Ct {match.courtNumber}</Text> : null}
                     </View>
                 </View>
             </TouchableOpacity>
@@ -307,7 +295,20 @@ export default function DashboardScreen() {
         opacity: swipeTranslateX.value < -5 ? 1 : 0,
     }));
 
-    const themedStyles = {
+    // Pull-to-refresh handler
+    const [refreshing, setRefreshing] = useState(false);
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            if (user?.uid) {
+                await syncWithCloud(user.uid);
+            }
+        } finally {
+            setRefreshing(false);
+        }
+    }, [user?.uid, syncWithCloud]);
+
+    const themedStyles = useMemo(() => StyleSheet.create({
         container: {
             backgroundColor: colors.bg,
         },
@@ -360,12 +361,21 @@ export default function DashboardScreen() {
         seasonLevel: {
             color: colors.primary,
         },
-    };
+        matchEvent: {
+            color: colors.textSecondary,
+        },
+        matchOpponent: {
+            color: colors.text,
+        },
+        matchDate: {
+            color: colors.textTertiary,
+        },
+    }), [colors]);
 
     return (
         <SafeAreaView style={[styles.container, themedStyles.container]}>
             <View style={[styles.header, themedStyles.header]}>
-                <Text style={[styles.appName, themedStyles.appName]}>VolleyTrack</Text>
+                <Text style={[styles.appName, themedStyles.appName, { fontFamily: fonts?.display }]}>VolleyTrack</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                     {user && syncStatus && syncStatus !== 'idle' && (
                         <TouchableOpacity onPress={handleSyncTap} hitSlop={8} disabled={syncStatus === 'syncing'}>
@@ -383,11 +393,21 @@ export default function DashboardScreen() {
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView
+                contentContainerStyle={styles.content}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                }
+            >
 
                 {/* Resume Active Match - Priority 0, swipeable to End or Discard */}
                 {isMatchActive && (
-                    <View style={{ marginBottom: 16, borderRadius: 16, overflow: 'hidden' }}>
+                    <View style={{ marginBottom: 24, borderRadius: 16, overflow: 'hidden' }}>
                         <GestureDetector gesture={resumePanGesture}>
                             <Animated.View style={{ flexDirection: 'row' }}>
                                 <Animated.View style={[{ flex: 1 }, resumeCardAnimatedStyle]}>
@@ -587,7 +607,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 12,
         borderWidth: 1,
-        marginBottom: 12,
+        marginBottom: 24,
     },
     watchLiveText: {
         flex: 1,
@@ -604,7 +624,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 16,
         elevation: 8,
-        marginBottom: 16,
+        marginBottom: 12,
     },
     quickMatchContent: {
         flexDirection: 'row',
@@ -680,8 +700,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
-        marginTop: 8,
+        marginBottom: 12,
+        marginTop: 0,
     },
     sectionTitle: {
         fontSize: 18,

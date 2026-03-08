@@ -496,6 +496,9 @@ VolleyTrack/
 │   ├── EditLogEntryModal.tsx   # Edit past stat
 │   ├── FullLogModal.tsx        # Complete match history
 │   ├── EndOfSetModal.tsx       # Set completion confirmation
+│   ├── Skeleton.tsx            # Shimmer loading placeholder
+│   ├── EmptyState.tsx          # Reusable empty state with icon/CTA
+│   ├── LoadingState.tsx        # Activity indicator wrapper
 │   ├── OnboardingFlow.tsx      # First-launch tutorial
 │   ├── VoiceInputOverlay.tsx   # Voice recording/confirmation modal
 │   ├── VoiceActionCard.tsx     # Parsed voice action card (confirmation list)

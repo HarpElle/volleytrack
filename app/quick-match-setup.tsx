@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ChevronRight, Play, Plus, Trash2, Users } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
@@ -195,18 +195,30 @@ export default function QuickMatchSetup() {
     // Seasons that have rosters
     const seasonsWithRosters = seasons.filter(s => s.roster && s.roster.length > 0);
 
+    // Memoized theme-dependent styles for render stability
+    const themedStyles = useMemo(() => StyleSheet.create({
+        container: { backgroundColor: colors.bg },
+        header: { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder },
+        headerTitle: { color: colors.text },
+        input: { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+        label: { color: colors.text },
+        card: { backgroundColor: colors.bgCard, borderColor: colors.border },
+        startBtn: { backgroundColor: colors.buttonPrimary },
+        startBtnText: { color: colors.buttonPrimaryText },
+    }), [colors]);
+
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <SafeAreaView style={[styles.container, themedStyles.container]}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 {/* Header */}
-                <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.headerBorder }]}>
+                <View style={[styles.header, themedStyles.header]}>
                     <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8}>
                         <ArrowLeft size={24} color={colors.text} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: colors.text }]}>Quick Match</Text>
+                    <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Quick Match</Text>
                     <View style={{ width: 50 }} />
                 </View>
 

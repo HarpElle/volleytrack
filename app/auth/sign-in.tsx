@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, LogIn } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -33,7 +33,7 @@ export default function SignInScreen() {
 
     const isDisabled = loading || !email.trim() || !password;
 
-    const themedStyles = {
+    const themedStyles = useMemo(() => StyleSheet.create({
         container: {
             ...styles.container,
             backgroundColor: colors.bg,
@@ -76,7 +76,7 @@ export default function SignInScreen() {
         },
         primaryBtnText: {
             ...styles.primaryBtnText,
-            color: '#ffffff',
+            color: colors.buttonPrimaryText,
         },
         footerText: {
             ...styles.footerText,
@@ -86,7 +86,7 @@ export default function SignInScreen() {
             ...styles.skipText,
             color: colors.textTertiary,
         },
-    };
+    }), [colors]);
 
     return (
         <SafeAreaView style={themedStyles.container}>

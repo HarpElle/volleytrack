@@ -19,7 +19,7 @@ import {
     User,
     Zap
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -147,13 +147,13 @@ export default function SettingsScreen() {
         router.replace('/auth/sign-in');
     };
 
-    // Dynamic styles based on theme
-    const themed = {
-        container: { flex: 1, backgroundColor: colors.bg } as const,
+    // Dynamic styles based on theme (memoized for render stability)
+    const themed = useMemo(() => StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.bg },
         header: {
-            flexDirection: 'row' as const,
-            alignItems: 'center' as const,
-            justifyContent: 'space-between' as const,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             paddingHorizontal: spacing.base,
             paddingVertical: spacing.md,
             backgroundColor: colors.headerBg,
@@ -162,14 +162,14 @@ export default function SettingsScreen() {
         },
         headerTitle: {
             fontSize: fontSize.lg,
-            fontWeight: '700' as const,
+            fontWeight: '700',
             color: colors.text,
         },
         sectionLabel: {
             fontSize: fontSize.sm,
-            fontWeight: '600' as const,
+            fontWeight: '600',
             color: colors.textTertiary,
-            textTransform: 'uppercase' as const,
+            textTransform: 'uppercase',
             letterSpacing: 0.5,
             marginBottom: spacing.sm,
             marginTop: spacing.base,
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
         card: {
             backgroundColor: colors.bgCard,
             borderRadius: radius.md,
-            overflow: 'hidden' as const,
+            overflow: 'hidden',
             shadowColor: colors.shadow,
             shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.03,
@@ -198,7 +198,7 @@ export default function SettingsScreen() {
             fontSize: fontSize.sm + 1,
             color: colors.textTertiary,
         },
-    };
+    }), [colors, spacing, fontSize, radius]);
 
     return (
         <SafeAreaView style={themed.container}>
