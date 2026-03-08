@@ -297,12 +297,11 @@ export default function ScoreBoard({
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#fff',
+        backgroundColor: 'transparent', // Themed via inline style
         paddingVertical: 16,
         paddingHorizontal: 20,
         borderRadius: 16,
         marginBottom: 16,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
@@ -320,7 +319,7 @@ const styles = StyleSheet.create({
         marginTop: 12,
         paddingTop: 10,
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
+        // borderTopColor themed inline
     },
     timeoutTeamContainer: {
         flexDirection: 'row',
@@ -338,17 +337,7 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
     },
-    toDotAvailableMy: {
-        backgroundColor: '#0066cc',
-    },
-    toDotAvailableOpp: {
-        backgroundColor: '#cc0033',
-    },
-    toDotUsed: {
-        backgroundColor: '#e0e0e0',
-    },
     useToBtn: {
-        backgroundColor: '#e6f0ff',
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 8,
@@ -356,9 +345,9 @@ const styles = StyleSheet.create({
         minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
+        // backgroundColor themed inline
     },
     useToBtnOpp: {
-        backgroundColor: '#ffe6ea',
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 8,
@@ -366,17 +355,18 @@ const styles = StyleSheet.create({
         minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
+        // backgroundColor themed inline
     },
     useToBtnDisabled: {
-        backgroundColor: '#f5f5f5',
+        // backgroundColor themed inline
     },
     useToText: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#333',
+        // color themed inline
     },
     useToTextDisabled: {
-        color: '#ccc',
+        // color themed inline
     },
     pillsContainer: {
         flexDirection: 'row',
@@ -387,40 +377,39 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6,
         height: 24,
         borderRadius: 12,
-        backgroundColor: '#eee',
         justifyContent: 'center',
         alignItems: 'center',
+        // backgroundColor themed inline
     },
     pillActive: {
-        backgroundColor: '#333',
+        // backgroundColor themed inline
     },
     pillFuture: {
-        backgroundColor: '#f5f5f5',
         borderWidth: 1,
-        borderColor: '#eee',
+        // backgroundColor, borderColor themed inline
     },
     pillWonMy: {
-        backgroundColor: '#0066cc',
+        // backgroundColor themed inline
     },
     pillWonOpp: {
-        backgroundColor: '#cc0033',
+        // backgroundColor themed inline
     },
     pillText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#666',
+        // color themed inline
     },
     pillTextActive: {
-        color: '#fff',
+        // color themed inline
     },
     pillTextFuture: {
-        color: '#ccc',
+        // color themed inline
     },
     statusText: {
         fontSize: 13,
         fontWeight: '800',
-        color: '#e67e22',
         textTransform: 'uppercase',
+        // color themed inline
     },
     statusContainer: {
         height: 20,
@@ -439,8 +428,8 @@ const styles = StyleSheet.create({
     teamName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
         marginBottom: 4,
+        // color themed inline
     },
     score: {
         fontSize: 64,
@@ -449,33 +438,33 @@ const styles = StyleSheet.create({
         lineHeight: 70,
     },
     myScore: {
-        color: '#0066cc',
+        // color themed inline
     },
     opponentScore: {
-        color: '#cc0033',
+        // color themed inline
     },
     divider: {
         paddingHorizontal: 10,
     },
     dividerText: {
         fontSize: 32,
-        color: '#ddd',
         fontWeight: '300',
+        // color themed inline
     },
     serveIndicator: {
         width: 12,
         height: 12,
         borderRadius: 6,
         marginTop: 4,
-        backgroundColor: '#e0e0e0', // Default inactive
+        // backgroundColor themed inline
     },
     serveIndicatorActiveMy: {
-        backgroundColor: '#0066cc',
+        // backgroundColor themed inline
     },
     serveIndicatorActiveOpp: {
-        backgroundColor: '#cc0033',
+        // backgroundColor themed inline
     },
     serveIndicatorInactive: {
-        backgroundColor: '#e0e0e0', // Just grey circle for stability
+        // backgroundColor themed inline
     },
 });

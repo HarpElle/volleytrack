@@ -107,6 +107,16 @@ export default function DashboardScreen() {
         .sort((a, b) => (b.date || 0) - (a.date || 0))
         .slice(0, 5);
 
+    // Compute W-L record per season from saved matches
+    const seasonRecords = new Map<string, { wins: number; losses: number }>();
+    savedMatches.forEach(m => {
+        if (!m.seasonId) return;
+        if (!seasonRecords.has(m.seasonId)) seasonRecords.set(m.seasonId, { wins: 0, losses: 0 });
+        const rec = seasonRecords.get(m.seasonId)!;
+        if (m.result === 'Win') rec.wins++;
+        else if (m.result === 'Loss') rec.losses++;
+    });
+
     // Sorting Logic for Seasons (MRU)
     const sortedSeasons = [...seasons].sort((a, b) => {
         const lastA = a.lastAccessed || 0;
@@ -198,8 +208,27 @@ export default function DashboardScreen() {
     };
 
     // Resume Logic
-    const { matchId: activeMatchId, history: activeHistory, myTeamName, opponentName, setsWon } = matchStore;
+    const { matchId: activeMatchId, history: activeHistory, myTeamName, opponentName, setsWon, currentSet, scores } = matchStore;
     const isMatchActive = activeMatchId && (activeHistory.length > 0 || setsWon.myTeam > 0 || setsWon.opponent > 0);
+
+    // Build resume metadata string: "Set 2 · 15-12 · Paused 23m ago"
+    const resumeMeta = (() => {
+        if (!isMatchActive) return '';
+        const currentScore = scores[currentSet - 1] || { myTeam: 0, opponent: 0 };
+        const parts = [`Set ${currentSet}`, `${currentScore.myTeam}-${currentScore.opponent}`];
+        // Time since last action
+        if (activeHistory.length > 0) {
+            const lastTimestamp = activeHistory[activeHistory.length - 1]?.timestamp;
+            if (lastTimestamp) {
+                const minutesAgo = Math.floor((Date.now() - lastTimestamp) / 60000);
+                if (minutesAgo < 1) parts.push('Just now');
+                else if (minutesAgo < 60) parts.push(`Paused ${minutesAgo}m ago`);
+                else if (minutesAgo < 1440) parts.push(`Paused ${Math.floor(minutesAgo / 60)}h ago`);
+                else parts.push(`Paused ${Math.floor(minutesAgo / 1440)}d ago`);
+            }
+        }
+        return parts.join(' · ');
+    })();
 
     const handleResumeMatch = () => {
         router.push('/live');
@@ -350,6 +379,9 @@ export default function DashboardScreen() {
                                             <View>
                                                 <Text style={[styles.quickMatchTitle, { color: colors.buttonPrimaryText }]}>Resume Match</Text>
                                                 <Text style={[styles.quickMatchSub, { color: colors.buttonPrimaryText }]}>{myTeamName} vs {opponentName}</Text>
+                                                {resumeMeta ? (
+                                                    <Text style={[styles.resumeMeta, { color: colors.buttonPrimaryText }]}>{resumeMeta}</Text>
+                                                ) : null}
                                             </View>
                                         </View>
                                         <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
@@ -433,7 +465,14 @@ export default function DashboardScreen() {
                             >
                                 <Text style={[styles.seasonName, themedStyles.seasonName]}>{season.name}</Text>
                                 <Text style={[styles.seasonTeam, themedStyles.seasonTeam]}>{season.teamName}</Text>
-                                <Text style={[styles.seasonLevel, themedStyles.seasonLevel]}>{season.level}</Text>
+                                <View style={styles.seasonBottomRow}>
+                                    <Text style={[styles.seasonLevel, themedStyles.seasonLevel]}>{season.level}</Text>
+                                    {seasonRecords.has(season.id) && (
+                                        <Text style={[styles.seasonRecord, { color: colors.textSecondary }]}>
+                                            {seasonRecords.get(season.id)!.wins}-{seasonRecords.get(season.id)!.losses}
+                                        </Text>
+                                    )}
+                                </View>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -601,6 +640,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
     },
+    resumeMeta: {
+        fontSize: 12,
+        fontWeight: '600',
+        opacity: 0.85,
+        marginTop: 2,
+    },
     swipeActionsRow: {
         flexDirection: 'row',
         alignItems: 'stretch',
@@ -691,6 +736,15 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '600',
         textTransform: 'uppercase',
+    },
+    seasonBottomRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    seasonRecord: {
+        fontSize: 12,
+        fontWeight: '700',
     },
     proCta: {
         flexDirection: 'row',

@@ -31,6 +31,8 @@ export default function QuickMatchSetup() {
     // Players
     const [players, setPlayers] = useState<Player[]>([]);
     const [playerInput, setPlayerInput] = useState('');
+    const [bulkInput, setBulkInput] = useState('');
+    const [bulkMode, setBulkMode] = useState(false);
     const [showRoster, setShowRoster] = useState(false);
 
     // Match format
@@ -100,6 +102,49 @@ export default function QuickMatchSetup() {
 
         setPlayers(prev => [...prev, newPlayer]);
         setPlayerInput('');
+    };
+
+    // Batch add: parse multiple lines into players
+    const addPlayersFromText = (text: string) => {
+        const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) return;
+
+        const newPlayers: Player[] = [];
+        const existingNumbers = new Set(players.map(p => p.jerseyNumber));
+
+        let autoNumber = players.length + 1;
+        lines.forEach(line => {
+            const parsed = parsePlayerInput(line);
+            if (!parsed) return;
+
+            // Auto-increment jersey if "just a name" produced a duplicate
+            let jersey = parsed.jerseyNumber;
+            while (existingNumbers.has(jersey) || newPlayers.some(p => p.jerseyNumber === jersey)) {
+                jersey = String(autoNumber++);
+            }
+
+            newPlayers.push({
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                jerseyNumber: jersey,
+                name: parsed.name,
+                positions: [],
+            });
+        });
+
+        if (newPlayers.length > 0) {
+            setPlayers(prev => [...prev, ...newPlayers]);
+            setBulkInput('');
+            setBulkMode(false);
+        }
+    };
+
+    // Detect paste with newlines in single-line input → auto-batch
+    const handlePlayerInputChange = (text: string) => {
+        if (text.includes('\n')) {
+            addPlayersFromText(text);
+        } else {
+            setPlayerInput(text);
+        }
     };
 
     const removePlayer = (id: string) => {
@@ -288,12 +333,44 @@ export default function QuickMatchSetup() {
                             </View>
                         )}
 
-                        {/* Quick add input */}
+                        {/* Bulk mode toggle */}
+                        <TouchableOpacity
+                            onPress={() => setBulkMode(!bulkMode)}
+                            style={{ marginBottom: 8 }}
+                        >
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.link }}>
+                                {bulkMode ? 'Switch to single entry' : 'Bulk Add (paste a roster)'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {bulkMode ? (
+                            /* Bulk add: multi-line TextInput */
+                            <View style={{ gap: 10 }}>
+                                <TextInput
+                                    style={[styles.addInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text, minHeight: 120, textAlignVertical: 'top' }]}
+                                    value={bulkInput}
+                                    onChangeText={setBulkInput}
+                                    placeholder={"One player per line:\n7 Sarah\n12 Maria\n3 Jen"}
+                                    placeholderTextColor={colors.placeholder}
+                                    multiline
+                                    autoCapitalize="words"
+                                />
+                                <TouchableOpacity
+                                    style={[styles.addBtn, { backgroundColor: colors.primary, width: '100%', height: 44, borderRadius: 8, flexDirection: 'row', gap: 8 }]}
+                                    onPress={() => addPlayersFromText(bulkInput)}
+                                    disabled={!bulkInput.trim()}
+                                >
+                                    <Plus size={18} color="#ffffff" />
+                                    <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 15 }}>Add All</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                        /* Quick add input (single-line, with paste detection) */
                         <View style={styles.addRow}>
                             <TextInput
                                 style={[styles.addInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
                                 value={playerInput}
-                                onChangeText={setPlayerInput}
+                                onChangeText={handlePlayerInputChange}
                                 placeholder="# Name (e.g., 7 Sarah)"
                                 placeholderTextColor={colors.placeholder}
                                 onSubmitEditing={addPlayer}
@@ -308,6 +385,7 @@ export default function QuickMatchSetup() {
                                 <Plus size={20} color="#ffffff" />
                             </TouchableOpacity>
                         </View>
+                        )}
 
                         {/* Player list */}
                         {players.length > 0 && (
@@ -337,7 +415,8 @@ export default function QuickMatchSetup() {
                                         </View>
                                         <TouchableOpacity
                                             onPress={() => removePlayer(player.id)}
-                                            hitSlop={8}
+                                            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                                            style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
                                         >
                                             <Trash2 size={16} color={colors.textTertiary} />
                                         </TouchableOpacity>
@@ -468,7 +547,7 @@ const styles = StyleSheet.create({
     },
     input: {
         borderWidth: 1,
-        borderRadius: 10,
+        borderRadius: 8, // radius.sm — standardized
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 15,
@@ -486,7 +565,7 @@ const styles = StyleSheet.create({
     },
     formatOption: {
         flex: 1,
-        borderRadius: 10,
+        borderRadius: 8, // radius.sm — standardized
         borderWidth: 2,
         paddingVertical: 12,
         alignItems: 'center',
@@ -508,7 +587,7 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        borderRadius: 10,
+        borderRadius: 8, // radius.sm — standardized
         borderWidth: 1,
         marginRight: 10,
     },
@@ -527,7 +606,7 @@ const styles = StyleSheet.create({
     addInput: {
         flex: 1,
         borderWidth: 1,
-        borderRadius: 10,
+        borderRadius: 8, // radius.sm — standardized
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 15,
@@ -535,7 +614,7 @@ const styles = StyleSheet.create({
     addBtn: {
         width: 48,
         height: 48,
-        borderRadius: 10,
+        borderRadius: 8, // radius.sm — standardized
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -581,7 +660,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     startBtn: {
-        borderRadius: 14,
+        borderRadius: 16, // radius.lg — standardized
         padding: 18,
         flexDirection: 'row',
         alignItems: 'center',

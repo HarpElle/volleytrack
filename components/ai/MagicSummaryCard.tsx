@@ -39,7 +39,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
         return (
             <View style={[styles.container, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderColor: colors.border }]}>
                 <View style={styles.promoContent}>
-                    <Sparkles size={32} color="#8A2BE2" />
+                    <Sparkles size={32} color={colors.ai} />
                     <Text style={[styles.promoTitle, { color: colors.text }]}>AI Match Insights</Text>
                     <Text style={[styles.promoText, { color: colors.textSecondary }]}>
                         Generate instant tactical analysis and exciting game recaps.
@@ -55,7 +55,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                         </View>
                     )}
 
-                    <TouchableOpacity style={styles.generateButton} onPress={onGenerate}>
+                    <TouchableOpacity style={[styles.generateButton, { backgroundColor: colors.ai, shadowColor: colors.ai }]} onPress={onGenerate}>
                         <Text style={styles.generateButtonText}>Generate Magic ✨</Text>
                     </TouchableOpacity>
                 </View>
@@ -68,14 +68,14 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
             <View style={styles.header}>
                 <View style={[styles.tabs, { backgroundColor: colors.buttonSecondary }]}>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'coach' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'coach' && [styles.activeTab, { backgroundColor: colors.ai }]]}
                         onPress={() => setActiveTab('coach')}
                     >
                         <BarChart2 size={16} color={activeTab === 'coach' ? '#fff' : colors.textSecondary} />
                         <Text style={[styles.tabText, activeTab === 'coach' && styles.activeTabText, activeTab !== 'coach' && { color: colors.textSecondary }]}>Analyst Report</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'social' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'social' && [styles.activeTab, { backgroundColor: colors.ai }]]}
                         onPress={() => setActiveTab('social')}
                     >
                         <Users size={16} color={activeTab === 'social' ? '#fff' : colors.textSecondary} />
@@ -83,7 +83,7 @@ export const MagicSummaryCard: React.FC<MagicSummaryCardProps> = ({ narrative, o
                     </TouchableOpacity>
                 </View>
                 {isGenerating ? (
-                    <ActivityIndicator size="small" color="#8A2BE2" />
+                    <ActivityIndicator size="small" color={colors.ai} />
                 ) : (
                     <TouchableOpacity style={styles.actionButton} onPress={handleCopy}>
                         <Copy size={20} color={colors.textSecondary} />
@@ -148,11 +148,10 @@ const styles = StyleSheet.create({
         lineHeight: 20
     },
     generateButton: {
-        backgroundColor: '#8A2BE2',
         paddingVertical: 12,
         paddingHorizontal: 24,
         borderRadius: 24,
-        shadowColor: '#8A2BE2',
+        // backgroundColor and shadowColor set dynamically via colors.ai
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -182,7 +181,7 @@ const styles = StyleSheet.create({
         gap: 6
     },
     activeTab: {
-        backgroundColor: '#8A2BE2',
+        // backgroundColor set dynamically via colors.ai
     },
     tabText: {
         fontSize: 13,

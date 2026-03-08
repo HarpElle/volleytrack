@@ -284,8 +284,8 @@ export default function SummaryScreen() {
             color: colors.text,
         },
         socialBtn: {
-            backgroundColor: '#8A2BE2',
-            shadowColor: '#8A2BE2',
+            backgroundColor: colors.ai,
+            shadowColor: colors.ai,
         },
         socialBtnText: {
             color: '#fff',
@@ -339,6 +339,30 @@ export default function SummaryScreen() {
                     <Text style={[styles.resultText, themedStyles.resultText]}>
                         {wonMatch ? 'Victory!' : 'Match Complete'}
                     </Text>
+                    {/* Set-by-set score pills */}
+                    {scores && scores.length > 0 && (
+                        <View style={styles.setPillsRow}>
+                            {scores.map((setScore: any, idx: number) => {
+                                const myWon = setScore.myTeam > setScore.opponent;
+                                return (
+                                    <View
+                                        key={idx}
+                                        style={[
+                                            styles.setPill,
+                                            { backgroundColor: myWon ? colors.primaryLight : colors.opponentLight },
+                                        ]}
+                                    >
+                                        <Text style={[
+                                            styles.setPillText,
+                                            { color: myWon ? colors.primary : colors.opponent },
+                                        ]}>
+                                            {setScore.myTeam}-{setScore.opponent}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
                 </View>
 
                 {/* Stats */}
@@ -496,7 +520,7 @@ const styles = StyleSheet.create({
     },
     card: {
         padding: 24,
-        borderRadius: 20,
+        borderRadius: 16, // radius.lg — standardized
         alignItems: 'center',
         marginBottom: 32,
         shadowOffset: { width: 0, height: 4 },
@@ -527,6 +551,21 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '700',
     },
+    setPillsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 12,
+    },
+    setPill: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    setPillText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
@@ -535,12 +574,11 @@ const styles = StyleSheet.create({
     },
     statsGrid: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         gap: 12,
         marginBottom: 32,
     },
     statBox: {
-        width: '31%', // Fits 3
+        flex: 1,
         padding: 12,
         borderRadius: 12,
         alignItems: 'center',
@@ -562,7 +600,7 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 10,
         paddingHorizontal: 14,
-        borderRadius: 10,
+        borderRadius: 12, // radius.md — standardized
         borderWidth: 1,
     },
     proCtaLabel: {

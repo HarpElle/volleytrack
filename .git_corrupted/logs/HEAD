@@ -1,0 +1,19 @@
+0000000000000000000000000000000000000000 175fca0f8223553d8b02fc43db5f9c00112f9abc Jason Paschall <jpaschall@gmail.com> 1769539759 -0600	commit (initial): Initial commit
+175fca0f8223553d8b02fc43db5f9c00112f9abc 721bf0b218d8e0441d8f6a57d9bcc2eba68fbb12 Jason Paschall <jpaschall@gmail.com> 1770534847 -0600	commit: feat(volleytrack): implement logic fixes and iPad UI refinements
+721bf0b218d8e0441d8f6a57d9bcc2eba68fbb12 13b59943643a778d13e7260d7f0312f3d73548d2 Jason Paschall <jpaschall@gmail.com> 1770578636 -0600	commit: fix(prod): match time persistence and AI debug prompts
+13b59943643a778d13e7260d7f0312f3d73548d2 a28a9a04a0ba85a6e172e213f9f3c1e025b43586 Jason Paschall <jpaschall@gmail.com> 1770612948 -0600	commit: fix(build): explicit NODE_ENV=production, replace Ionicons with Lucide
+a28a9a04a0ba85a6e172e213f9f3c1e025b43586 33821c6cce8bd17b03378329ed25c0d9945c471d Jason Paschall <jpaschall@gmail.com> 1770613832 -0600	commit: refactor: smart libero and icon replacement
+33821c6cce8bd17b03378329ed25c0d9945c471d 53cfb8738da33c9fcf883d087533e954803f852f Jason Paschall <jpaschall@gmail.com> 1770615424 -0600	commit: feat: expose AI prompt for debugging on success
+53cfb8738da33c9fcf883d087533e954803f852f d7ea6d383012be0ca2ca7b3cfe049091790f4c75 Jason Paschall <jpaschall@gmail.com> 1771085754 -0600	commit: feat: Phase 7 Capabilities Tour, Onboarding, and Native Build Fixes
+d7ea6d383012be0ca2ca7b3cfe049091790f4c75 cf9612b1ee87d0362c56b22f28fdb91c41c2fa43 Jason Paschall <jpaschall@gmail.com> 1771087204 -0600	commit: chore: Increase free limits for TestFlight testing
+cf9612b1ee87d0362c56b22f28fdb91c41c2fa43 1f4257c286007f73faaa7b9ec20f111c587bfc82 Jason Paschall <jpaschall@gmail.com> 1771186376 -0600	commit: feat: configure RevenueCat products and improve error logging
+1f4257c286007f73faaa7b9ec20f111c587bfc82 0ea5a53f1bf3cd16fb4a50603eabdc02fce36481 Jason Paschall <jpaschall@gmail.com> 1771211720 -0600	commit: fix: add NSPhotoLibraryUsageDescription to app.json for App Store submission
+0ea5a53f1bf3cd16fb4a50603eabdc02fce36481 12b9c2d417b1f732539b581de4245075da16431d Jason Paschall <jpaschall@gmail.com> 1771214937 -0600	commit: docs: correct PROJECT_HANDOFF status for spectator features
+12b9c2d417b1f732539b581de4245075da16431d d38d64c15199e8dddec80179af259fac966726da Jason Paschall <jpaschall@gmail.com> 1771215990 -0600	commit: chore: update RevenueCat API key
+d38d64c15199e8dddec80179af259fac966726da 50c702dd384d05acbe6b61eb3e3e10272f1bb9c8 Jason Paschall <jpaschall@gmail.com> 1771243574 -0600	commit: fix: guard Firebase init for missing env vars and add root error boundary
+50c702dd384d05acbe6b61eb3e3e10272f1bb9c8 1f938602ec00b7f02f6d2c5e263210526641b66e Jason Paschall <jpaschall@gmail.com> 1771461671 -0600	reset: moving to origin/main
+1f938602ec00b7f02f6d2c5e263210526641b66e 33841afb751d84e5bc9284d1045ccd08f9c31fb2 Jason Paschall <jpaschall@gmail.com> 1771642724 -0600	commit: fix: sync deletions to cloud and prevent stuck sync spinner
+33841afb751d84e5bc9284d1045ccd08f9c31fb2 69669908de8156f0346bb89703d18246059b46ea Jason Paschall <jpaschall@gmail.com> 1771790657 -0600	commit: feat: migrate AI services to Firebase Cloud Functions and cleanup client-side dependencies
+69669908de8156f0346bb89703d18246059b46ea f0102d43a85587d4e15a2f9f05969fd73a1bc94d Jason Paschall <jpaschall@gmail.com> 1771790924 -0600	commit: fix: resolve firestore nullability types and add initialization guards
+f0102d43a85587d4e15a2f9f05969fd73a1bc94d 8eab23381e814a264e2b8f65c5a8b05ce4c6c7ab Jason Paschall <jpaschall@gmail.com> 1771797431 -0600	commit: fix: voice input race condition, network error visibility, and UI polish
+8eab23381e814a264e2b8f65c5a8b05ce4c6c7ab 7e3e7e2243e6b63096b7198d9c06948a7a510acc Jason Paschall <jpaschall@gmail.com> 1771811211 -0600	commit: fix(functions): correct Groq model ID namespace and improve Gemini parsing robustness

@@ -251,7 +251,7 @@ export default function MatchDetailScreen() {
 
                 {!match.aiNarrative && !isGenerating ? (
                     <TouchableOpacity style={[styles.generateCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]} onPress={handleGenerateAI}>
-                        <View style={[styles.sparkleIcon, { backgroundColor: '#8A2BE2' }]}>
+                        <View style={[styles.sparkleIcon, { backgroundColor: colors.ai }]}>
                             <Sparkles size={24} color={'#ffffff'} />
                         </View>
                         <Text style={[styles.generateTitle, { color: colors.text }]}>Generate AI Analysis</Text>
@@ -268,7 +268,7 @@ export default function MatchDetailScreen() {
                             failedPrompt={failedPrompt}
                         />
                         {match.aiNarrative && (
-                            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#8A2BE2' }]} onPress={() => setShowShareModal(true)}>
+                            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: colors.ai }]} onPress={() => setShowShareModal(true)}>
                                 <Sparkles color={'#ffffff'} size={20} />
                                 <Text style={[styles.socialBtnText, { color: '#ffffff' }]}>Create Social Post</Text>
                             </TouchableOpacity>

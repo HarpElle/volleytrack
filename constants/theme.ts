@@ -91,6 +91,10 @@ export const lightColors = {
     momentumCaution: '#f59e0b',
     momentumUrgent: '#ef4444',
 
+    // AI / Magic
+    ai: '#8A2BE2',
+    aiLight: '#f3e8ff',
+
     // Specific UI
     headerBg: '#ffffff',
     headerBorder: '#f3f4f6',
@@ -112,7 +116,7 @@ export const darkColors: AppThemeColors = {
     // Text
     text: '#e6edf3',
     textSecondary: '#8b949e',
-    textTertiary: '#6e7681',
+    textTertiary: '#848d97',   // WCAG AA compliant (~4.6:1 on #0d1117)
     textInverse: '#0d1117',
 
     // Borders & Dividers
@@ -134,7 +138,7 @@ export const darkColors: AppThemeColors = {
     buttonSecondary: '#21262d',
     buttonSecondaryText: '#e6edf3',
     buttonDisabled: '#21262d',
-    buttonDisabledText: '#6e7681',
+    buttonDisabledText: '#848d97',
 
     // Status
     ...semantic,
@@ -146,13 +150,17 @@ export const darkColors: AppThemeColors = {
     momentumCaution: '#f59e0b',
     momentumUrgent: '#ef4444',
 
+    // AI / Magic
+    ai: '#9D4EDD',            // Slightly lighter purple for dark backgrounds
+    aiLight: '#2d1b4e',
+
     // Specific UI
     headerBg: '#161b22',
     headerBorder: '#21262d',
     inputBg: '#0d1117',
     inputBorder: '#30363d',
     shadow: '#000000',
-    placeholder: '#6e7681',
+    placeholder: '#848d97',
     link: '#6dd5ff',
     tabBar: '#161b22',
 };

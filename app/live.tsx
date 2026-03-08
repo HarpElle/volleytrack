@@ -1086,7 +1086,7 @@ function LiveScreen() {
                 </View>
 
                 {/* Ad Banner */}
-                <AdBanner style={{ marginTop: 4 }} />
+                <AdBanner style={{ marginTop: 4 }} reserveSpace />
 
                 {/* Voice Input Overlays */}
                 {VOICE_INPUT_ENABLED && (

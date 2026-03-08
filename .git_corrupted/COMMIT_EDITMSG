@@ -1,0 +1,6 @@
+Fix Spectator View crash: move hooks before early return
+
+- Two useMemo calls were after 'if (!state) return null', violating
+  React Rules of Hooks (different hook count between renders)
+- Added optional chaining on myTeamRoster.find() calls (3 places)
+- Added missing myTeamRoster dependency to check-in alert useEffect
