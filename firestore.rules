@@ -40,6 +40,26 @@ service cloud.firestore {
         allow delete: if request.auth != null
                       && get(/databases/$(database)/documents/liveMatches/$(matchCode)).data.coachUid == request.auth.uid;
       }
+
+      // ── Chat subcollection (Fan Zone messages) ──
+      //  Public read/create so unauthenticated spectators can send and see messages.
+      //  Messages are immutable (no update). Coach can delete for cleanup.
+      match /chat/{messageId} {
+        allow read: if true;
+        allow create: if true;
+        allow delete: if request.auth != null
+                      && get(/databases/$(database)/documents/liveMatches/$(matchCode)).data.coachUid == request.auth.uid;
+      }
+
+      // ── Reactions subcollection (floating emoji reactions, cheer pulses) ──
+      //  Public read/create for high-throughput spectator reactions.
+      //  Reactions are fire-and-forget (no update). Coach can delete for cleanup.
+      match /reactions/{reactionId} {
+        allow read: if true;
+        allow create: if true;
+        allow delete: if request.auth != null
+                      && get(/databases/$(database)/documents/liveMatches/$(matchCode)).data.coachUid == request.auth.uid;
+      }
     }
   }
 }

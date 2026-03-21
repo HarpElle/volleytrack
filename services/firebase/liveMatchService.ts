@@ -359,8 +359,7 @@ export async function updateBroadcastSettings(
  * Stop broadcasting (sets isActive to false but keeps the document).
  */
 export async function stopLiveMatch(
-    matchCode: string,
-    coachUid: string
+    matchCode: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         if (!db) throw new Error('Firestore not initialized');
@@ -381,8 +380,7 @@ export async function stopLiveMatch(
  * Delete the live match document entirely.
  */
 export async function deleteLiveMatch(
-    matchCode: string,
-    coachUid: string
+    matchCode: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         if (!db) throw new Error('Firestore not initialized');

@@ -248,7 +248,7 @@ export function useLiveMatch() {
         // Clear any pending push
         if (pendingPushRef.current) clearTimeout(pendingPushRef.current);
 
-        await stopLiveMatchService(matchCode, user.uid);
+        await stopLiveMatchService(matchCode);
 
         setIsBroadcasting(false);
         setMatchCode(null);

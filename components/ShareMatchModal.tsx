@@ -258,7 +258,6 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     card: {
-        borderRadius: 20,
         padding: 24,
         width: '100%',
         maxWidth: 380,
@@ -300,7 +299,6 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#4caf50',
         marginRight: 8,
     },
     liveText: {
@@ -375,7 +373,6 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     shareBtnText: {
-        color: '#ffffff',
         fontSize: 15,
         fontWeight: '700',
     },
@@ -417,7 +414,6 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     startBtnText: {
-        color: '#ffffff',
         fontSize: 16,
         fontWeight: '700',
     },

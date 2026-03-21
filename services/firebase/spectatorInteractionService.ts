@@ -28,6 +28,10 @@ import { db } from './config';
 
 const MAX_ALERTS = 20;
 
+// Track devices that have been unregistered this session to prevent
+// double-decrement of spectatorCount on network retries.
+const unregisteredDevices = new Set<string>();
+
 /**
  * Get a reference to the interactions subdocument for a match.
  */
@@ -56,6 +60,9 @@ export async function registerSpectator(
             joinedAt: Date.now(),
             lastSeen: Date.now(),
         };
+
+        // Allow re-joining after a previous unregister
+        unregisteredDevices.delete(deviceId);
 
         await updateDoc(interactionsRef, {
             [`spectators.${deviceId}`]: viewer,
@@ -93,6 +100,10 @@ export async function unregisterSpectator(
     matchCode: string,
     deviceId: string
 ): Promise<void> {
+    // Skip if already unregistered this session (prevents negative count on retry)
+    if (unregisteredDevices.has(deviceId)) return;
+    unregisteredDevices.add(deviceId);
+
     try {
         if (!db) throw new Error('Firestore not initialized');
         const interactionsRef = getInteractionsRef(matchCode);
