@@ -916,6 +916,8 @@ export const useMatchStore = create<MatchState>()(
             onRehydrateStorage: () => (state) => {
                 state?.setHasHydrated(true);
             },
+            // Exclude runtime-only hydration flag — must always start false so guards work
+            partialize: ({ _hasHydrated, setHasHydrated, ...rest }) => rest,
         }
     )
 );
