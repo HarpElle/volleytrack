@@ -60,7 +60,7 @@ export function useFanZoneChat(
         });
 
         return () => unsubscribe();
-    }, [matchCode, isOpen]);
+    }, [matchCode]); // isOpen intentionally omitted — read via closure to avoid teardown on tab switch
 
     // Reset unread count when modal opens
     useEffect(() => {

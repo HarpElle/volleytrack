@@ -36,6 +36,8 @@ export interface MomentumEvent {
     mood: 'positive' | 'neutral' | 'negative' | 'urgent';
     /** Whether to trigger emoji rain */
     triggerRain: boolean;
+    /** Which team this event belongs to — used to suppress opponent celebrations */
+    team: 'myTeam' | 'opponent' | 'neutral';
 }
 
 interface UseMomentumDetectionParams {
@@ -144,6 +146,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '⏰',
                     mood: 'neutral',
                     triggerRain: false,
+                    team: 'neutral',
                 });
                 continue;
             }
@@ -176,6 +179,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                         emoji: '🔀',
                         mood: 'neutral',
                         triggerRain: false,
+                        team: 'myTeam',
                     });
                 }
                 continue;
@@ -207,6 +211,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: isMyTeam ? '🔥' : '⚡',
                     mood: isMyTeam ? 'positive' : 'negative',
                     triggerRain: isMyTeam && streak.count >= 5,
+                    team: streak.team,
                 });
             }
 
@@ -225,6 +230,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                         emoji: '🔄',
                         mood: 'positive',
                         triggerRain: false,
+                        team: 'myTeam',
                     });
                 }
             }
@@ -251,6 +257,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '💪',
                     mood: 'positive',
                     triggerRain: true,
+                    team: 'myTeam',
                 });
             }
 
@@ -274,6 +281,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '😱',
                     mood: 'urgent',
                     triggerRain: false,
+                    team: 'myTeam',
                 });
             } else if (opponentAtSetPoint && isDecidingSetForOpponent) {
                 newBanners.push({
@@ -283,6 +291,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '😬',
                     mood: 'negative',
                     triggerRain: false,
+                    team: 'opponent',
                 });
             } else if (myTeamAtSetPoint) {
                 newBanners.push({
@@ -292,6 +301,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '⚡',
                     mood: 'positive',
                     triggerRain: false,
+                    team: 'myTeam',
                 });
             } else if (opponentAtSetPoint) {
                 newBanners.push({
@@ -301,6 +311,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '😬',
                     mood: 'negative',
                     triggerRain: false,
+                    team: 'opponent',
                 });
             }
         }
@@ -336,6 +347,7 @@ export function useMomentumDetection(params: UseMomentumDetectionParams) {
                     emoji: '🏆',
                     mood: myTeamWon ? 'positive' : 'negative',
                     triggerRain: myTeamWon,
+                    team: myTeamWon ? 'myTeam' : 'opponent',
                 }]);
             }
 

@@ -6,8 +6,9 @@
  */
 
 import { Send } from 'lucide-react-native';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
     Keyboard,
     StyleSheet,
@@ -26,6 +27,7 @@ interface FanZoneInlineProps {
     viewerCount: number;
     canSend: boolean;
     currentDeviceId: string;
+    isLoading?: boolean;
     onSendMessage: (text: string) => Promise<boolean>;
     onSendQuickReaction: (key: string) => Promise<boolean>;
 }
@@ -44,12 +46,40 @@ export function FanZoneInline({
     viewerCount,
     canSend,
     currentDeviceId,
+    isLoading,
     onSendMessage,
     onSendQuickReaction,
 }: FanZoneInlineProps) {
     const { colors, radius } = useAppTheme();
     const [inputText, setInputText] = useState('');
+    const [tick, setTick] = useState(0);
     const flatListRef = useRef<FlatList>(null);
+    const prevMessagesLenRef = useRef(0);
+
+    // Scroll to bottom when new messages arrive (deferred for nested FlatList reliability)
+    useEffect(() => {
+        if (messages.length > prevMessagesLenRef.current) {
+            prevMessagesLenRef.current = messages.length;
+            const t = setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: messages.length > 1 });
+            }, 50);
+            return () => clearTimeout(t);
+        }
+    }, [messages.length]);
+
+    // Scroll to bottom when keyboard opens
+    useEffect(() => {
+        const sub = Keyboard.addListener('keyboardDidShow', () => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+        });
+        return () => sub.remove();
+    }, []);
+
+    // Tick every 60s to refresh relative timestamps
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 60_000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleSend = async () => {
         const text = inputText.trim();
@@ -69,6 +99,16 @@ export function FanZoneInline({
             return (
                 <View style={[styles.celebrationRow, { backgroundColor: `${colors.warning}15`, borderRadius: radius.md }]}>
                     <Text style={[styles.celebrationText, { color: colors.warning }]}>{item.text}</Text>
+                </View>
+            );
+        }
+
+        if (item.type === 'reaction_context') {
+            return (
+                <View style={[styles.celebrationRow, { backgroundColor: `${colors.border}50`, borderRadius: radius.md }]}>
+                    <Text style={[styles.celebrationText, { color: colors.textSecondary, fontSize: 13, fontWeight: '500' }]}>
+                        {item.text}
+                    </Text>
                 </View>
             );
         }
@@ -111,16 +151,23 @@ export function FanZoneInline({
                 renderItem={renderMessage}
                 style={styles.messageList}
                 contentContainerStyle={styles.messageListContent}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                 nestedScrollEnabled
                 keyboardShouldPersistTaps="handled"
+                extraData={tick}
                 ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyEmoji}>🏐</Text>
-                        <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-                            No messages yet — be the first to cheer!
-                        </Text>
-                    </View>
+                    isLoading ? (
+                        <View style={styles.emptyState}>
+                            <ActivityIndicator size="small" color={colors.textTertiary} />
+                            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>Loading chat...</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyEmoji}>🏐</Text>
+                            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+                                No messages yet — be the first to cheer!
+                            </Text>
+                        </View>
+                    )
                 }
             />
 

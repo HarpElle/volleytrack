@@ -86,7 +86,7 @@ export function SpectatorReactionBar({
 
             {/* ── Cheer (long-press for reactions) ── */}
             <TouchableOpacity
-                style={styles.iconBtn}
+                style={[styles.iconBtn, !canSendCheer && { opacity: 0.45 }]}
                 onPress={() => { if (canSendCheer) onCheer(); }}
                 onLongPress={onOpenReactionDrawer}
                 activeOpacity={0.6}

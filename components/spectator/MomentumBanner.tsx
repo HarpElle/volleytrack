@@ -53,6 +53,7 @@ export function MomentumBanner({ event, onDismiss }: MomentumBannerProps) {
     }, [event]);
 
     if (!event) return null;
+    if (event.team === 'opponent') return null;
 
     const moodColors: Record<string, { bg: string; text: string; border: string }> = {
         positive: {
