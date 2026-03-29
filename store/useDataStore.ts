@@ -48,6 +48,10 @@ interface DataState {
     getAdHocMatches: () => MatchRecord[];
     getSeasonEvents: (seasonId: string) => Event[];
     getEventMatches: (eventId: string) => MatchRecord[];
+
+    // Hydration
+    _hasHydrated: boolean;
+    setHasHydrated: (v: boolean) => void;
 }
 
 export const useDataStore = create<DataState>()(
@@ -60,6 +64,8 @@ export const useDataStore = create<DataState>()(
             syncStatus: 'idle' as SyncStatus,
             lastSyncedAt: null,
             syncError: null,
+            _hasHydrated: false,
+            setHasHydrated: (v) => set({ _hasHydrated: v }),
 
             addSeason: (season) => set((state) => ({ seasons: [...state.seasons, { ...season, lastAccessed: Date.now() }] })),
             updateSeason: (id, updates) => set((state) => ({
@@ -249,6 +255,9 @@ export const useDataStore = create<DataState>()(
         {
             name: 'volleytrack-data',
             storage: createJSONStorage(() => AsyncStorage),
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true);
+            },
             // Exclude transient sync state from persistence — syncStatus, syncError
             // are runtime-only. lastSyncedAt IS persisted so the UI can show the date.
             partialize: (state) => ({

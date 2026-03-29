@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BarChart2, Calendar, ChevronRight, LayoutDashboard, MapPin, Plus, Sparkles, Users } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, SectionList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { MagicSummaryCard } from '../../components/ai/MagicSummaryCard';
@@ -13,11 +13,12 @@ import { useDataStore } from '../../store/useDataStore';
 import { usePreferencesStore } from '../../store/usePreferencesStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { StatLog } from '../../types';
+import { groupEvents, EventSection } from '../../utils/eventUtils';
 
 export default function SeasonDetailsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
     // Subscribe to specific parts of the store for reactivity
     const seasons = useDataStore((state) => state.seasons);
     const allEvents = useDataStore((state) => state.events);
@@ -28,7 +29,6 @@ export default function SeasonDetailsScreen() {
     // State
     const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
     const { rosterSortBy, toggleRosterSort } = usePreferencesStore();
-    const [showAllEvents, setShowAllEvents] = useState(false);
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -45,7 +45,26 @@ export default function SeasonDetailsScreen() {
         .filter(e => e.seasonId === id)
         .sort((a, b) => a.startDate - b.startDate);
 
-    const displayedEvents = showAllEvents ? events : events.slice(0, 3);
+    const allSectionedEvents = useMemo(() => {
+        const filtered = allEvents.filter(e => e.seasonId === id);
+        return groupEvents(filtered);
+    }, [allEvents, id]);
+
+    const [pastExpanded, setPastExpanded] = useState(false);
+
+    const visibleSections: EventSection[] = useMemo(() => {
+        return allSectionedEvents
+            .map(section => {
+                if (section.key === 'past' && !pastExpanded) {
+                    return { ...section, data: [] as typeof section.data };
+                }
+                return section;
+            })
+            .filter(section =>
+                section.data.length > 0 ||
+                (section.key === 'past' && allSectionedEvents.some(s => s.key === 'past' && s.data.length > 0))
+            );
+    }, [allSectionedEvents, pastExpanded]);
 
     // Sort Roster (uses global preference)
     const sortedRoster = useMemo(() => {
@@ -158,16 +177,9 @@ export default function SeasonDetailsScreen() {
                     <Calendar size={20} color={colors.textSecondary} />
                     <Text style={[styles.sectionTitle, { color: colors.text }]}>Events</Text>
                 </View>
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                    {events.length > 3 && (
-                        <TouchableOpacity onPress={() => setShowAllEvents(!showAllEvents)}>
-                            <Text style={[styles.linkText, { color: colors.primary }]}>{showAllEvents ? 'Show Less' : 'See All'}</Text>
-                        </TouchableOpacity>
-                    )}
-                    <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={handleAddEvent}>
-                        <Plus size={20} color={'#ffffff'} />
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={handleAddEvent}>
+                    <Plus size={20} color={'#ffffff'} />
+                </TouchableOpacity>
             </View>
 
             {events.length === 0 ? (
@@ -178,13 +190,19 @@ export default function SeasonDetailsScreen() {
                     </TouchableOpacity>
                 </View>
             ) : (
-                <View style={styles.list}>
-                    {displayedEvents.map(event => (
+                <SectionList
+                    sections={visibleSections}
+                    keyExtractor={(event) => event.id}
+                    renderItem={({ item: event, section }) => (
                         <TouchableOpacity
-                            key={event.id}
-                            style={[styles.card, { backgroundColor: colors.bgCard }]}
+                            style={[styles.card, { backgroundColor: colors.bgCard, borderRadius: radius.md }]}
                             onPress={() => handleEventPress(event.id)}
                         >
+                            {section.key === 'now' && (
+                                <View style={[styles.nowBadge, { backgroundColor: colors.success, borderRadius: radius.sm }]}>
+                                    <Text style={styles.nowBadgeText}>LIVE</Text>
+                                </View>
+                            )}
                             <View style={styles.cardContent}>
                                 <Text style={[styles.cardTitle, { color: colors.text }]}>{event.name}</Text>
                                 <View style={styles.cardRow}>
@@ -200,8 +218,27 @@ export default function SeasonDetailsScreen() {
                             </View>
                             <ChevronRight size={20} color={colors.border} />
                         </TouchableOpacity>
-                    ))}
-                </View>
+                    )}
+                    renderSectionHeader={({ section }) => (
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={[styles.sectionGroupTitle, { color: colors.textSecondary }]}>
+                                {section.title}
+                            </Text>
+                            {section.key === 'past' && (
+                                <TouchableOpacity onPress={() => setPastExpanded(v => !v)}>
+                                    <Text style={[styles.linkText, { color: colors.primary }]}>
+                                        {pastExpanded
+                                            ? 'Hide'
+                                            : `Show ${allSectionedEvents.find(s => s.key === 'past')?.data.length ?? 0} past`}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
+                    ListEmptyComponent={null}
+                    stickySectionHeadersEnabled={false}
+                    scrollEnabled={false}
+                />
             )}
 
             <View style={[styles.sectionHeader, { marginTop: 32 }]}>
@@ -490,5 +527,30 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '700',
+    },
+    nowBadge: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        marginBottom: 6,
+    },
+    nowBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 12,
+        paddingBottom: 6,
+    },
+    sectionGroupTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
     },
 });

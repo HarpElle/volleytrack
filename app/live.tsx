@@ -3,10 +3,12 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AlertCircle, Eye, Maximize2, Menu, Mic, Radio, RotateCcw, RotateCw, Undo2 } from 'lucide-react-native';
+import { LiveNarrationOverlay } from '../components/LiveNarrationOverlay';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../components/AdBanner';
+import { CourtLoadingSkeleton } from '../components/CourtLoadingSkeleton';
 import { CoachAlertToast } from '../components/CoachAlertToast';
 import EndOfSetModal from '../components/EndOfSetModal';
 import LineupCarryoverModal from '../components/LineupCarryoverModal';
@@ -24,10 +26,11 @@ import StatsModal from '../components/StatsModal';
 import { SubstituteModalContent } from '../components/SubstituteModalContent';
 import { VoiceInputOverlay } from '../components/VoiceInputOverlay';
 import { VoiceInputTipsModal } from '../components/VoiceInputTipsModal';
-import { VOICE_COLORS, VOICE_INPUT_ENABLED, VOICE_TIPS_SEEN_KEY } from '../constants/voice';
+import { LIVE_NARRATION_COLORS, VOICE_COLORS, VOICE_INPUT_ENABLED, VOICE_LIVE_NARRATION_ENABLED, VOICE_TIPS_SEEN_KEY } from '../constants/voice';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useHaptics } from '../hooks/useHaptic';
 import { useLiveMatch } from '../hooks/useLiveMatch';
+import { useLiveNarration } from '../hooks/useLiveNarration';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useDataStore } from '../store/useDataStore';
 import { useMatchStore } from '../store/useMatchStore';
@@ -47,6 +50,10 @@ export default function LiveScreenWithBoundary() {
 function LiveScreen() {
     // Keep screen awake during live match tracking
     useKeepAwake();
+
+    // Hydration state — must be declared before any early returns (hook rules)
+    const dataHydrated = useDataStore((s) => s._hasHydrated);
+    const matchHydrated = useMatchStore((s) => s._hasHydrated);
 
     const router = useRouter();
     const navigation = useNavigation();
@@ -109,10 +116,11 @@ function LiveScreen() {
     const haptics = useHaptics();
 
     // "Just Score" mode — no roster means simplified UI (scores, TOs, serve only)
-    const isJustScore = roster.length === 0;
+    const isJustScore = (dataHydrated && matchHydrated) ? roster.length === 0 : false;
 
     // Voice Input
     const voiceInput = useVoiceInput();
+    const liveNarration = useLiveNarration();
     const { canUseVoiceInput } = useSubscriptionStore();
     const matchId = useMatchStore(s => s.matchId);
     const [showVoiceTips, setShowVoiceTips] = useState(false);
@@ -137,6 +145,24 @@ function LiveScreen() {
 
         voiceInput.startListening();
         haptics('light');
+    };
+
+    const handleLiveNarratePress = async () => {
+        if (!VOICE_LIVE_NARRATION_ENABLED) return;
+
+        // Check free tier limit
+        if (!canUseVoiceInput(matchId)) {
+            setShowVoicePaywall(true);
+            return;
+        }
+
+        haptics('light');
+        await liveNarration.startSession();
+    };
+
+    const handleFallbackToTapMode = () => {
+        liveNarration.cancelSession();
+        handleMicPress();
     };
 
     const currentScore = scores[currentSet - 1];
@@ -474,6 +500,10 @@ function LiveScreen() {
     // Hydration Guard: hooks are all declared above, safe to bail out here
     if (!currentScore) {
         return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+    }
+
+    if (!dataHydrated || !matchHydrated) {
+        return <CourtLoadingSkeleton />;
     }
 
     return (
@@ -944,8 +974,28 @@ function LiveScreen() {
                             )}
                         </View>
 
-                        {/* Voice Input Floating Mic Button */}
-                        {VOICE_INPUT_ENABLED && (
+                        {/* Voice Input Button — Live Narrate (primary) or tap-to-speak (fallback) */}
+                        {VOICE_LIVE_NARRATION_ENABLED ? (
+                            <TouchableOpacity
+                                style={[
+                                    styles.voiceMicButton,
+                                    {
+                                        backgroundColor: liveNarration.phase !== 'idle'
+                                            ? LIVE_NARRATION_COLORS.streaming
+                                            : colors.bgCard,
+                                        shadowColor: colors.shadow,
+                                    },
+                                ]}
+                                onPress={handleLiveNarratePress}
+                                disabled={liveNarration.phase !== 'idle'}
+                                activeOpacity={0.7}
+                            >
+                                <Radio
+                                    size={22}
+                                    color={liveNarration.phase !== 'idle' ? '#ffffff' : LIVE_NARRATION_COLORS.streaming}
+                                />
+                            </TouchableOpacity>
+                        ) : VOICE_INPUT_ENABLED ? (
                             <TouchableOpacity
                                 style={[
                                     styles.voiceMicButton,
@@ -963,7 +1013,7 @@ function LiveScreen() {
                                     color={voiceInput.phase !== 'idle' ? '#ffffff' : colors.primary}
                                 />
                             </TouchableOpacity>
-                        )}
+                        ) : null}
                     </>
                 )}
 
@@ -1114,6 +1164,25 @@ function LiveScreen() {
                 <AdBanner style={{ marginTop: 4 }} reserveSpace />
 
                 {/* Voice Input Overlays */}
+                {VOICE_LIVE_NARRATION_ENABLED && (
+                    <LiveNarrationOverlay
+                        visible={liveNarration.phase !== 'idle'}
+                        phase={liveNarration.phase}
+                        stats={liveNarration.stats}
+                        meteringLevel={liveNarration.meteringLevel}
+                        error={liveNarration.error}
+                        onEndRally={() => { liveNarration.endSession(); haptics('medium'); }}
+                        onCancel={() => { liveNarration.cancelSession(); haptics('light'); }}
+                        onRemoveStat={liveNarration.removeStat}
+                        onCommit={async () => {
+                            const success = await liveNarration.commitAll();
+                            if (success) haptics('success');
+                            return success;
+                        }}
+                        onFallbackToTapMode={handleFallbackToTapMode}
+                    />
+                )}
+
                 {VOICE_INPUT_ENABLED && (
                     <>
                         <VoiceInputOverlay
@@ -1141,19 +1210,19 @@ function LiveScreen() {
                             visible={showVoiceTips}
                             onClose={() => {
                                 setShowVoiceTips(false);
-                                // After closing tips, start listening
                                 voiceInput.startListening();
                                 haptics('light');
                             }}
                         />
-
-                        <PaywallModal
-                            visible={showVoicePaywall}
-                            onClose={() => setShowVoicePaywall(false)}
-                            trigger="voice_input"
-                        />
                     </>
                 )}
+
+                {/* Shared paywall for both voice modes */}
+                <PaywallModal
+                    visible={showVoicePaywall}
+                    onClose={() => setShowVoicePaywall(false)}
+                    trigger="voice_input"
+                />
 
             </View >
         </SafeAreaView >

@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -87,8 +88,13 @@ export default function ForgotPasswordScreen() {
         <SafeAreaView style={themedStyles.container}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.inner}
+                style={styles.flex}
             >
+                <ScrollView
+                    contentContainerStyle={styles.inner}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
                 {/* Back Button */}
                 <TouchableOpacity
                     style={styles.backBtn}
@@ -166,6 +172,7 @@ export default function ForgotPasswordScreen() {
                         <Text style={themedStyles.primaryBtnText}>Back to Sign In</Text>
                     </TouchableOpacity>
                 )}
+                </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -173,6 +180,9 @@ export default function ForgotPasswordScreen() {
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
+    },
+    flex: {
         flex: 1,
     },
     inner: {

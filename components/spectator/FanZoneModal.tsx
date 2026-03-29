@@ -123,7 +123,7 @@ export function FanZoneModal({
         <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 {/* Tap backdrop to close */}
                 <TouchableOpacity style={[styles.backdropArea, { backgroundColor: colors.bgOverlay }]} activeOpacity={1} onPress={onClose} />

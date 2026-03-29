@@ -59,6 +59,8 @@ export const useMatchStore = create<MatchState>()(
             nonLiberoDesignations: [],
             subPairs: {},
             firstServerPerSet: {},
+            _hasHydrated: false,
+            setHasHydrated: (v) => set({ _hasHydrated: v }),
 
             setServingTeam: (team) => {
                 set({ servingTeam: team });
@@ -911,6 +913,9 @@ export const useMatchStore = create<MatchState>()(
         {
             name: 'match-storage',
             storage: createJSONStorage(() => AsyncStorage),
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true);
+            },
         }
     )
 );

@@ -9,7 +9,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Animated,
     Keyboard,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
@@ -113,6 +115,7 @@ export function EmergencyAlertModal({
 
     return (
         <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <TouchableOpacity
                 style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}
                 activeOpacity={1}
@@ -233,6 +236,7 @@ export function EmergencyAlertModal({
                     </Text>
                 </TouchableOpacity>
             </Animated.View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

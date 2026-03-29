@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -102,8 +103,13 @@ export default function SignUpScreen() {
         <SafeAreaView style={themedStyles.container}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.inner}
+                style={styles.flex}
             >
+                <ScrollView
+                    contentContainerStyle={styles.inner}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={themedStyles.appName}>VolleyTrack</Text>
@@ -218,6 +224,7 @@ export default function SignUpScreen() {
                         <Text style={themedStyles.linkText}>Sign In</Text>
                     </TouchableOpacity>
                 </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -225,6 +232,9 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
+    },
+    flex: {
         flex: 1,
     },
     inner: {

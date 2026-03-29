@@ -63,7 +63,7 @@ export default function JoinMatchScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 {/* Header */}
                 <View style={[styles.header, { borderBottomColor: colors.border }]}>
                     <TouchableOpacity onPress={() => router.back()} hitSlop={12}>

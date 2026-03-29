@@ -59,3 +59,37 @@ export const VOICE_STAT_VOCABULARY = {
         drop: ['drop', 'ball dropped', 'ball fell', 'let it drop', 'miscommunication'],
     },
 };
+
+// ── Live Narration (Gemini Flash Live streaming) ─────────────────────────────
+
+// Master feature flag for Live Narrate mode
+// Set to false to hide the Live Narrate button entirely
+export const VOICE_LIVE_NARRATION_ENABLED = true;
+
+// Gemini Flash Live model identifier — check for newer version at implementation time
+export const GEMINI_LIVE_MODEL = 'models/gemini-2.0-flash-live-001';
+
+// WebSocket endpoint base (API key appended at connection time)
+export const GEMINI_LIVE_WS_ENDPOINT =
+  'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+
+// Audio segment duration for the recording loop
+export const LIVE_SEGMENT_DURATION_MS = 500;
+
+// WAV header size to strip before sending PCM to Gemini
+export const WAV_HEADER_BYTES = 44;
+
+// Maximum live narration session length (one rally should never exceed this)
+export const LIVE_SESSION_MAX_MS = 45000; // 45 seconds
+
+// Reconnection attempts if WebSocket drops mid-rally
+export const LIVE_WS_MAX_RECONNECT_ATTEMPTS = 2;
+
+// Delay between reconnection attempts
+export const LIVE_WS_RECONNECT_DELAY_MS = 1000;
+
+export const LIVE_NARRATION_COLORS = {
+  streaming: '#8B5CF6',    // Purple — active streaming state
+  statAppear: '#22C55E',   // Green — new stat added animation
+  warning: '#F59E0B',      // Amber — reconnecting
+};

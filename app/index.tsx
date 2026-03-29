@@ -5,8 +5,11 @@ import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, ToastAnd
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActiveEventCard } from '../components/ActiveEventCard';
 import { AdBanner } from '../components/AdBanner';
 import { PaywallModal } from '../components/PaywallModal';
+import { RejoinSpectatorBanner } from '../components/RejoinSpectatorBanner';
+import { getEventGroup } from '../utils/eventUtils';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useAutoSync } from '../hooks/useAutoSync';
 import { useAuth } from '../services/firebase';
@@ -239,6 +242,21 @@ export default function DashboardScreen() {
         return parts.join(' · ');
     })();
 
+    const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+    const activeEvents = useMemo(() => {
+        const now = Date.now();
+        return events
+            .filter(event => {
+                const end = event.endDate ?? event.startDate + 24 * 60 * 60 * 1000;
+                const isNow = now >= event.startDate && now <= end;
+                const isSoon = event.startDate > now && event.startDate <= now + TWO_DAYS_MS;
+                const isRecent = end < now && end >= now - TWO_DAYS_MS;
+                return isNow || isSoon || isRecent;
+            })
+            .sort((a, b) => a.startDate - b.startDate)
+            .slice(0, 2);
+    }, [events]);
+
     const handleResumeMatch = () => {
         router.push('/live');
     };
@@ -453,6 +471,11 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* Active/Imminent Events */}
+                {activeEvents.map(event => (
+                    <ActiveEventCard key={event.id} event={event} />
+                ))}
+
                 {/* Hero Action: Quick Match */}
                 <TouchableOpacity style={[styles.quickMatchBtn, themedStyles.quickMatchBtn]} onPress={handleQuickMatch}>
                     <View style={styles.quickMatchContent}>
@@ -464,6 +487,9 @@ export default function DashboardScreen() {
                     </View>
                     <ChevronRight size={24} color={`rgba(255,255,255,0.6)`} />
                 </TouchableOpacity>
+
+                {/* Rejoin in-progress spectator session */}
+                <RejoinSpectatorBanner />
 
                 {/* Secondary Action: Watch Live Match */}
                 <TouchableOpacity

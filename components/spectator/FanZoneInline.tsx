@@ -113,6 +113,7 @@ export function FanZoneInline({
                 contentContainerStyle={styles.messageListContent}
                 onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                 nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyEmoji}>🏐</Text>
@@ -163,6 +164,8 @@ export function FanZoneInline({
                     maxLength={200}
                     returnKeyType="send"
                     onSubmitEditing={handleSend}
+                    // @ts-ignore — prop available in RN 0.72+
+                    automaticallyAdjustKeyboardInsets
                 />
                 <TouchableOpacity
                     style={[

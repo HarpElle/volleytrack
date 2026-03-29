@@ -118,7 +118,7 @@ export default function CreateSeasonScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
                     <Text style={[styles.headerTitle, { color: colors.text }]}>{isEditing ? 'Edit Season' : 'New Season'}</Text>
 

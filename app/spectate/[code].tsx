@@ -1,8 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check, Save, Star, WifiOff } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { LAST_ACTIVE_SPECTATOR_KEY, LastActiveSpectator } from '../../constants/spectator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../../components/AdBanner';
 import FullLogModal from '../../components/FullLogModal';
@@ -160,6 +163,63 @@ export default function SpectateScreen() {
     const state = match?.currentState;
     const isMatchEnded = state?.status === 'completed' || match?.isActive === false;
     const isBetweenSets = state?.status === 'between-sets';
+
+    // ── Exit guard: beforeRemove (iOS / Expo Router) ──────────────────────────
+    const navigation = useNavigation();
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            if (!match || !match.isActive) return;
+            e.preventDefault();
+            Alert.alert(
+                'Leave this match?',
+                'The match is still in progress.',
+                [
+                    { text: 'Stay', style: 'cancel' },
+                    { text: 'Leave', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+                ]
+            );
+        });
+        return unsubscribe;
+    }, [navigation, match?.isActive]);
+
+    // ── Exit guard: Android hardware back button ───────────────────────────────
+    useEffect(() => {
+        if (Platform.OS !== 'android') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (!match?.isActive) return false;
+            Alert.alert(
+                'Leave this match?',
+                'The match is still in progress.',
+                [
+                    { text: 'Stay', style: 'cancel', onPress: () => {} },
+                    { text: 'Leave', style: 'destructive', onPress: () => router.back() },
+                ]
+            );
+            return true;
+        });
+        return () => sub.remove();
+    }, [match?.isActive, router]);
+
+    // ── AsyncStorage: persist active spectator session ────────────────────────
+    useEffect(() => {
+        if (!match?.isActive || !isConnected) return;
+
+        const teamNames = `${match.currentState?.myTeamName ?? 'Home'} vs ${match.currentState?.opponentName ?? 'Away'}`;
+        const payload: LastActiveSpectator = {
+            matchCode: (code as string) ?? '',
+            matchName: teamNames,
+            lastSeen: Date.now(),
+        };
+        AsyncStorage.setItem(LAST_ACTIVE_SPECTATOR_KEY, JSON.stringify(payload));
+    }, [match?.isActive, isConnected, code, match?.currentState?.myTeamName, match?.currentState?.opponentName]);
+
+    // ── AsyncStorage: clear on match end ─────────────────────────────────────
+    useEffect(() => {
+        if (isMatchEnded) {
+            AsyncStorage.removeItem(LAST_ACTIVE_SPECTATOR_KEY);
+        }
+    }, [isMatchEnded]);
 
     const noOp = () => { };
 
@@ -568,15 +628,15 @@ export default function SpectateScreen() {
                             </View>
                         )}
 
-                        {state.currentRotation && state.currentRotation.length > 0 && !isMatchEnded && (
+                        {state?.currentRotation && state.currentRotation.length > 0 ? (
                             <LineupTracker
                                 rotation={state.currentRotation}
-                                roster={state.myTeamRoster}
-                                onSubstitute={noOp}
-                                onSelectPlayer={noOp}
+                                roster={state.myTeamRoster || []}
+                                onSubstitute={() => {}}
+                                onSelectPlayer={() => {}}
                                 readOnly
                             />
-                        )}
+                        ) : null}
 
                         {/* Activity / Fan Zone toggle */}
                         <ActivityFanZoneToggle

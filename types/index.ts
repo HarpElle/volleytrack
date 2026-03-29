@@ -241,6 +241,10 @@ export interface MatchState {
     rotationDirection?: 'forward' | 'backward';
   } | null;
 
+  // Hydration
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
+
   // Actions
   setSetup: (myTeam: string, opponent: string, config: MatchConfig, seasonId?: string, eventId?: string, matchId?: string, lineups?: Record<number, LineupPosition[]>, roster?: Player[]) => void;
   updateMatchSettings: (matchId: string, myTeam: string, opponent: string, config: MatchConfig, lineups?: Record<number, LineupPosition[]>) => void;
