@@ -28,6 +28,7 @@ function snapshotFingerprint(m: LiveMatchSnapshot): string {
         JSON.stringify(s.scores),
         JSON.stringify(s.setsWon),
         s.history?.length ?? 0,
+        s.history?.at(-1)?.id ?? '',
         s.currentRotation?.map(p => p.playerId).join(',') ?? '',
         JSON.stringify(s.timeoutsRemaining),
     ].join('|');

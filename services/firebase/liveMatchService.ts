@@ -54,6 +54,7 @@ const lastPushedStateCache = new Map<string, {
     servingTeam: string;
     rallyState: string;
     historyLength: number;
+    historyTailId: string;
     rotationKey: string;
     timeouts: string;
     subs: string;
@@ -150,6 +151,7 @@ function buildStateFingerprint(state: MatchState) {
         servingTeam: state.servingTeam,
         rallyState: state.rallyState,
         historyLength: (state.history || []).length,
+        historyTailId: (state.history || []).at(-1)?.id ?? '',
         rotationKey: rotation.map(p => `${p.position}:${p.playerId || '-'}`).join(','),
         timeouts: JSON.stringify(state.timeoutsRemaining),
         subs: JSON.stringify(state.subsRemaining),
@@ -203,12 +205,13 @@ function buildDeltaUpdate(
         delta['currentState.rallyState'] = state.rallyState;
         hasChanges = true;
     }
-    if (current.historyLength !== prev.historyLength) {
+    if (current.historyLength !== prev.historyLength || current.historyTailId !== prev.historyTailId) {
         // History changed — push trimmed version
         const trimmedHistory = (state.history || [])
             .slice(-MAX_HISTORY_ENTRIES)
             .map(trimHistoryEntry);
         delta['currentState.history'] = trimmedHistory;
+        delta['currentState.historyTailId'] = trimmedHistory.at(-1)?.id ?? null;
         hasChanges = true;
     }
     if (current.rotationKey !== prev.rotationKey) {

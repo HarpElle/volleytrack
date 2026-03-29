@@ -174,6 +174,7 @@ export interface LiveMatchSnapshot {
     currentRotation: LineupPosition[];
     myTeamRoster: Player[];
     history: StatLog[];
+    historyTailId?: string | null;
     setHistory: SetResult[];
     timeoutsRemaining: Score;
     subsRemaining: Score;

@@ -148,6 +148,7 @@ export default function SpectateScreen() {
         eventType: string;
     } | null>(null);
     const lastProudMomentTimeRef = useRef(0);
+    const proudMomentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Player Set Summary state (Enhancement 7)
     const [setForSummary, setSetForSummary] = useState<number | null>(null);
@@ -247,7 +248,7 @@ export default function SpectateScreen() {
                 .slice(-15)
                 .reverse()
             : [],
-        [state?.history?.length, state?.currentSet]
+        [state?.history, state?.currentSet]
     );
 
     // Cheering-for set (must be before any early returns for Rules of Hooks)
@@ -276,9 +277,9 @@ export default function SpectateScreen() {
     ]);
     const momentum = useMomentumDetection(momentumProps);
 
-    // Trigger emoji rain when momentum says so
+    // Trigger emoji rain when momentum says so (myTeam events only)
     useEffect(() => {
-        if (momentum.activeBanner?.triggerRain) {
+        if (momentum.activeBanner?.triggerRain && momentum.activeBanner?.team !== 'opponent') {
             setShowEmojiRain(true);
         }
     }, [momentum.activeBanner]);
@@ -359,6 +360,8 @@ export default function SpectateScreen() {
                         jerseyNumber: player?.jerseyNumber,
                         eventType: event.type,
                     });
+                    if (proudMomentTimerRef.current) clearTimeout(proudMomentTimerRef.current);
+                    proudMomentTimerRef.current = setTimeout(() => setProudMoment(null), 5000);
                 }
             }
         }
@@ -393,10 +396,18 @@ export default function SpectateScreen() {
     const [alertFeedback, setAlertFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const alertFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            if (proudMomentTimerRef.current) clearTimeout(proudMomentTimerRef.current);
+            if (alertFeedbackTimerRef.current) clearTimeout(alertFeedbackTimerRef.current);
+        };
+    }, []);
+
     const showAlertFeedback = (type: 'success' | 'error', message: string) => {
         if (alertFeedbackTimerRef.current) clearTimeout(alertFeedbackTimerRef.current);
         setAlertFeedback({ type, message });
-        alertFeedbackTimerRef.current = setTimeout(() => setAlertFeedback(null), 3000);
+        alertFeedbackTimerRef.current = setTimeout(() => setAlertFeedback(null), 1200);
     };
 
     const handleScoreCorrectionSubmit = async (suggestedScore: Score, message?: string) => {
@@ -426,6 +437,8 @@ export default function SpectateScreen() {
 
     const handleCheer = async () => {
         await interactions.sendCheer();
+        interactions.sendReaction('heart');
+        fanChat.sendQuickReaction('heart');
     };
 
     // Save Match Logic
@@ -656,6 +669,7 @@ export default function SpectateScreen() {
                         {activeContentTab === 'fan-zone' && (
                             <FanZoneInline
                                 messages={fanChat.messages}
+                                isLoading={fanChat.isLoading}
                                 viewerCount={interactions.viewerCount}
                                 canSend={fanChat.canSend}
                                 currentDeviceId={interactions.deviceId}
@@ -736,7 +750,10 @@ export default function SpectateScreen() {
                     score={currentScore}
                     currentSet={state.currentSet}
                     matchCode={code || ''}
-                    onDismiss={() => setProudMoment(null)}
+                    onDismiss={() => {
+                        if (proudMomentTimerRef.current) clearTimeout(proudMomentTimerRef.current);
+                        setProudMoment(null);
+                    }}
                 />
             )}
 
@@ -744,8 +761,13 @@ export default function SpectateScreen() {
             <ReactionDrawer
                 visible={showReactionDrawer}
                 onClose={() => setShowReactionDrawer(false)}
-                onReaction={(type) => {
-                    interactions.sendReaction(type);
+                onReaction={async (type) => {
+                    try {
+                        await interactions.sendReaction(type);
+                    } catch (err) {
+                        console.warn('Reaction failed:', err);
+                    }
+                    setShowReactionDrawer(false);
                 }}
             />
 
