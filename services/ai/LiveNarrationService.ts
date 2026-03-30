@@ -206,12 +206,21 @@ export class LiveNarrationService {
 
     this.ws.onerror = (event) => {
       console.error('Gemini Live WebSocket error:', event);
+      this.callbacks?.onError('Could not connect to Live Narrate. Check your connection and try again.');
+      this.callbacks?.onStatusChange('error');
     };
 
     this.ws.onclose = (event) => {
       const wasClean = event.code === 1000;
-      if (!wasClean && this.isRecording) {
-        this.handleDrop();
+      if (!wasClean) {
+        if (this.isSetupComplete) {
+          // Connection dropped mid-session — attempt reconnect
+          this.handleDrop();
+        } else {
+          // Closed before setup completed (auth failure, invalid key, server rejection)
+          this.callbacks?.onError('Connection failed during setup. Check your API key and try again.');
+          this.callbacks?.onStatusChange('error');
+        }
       }
     };
   }

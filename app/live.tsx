@@ -990,7 +990,7 @@ function LiveScreen() {
                                 disabled={liveNarration.phase !== 'idle'}
                                 activeOpacity={0.7}
                             >
-                                <Radio
+                                <Mic
                                     size={22}
                                     color={liveNarration.phase !== 'idle' ? '#ffffff' : LIVE_NARRATION_COLORS.streaming}
                                 />

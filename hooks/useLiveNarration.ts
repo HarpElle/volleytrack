@@ -102,17 +102,22 @@ export function useLiveNarration() {
       onMeteringUpdate: setMeteringLevel,
     };
 
-    await liveNarrationService.startSession(
-      {
-        roster: myTeamRoster || [],
-        servingTeam,
-        rallyState,
-        currentScore,
-        myTeamName,
-        currentRotation: currentRotation || [],
-      },
-      callbacks,
-    );
+    try {
+      await liveNarrationService.startSession(
+        {
+          roster: myTeamRoster || [],
+          servingTeam,
+          rallyState,
+          currentScore,
+          myTeamName,
+          currentRotation: currentRotation || [],
+        },
+        callbacks,
+      );
+    } catch (err: any) {
+      setError(err.message || 'Failed to start Live Narrate. Please try again.');
+      setPhase('error');
+    }
   }, []);
 
   // ── End Session (rally over, go to review) ─────────────────────────────────
