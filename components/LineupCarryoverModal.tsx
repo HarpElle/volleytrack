@@ -43,7 +43,7 @@ export default function LineupCarryoverModal({
     onKeep,
     onClear,
 }: LineupCarryoverModalProps) {
-    const { colors } = useAppTheme();
+    const { colors, radius } = useAppTheme();
 
     const getPlayerLabel = (playerId: string | null) => {
         if (!playerId) return '—';
@@ -58,8 +58,8 @@ export default function LineupCarryoverModal({
 
     return (
         <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-            <View style={styles.overlay}>
-                <View style={[styles.card, { backgroundColor: colors.bgCard }]}>
+            <View style={[styles.overlay, { backgroundColor: colors.bgOverlay }]}>
+                <View style={[styles.card, { backgroundColor: colors.bgCard, shadowColor: colors.shadow, borderRadius: radius.xl }]}>
                     <Text style={[styles.title, { color: colors.text }]}>
                         Set {setNumber} Lineup
                     </Text>
@@ -70,7 +70,7 @@ export default function LineupCarryoverModal({
 
                     {/* Mini lineup preview */}
                     {sorted.length > 0 && (
-                        <View style={[styles.previewContainer, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                        <View style={[styles.previewContainer, { backgroundColor: colors.bg, borderColor: colors.border, borderRadius: radius.md }]}>
                             {sorted.map(slot => (
                                 <View key={slot.position} style={styles.previewRow}>
                                     <Text style={[styles.posLabel, { color: colors.textTertiary }]}>
@@ -95,17 +95,17 @@ export default function LineupCarryoverModal({
 
                     <View style={styles.actions}>
                         <TouchableOpacity
-                            style={[styles.primaryBtn, { backgroundColor: colors.text }]}
+                            style={[styles.primaryBtn, { backgroundColor: colors.primary, borderRadius: radius.md }]}
                             onPress={onKeep}
                             activeOpacity={0.7}
                         >
-                            <Text style={[styles.primaryBtnText, { color: colors.bg }]}>
+                            <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>
                                 Use This Lineup
                             </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.secondaryBtn, { backgroundColor: colors.buttonSecondary }]}
+                            style={[styles.secondaryBtn, { backgroundColor: colors.buttonSecondary, borderRadius: radius.sm + 2 }]}
                             onPress={onClear}
                             activeOpacity={0.7}
                         >
@@ -123,15 +123,12 @@ export default function LineupCarryoverModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         padding: 24,
     },
     card: {
-        borderRadius: 24,
         padding: 24,
         alignItems: 'center',
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 12,
@@ -150,7 +147,6 @@ const styles = StyleSheet.create({
     },
     previewContainer: {
         width: '100%',
-        borderRadius: 12,
         borderWidth: 1,
         padding: 12,
         marginBottom: 12,
@@ -186,7 +182,6 @@ const styles = StyleSheet.create({
     },
     primaryBtn: {
         paddingVertical: 16,
-        borderRadius: 12,
         alignItems: 'center',
     },
     primaryBtnText: {
@@ -195,7 +190,6 @@ const styles = StyleSheet.create({
     },
     secondaryBtn: {
         paddingVertical: 14,
-        borderRadius: 10,
         alignItems: 'center',
     },
     secondaryBtnText: {
